@@ -40,7 +40,7 @@ const MobileNavWidget: React.FC = () => {
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className={cn("fixed bottom-0  left-8   -translate-x-1/2 z-[70] lg:hidden")}
+      className={cn("fixed bottom-0  inset-x-0 flex justify-center z-[70] lg:hidden")}
       role="navigation"
       aria-label="Mobile navigation"
     >

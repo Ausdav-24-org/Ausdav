@@ -10,10 +10,14 @@ interface Node {
 }
 
 interface NeuralNetworkSplashProps {
-  onComplete: () => void;
+  onComplete?: () => void;
+  stayVisible?: boolean;
 }
 
-const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({ onComplete }) => {
+const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
+  onComplete = () => {},
+  stayVisible = false,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
   const nodesRef = useRef<Node[]>([]);
@@ -22,17 +26,21 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({ onComplete })
 
   // Check if splash was already shown this session
   useEffect(() => {
-    const hasSeenSplash = sessionStorage.getItem('ausdav-splash-shown');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     setPrefersReducedMotion(reducedMotion);
 
+    if (stayVisible) {
+      onComplete();
+      return;
+    }
+
+    const hasSeenSplash = sessionStorage.getItem('ausdav-splash-shown');
     if (hasSeenSplash) {
       setIsVisible(false);
       onComplete();
       return;
     }
 
-    // Auto-complete after 2 seconds
     const timer = setTimeout(() => {
       setIsVisible(false);
       sessionStorage.setItem('ausdav-splash-shown', 'true');
@@ -40,7 +48,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({ onComplete })
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [onComplete]);
+  }, [onComplete, stayVisible]);
 
   // Initialize nodes
   const initNodes = useCallback((width: number, height: number) => {
