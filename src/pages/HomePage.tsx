@@ -27,6 +27,7 @@ import AnnouncementCarousel from "@/components/AnnouncementCarousel";
 import ReviewCarousel from "@/components/ReviewCarousel";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { renderCyanTail } from "@/utils/text";
 
 import { Tables } from "@/integrations/supabase/types";
 import heroBg from "@/assets/Home/BG1.jpg";
@@ -123,6 +124,9 @@ const HomePage: React.FC = () => {
   );
   const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
+  const [execPhotoUrls, setExecPhotoUrls] = useState<Map<number | string, string>>(
+    new Map()
+  );
 
   // Exec committee row auto-scroll refs
   const execRowRef = useRef<HTMLDivElement | null>(null);
@@ -260,6 +264,38 @@ const HomePage: React.FC = () => {
     staleTime: 1000 * 60 * 5,
   });
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadExecPhotos = async () => {
+      if (!execRows?.length) {
+        if (isActive) setExecPhotoUrls(new Map());
+        return;
+      }
+
+      const entries = await Promise.all(
+        execRows.map(async (row) => {
+          if (!row.profile_path) return [row.mem_id, ""] as const;
+          const bucket = row.profile_bucket || "member-profiles";
+          const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(row.profile_path, 60 * 60);
+          if (error || !data?.signedUrl) return [row.mem_id, ""] as const;
+          return [row.mem_id, data.signedUrl] as const;
+        })
+      );
+
+      if (!isActive) return;
+      setExecPhotoUrls(new Map(entries));
+    };
+
+    loadExecPhotos();
+
+    return () => {
+      isActive = false;
+    };
+  }, [execRows]);
+
   type ExecMember = {
     id: number | string;
     role: string;
@@ -289,8 +325,9 @@ const HomePage: React.FC = () => {
         if (r.uni_degree) workParts.push(r.uni_degree);
         if (r.university) workParts.push(r.university);
         const work = workParts.join(",");
-        let photo: string | null = null;
-        if (r.profile_path && r.profile_bucket) {
+        const signedUrl = execPhotoUrls.get(r.mem_id) || "";
+        let photo: string | null = signedUrl || null;
+        if (!photo && r.profile_path && r.profile_bucket) {
           const { data } = supabase.storage
             .from(r.profile_bucket)
             .getPublicUrl(r.profile_path);
@@ -329,7 +366,7 @@ const HomePage: React.FC = () => {
         photo: null,
       };
     });
-  }, [execRows, language]);
+  }, [execRows, execPhotoUrls, language]);
 
   // Auto-scroll for executive committee row: loop with snap and pause on hover/focus
   useEffect(() => {
@@ -546,7 +583,13 @@ const HomePage: React.FC = () => {
                 <span className="text-sm font-semibold uppercase tracking-wide">About Us</span>
               </div> */}
               <h2 className="text-4xl md:text-5xl font-bold text-white">
-                Who <span className="text-cyan-400">We Are</span>
+                {language === "en" ? (
+                  <>
+                    Who <span className="text-cyan-400">We Are</span>
+                  </>
+                ) : (
+                  renderCyanTail(t("home.who.title"))
+                )}
               </h2>
               <p className="text-slate-300 text-lg leading-relaxed">
                 {language === "en"
@@ -665,7 +708,7 @@ const HomePage: React.FC = () => {
                     Empowering <span className="text-cyan-400">Education</span>
                   </>
                 ) : (
-                  <span className="text-cyan-400">கல்வியை மேம்படுத்துதல்</span>
+                  renderCyanTail("கல்வியை மேம்படுத்துதல்")
                 )}
               </h2>
 
