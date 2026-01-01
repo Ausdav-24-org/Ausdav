@@ -59,13 +59,13 @@ const queryClient = new QueryClient();
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [appReady, setAppReady] = useState(false);
-  const devStayOnSplash = import.meta.env.DEV;
+  const devStayOnSplash = false;
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
 
-    if (devStayOnSplash) {
-      //if (false) {
+    // if (devStayOnSplash) {
+    if (false) {
       setAppReady(true);
       setShowSplash(true);
       return;

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import BG1 from "../assets/Home/BG1.jpg";
+import logo from "../assets/logo/AUSDAV_llogo.png";
 
 interface Bubble {
   x: number;
@@ -263,9 +264,9 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
           initial={{ opacity: 1 }}
           animate={{
             backgroundColor: [
-              "hsl(222 47% 6%)",
-              "hsl(228 48% 7%)",
-              "hsl(222 47% 6%)",
+              "hsl(222 47% 4%)",
+              "hsl(228 48% 5%)",
+              "hsl(222 47% 4%)",
             ],
           }}
           exit={{ opacity: 0 }}
@@ -283,6 +284,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
+            filter: "brightness(0.7)",
           }}
         >
           {/* Neural Network Canvas */}
@@ -380,8 +382,10 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
               transition={{ delay: 0.8, duration: 0.4 }}
               className="flex justify-center mt-8"
             >
-              <motion.span
-                className="text-4xl text-blue-600"
+              <motion.img
+                src={logo}
+                alt="AUSDAV Logo"
+                className="h-16 w-auto"
                 animate={{
                   x: prefersReducedMotion ? 0 : [-200, 200, -200],
                 }}
@@ -390,9 +394,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
                   repeat: Infinity,
                   ease: "easeInOut",
                 }}
-              >
-                — 🦆 —
-              </motion.span>
+              />
             </motion.div>
           </div>
 
