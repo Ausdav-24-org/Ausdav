@@ -40,6 +40,9 @@ const AnnouncementCarousel: React.FC<AnnouncementCarouselProps> = ({ announcemen
   return (
     <section className="py-6 relative">
       <div className="container mx-auto px-4">
+        <div className="mb-3 sm:mb-4">
+          <h2 className="text-sm sm:text-base font-semibold text-cyan-300 uppercase tracking-wide">Announcements</h2>
+        </div>
         <Carousel
           opts={{
             align: 'start',
@@ -60,21 +63,21 @@ const AnnouncementCarousel: React.FC<AnnouncementCarouselProps> = ({ announcemen
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.08 }}
                   >
-                    <Card className="overflow-hidden bg-card/60 border-border/60 shadow-lg h-full">
-                      <div className="h-40 w-full">
+                    <Card className="overflow-hidden bg-card/60 border-border/60 shadow-lg">
+                      <div className="h-20 sm:h-32 md:h-40 w-full">
                         <img
                           src={imageSrc}
                           alt={announcement.title ? `${announcement.title} announcement image` : 'Announcement image'}
-                          className="h-40 w-full object-cover"
+                          className="h-20 sm:h-32 md:h-40 w-full object-cover"
                           loading="lazy"
                         />
                       </div>
-                      <CardContent className="p-4 flex h-full flex-col gap-3">
+                      <CardContent className="p-3 sm:p-4 flex flex-col gap-2">
                         <h3 className="text-base font-semibold truncate" title={announcement.title}>
                           {announcement.title}
                         </h3>
                         <div className="h-px w-full bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
-                        <p className="text-sm text-muted-foreground line-clamp-3">
+                        <p className="text-sm text-muted-foreground line-clamp-2 sm:line-clamp-3">
                           {message}
                         </p>
                         {isLongMessage && (

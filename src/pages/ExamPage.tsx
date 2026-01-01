@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
-import emblemImg from "@/assets/Exam/AUSDAV logo.png";
+import emblemImg from "@/assets/Exam/AUSDAV_llogo.png";
 
 // ✅ NEW: images for the two newly added teaser cards
 // Change these paths to your actual image paths

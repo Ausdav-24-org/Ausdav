@@ -24,12 +24,7 @@ const navItems: NavItem[] = [
   { href: "/", icon: Home, labelEn: "Home", labelTa: "முகப்பு" },
   { href: "/about", icon: Info, labelEn: "About", labelTa: "எங்களை" },
   { href: "/exam", icon: FileText, labelEn: "Exam", labelTa: "தேர்வு" },
-  {
-    href: "/resources",
-    icon: BookOpen,
-    labelEn: "Resources",
-    labelTa: "வளங்கள்",
-  },
+  { href: "/resources", icon: BookOpen, labelEn: "Resources", labelTa: "வளங்கள்" },
   { href: "/events", icon: Calendar, labelEn: "Events", labelTa: "நிகழ்வுகள்" },
   { href: "/committee", icon: Users, labelEn: "Committee", labelTa: "குழு" },
 ];
@@ -45,11 +40,11 @@ const MobileNavWidget: React.FC = () => {
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 lg:hidden"
+      className={cn("fixed bottom-0  inset-x-0 flex justify-center z-[70] lg:hidden")}
       role="navigation"
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center gap-1 px-2 py-2 rounded-full glass-card border border-border/30 neon-glow">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-t-3xl rounded-b-none glass-card border border-border/30 neon-glow">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -62,7 +57,7 @@ const MobileNavWidget: React.FC = () => {
               aria-label={label}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all duration-300",
+                "relative flex bottom-1 flex-col items-center justify-center w-8 h-8 rounded-full transition-all duration-300",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 active
                   ? "text-primary"
@@ -73,7 +68,7 @@ const MobileNavWidget: React.FC = () => {
                 whileTap={{ scale: 0.9 }}
                 transition={{ duration: 0.1 }}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-4 h-4" />
               </motion.div>
 
               {active && (
@@ -89,7 +84,7 @@ const MobileNavWidget: React.FC = () => {
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={cn(
-                    "absolute -bottom-5 text-[10px] font-medium text-primary whitespace-nowrap",
+                    "absolute -bottom-4 text-[10px] font-medium text-primary whitespace-nowrap",
                     language === "ta" && "font-tamil"
                   )}
                 >
@@ -105,14 +100,14 @@ const MobileNavWidget: React.FC = () => {
           to="/donate"
           aria-label={language === "en" ? "Donate" : "நன்கொடை"}
           className={cn(
-            "relative flex items-center justify-center w-12 h-12 ml-1 rounded-full transition-all duration-300",
+            "relative flex items-center justify-center w-11 h-11 ml-2 rounded-full transition-all duration-300",
             "bg-primary text-primary-foreground neon-glow",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             "hover:scale-105 active:scale-95",
             isActive("/donate") && "ring-2 ring-primary-foreground/50"
           )}
         >
-          <Heart className="w-5 h-5" />
+          <Heart className="w-4 h-4" />
         </Link>
       </div>
     </motion.nav>

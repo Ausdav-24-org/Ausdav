@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
-import logoImg from '@/assets/logo/AUSDAV logo.png';
+import logoImg from '@/assets/logo/AUSDAV_llogo.png';
 import { cn } from '@/lib/utils';
 
 const PROFILE_IMG = "/ausdav/src/assets/Committee/2022/Ruthu.jpg";

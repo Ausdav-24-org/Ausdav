@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import logo from '@/assets/logo/AUSDAV logo.png';
+import logo from '@/assets/logo/AUSDAV_llogo.png';
 
 const Footer: React.FC = () => {
   const { t } = useLanguage();
@@ -23,7 +23,10 @@ const Footer: React.FC = () => {
   const quickLinks = [
     { href: '/', label: t('nav.home') },
     { href: '/about', label: t('nav.about') },
+    { href: '/exam', label: t('nav.exam') },
+    { href: '/resources', label: t('nav.resources') },
     { href: '/events', label: t('nav.events') },
+    { href: '/committee', label: t('nav.committee') },
     { href: '/donate', label: t('nav.donate') },
   ];
 
@@ -61,7 +64,7 @@ const Footer: React.FC = () => {
                  </Link>
               <div>
                 <h3 className="font-bold text-xl tracking-tight">AUSDAV</h3>
-                <p className="text-xs text-muted-foreground">Est. 2015</p>
+                <p className="text-xs text-muted-foreground">Est. 1993</p>
               </div>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -251,7 +254,7 @@ const Footer: React.FC = () => {
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          className="border-t border-border/20 mt-12 pt-8 text-center"
+          className="border-t border-border/20 mt-5 pt-5 text-center py-5 "
         >
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} AUSDAV. {t('footer.rights')}

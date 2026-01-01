@@ -195,15 +195,15 @@ const Section = ({
   return (
     <>
       <section
-        className={gradient ? "py-14 md:py-20" : "py-10"}
-        style={
-          gradient
-            ? {
-                background:
-                  "radial-gradient(900px 300px at 50% 0%, rgba(34,211,238,.18), transparent 60%), radial-gradient(900px 300px at 50% 100%, rgba(99,102,241,.16), transparent 65%)",
-              }
-            : undefined
-        }
+        className={gradient ? "py-14 md:py-10" : "py-10"}
+        // style={
+        //   gradient
+        //     ? {
+        //         background:
+        //           "radial-gradient(900px 300px at 50% 0%, rgba(34,211,238,.18), transparent 60%), radial-gradient(900px 300px at 50% 100%, rgba(99,102,241,.16), transparent 65%)",
+        //       }
+        //     : undefined
+        // }
       >
         <div className="container mx-auto px-4 text-center max-w-4xl">
           <motion.div
@@ -244,7 +244,7 @@ const Section = ({
         </div>
       </section>
 
-      <section className="py-12 md:py-16">
+      <section className="py-12 md:py-1" >
         <div className="container mx-auto px-4">
           <div className={cols}>
             {members.map((m, i) => (

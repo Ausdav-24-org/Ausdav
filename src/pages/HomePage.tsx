@@ -30,7 +30,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Tables } from "@/integrations/supabase/types";
 import heroBg from "@/assets/Home/BG1.jpg";
-import logoImg from "@/assets/Exam/AUSDAV logo.png";
+import logoImg from "@/assets/Exam/AUSDAV_llogo.png";
 import mountainImg from "@/assets/Home/removed.png";
 
 type AnnouncementRow = Tables<"announcements"> & {
@@ -343,7 +343,7 @@ const HomePage: React.FC = () => {
     el.scrollLeft = 0;
 
     let last = performance.now();
-    const speed = 40; // px per second
+    const speed = 200; // px per second (increased rollover speed)
 
     const step = (now: number) => {
       const dt = now - last;
@@ -465,9 +465,15 @@ const HomePage: React.FC = () => {
               <span className="text-lg md:text-xl lg:text-2xl block mb-2 text-cyan-400 italic">
                 {language === "en" ? "Welcome to" : "வரவேற்கிறோம்"}
               </span>
-              <span className="text-8xl md:text-9xl lg:text-10xl font-black">
-                <span className="text-white">AUS</span>
-                <span className="text-cyan-400">DAV</span>
+              <span className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black">
+                {language === "en" ? (
+                  <>
+                    <span className="text-white">AUS</span>
+                    <span className="text-cyan-400">DAV</span>
+                  </>
+                ) : (
+                  "AUSDAV"
+                )}
               </span>
             </motion.h1>
 
@@ -476,18 +482,18 @@ const HomePage: React.FC = () => {
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
-              className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-20"
+              className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-16"
             >
               {stats.map((stat, idx) => (
                 <motion.div
                   key={idx}
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  className="bg-cyan-500/20 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/40 hover:border-cyan-500/60 hover:bg-cyan-500/30 transition-all duration-300"
+                  whileHover={{ scale: 1.03, y: -4 }}
+                  className="bg-cyan-500/20 backdrop-blur-sm rounded-xl p-3 sm:p-4 md:p-6 border border-cyan-500/40 hover:border-cyan-500/60 hover:bg-cyan-500/30 transition-all duration-300"
                 >
-                  <div className="text-3xl md:text-4xl font-bold text-cyan-400 mb-1">
+                  <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-cyan-400 mb-1">
                     {stat.value}
                   </div>
-                  <div className="text-sm text-slate-300">
+                  <div className="text-xs sm:text-sm text-slate-300">
                     {language === "en" ? stat.label : stat.labelTA}
                   </div>
                 </motion.div>
@@ -586,29 +592,36 @@ const HomePage: React.FC = () => {
       {/* Quick Exam Actions */}
       <section className="py-12 md:py-16 bg-slate-900/20">
         <div className="container mx-auto px-4">
-          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link to="/exam#apply" className="group block rounded-2xl p-6 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition">
-              <div className="w-12 h-12 mb-4 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-cyan-400" />
+          <div className="max-w-6xl mx-auto grid grid-cols-3 gap-2 md:gap-4">
+            <Link to="/exam#apply" className="group block rounded-2xl p-3 md:p-4 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition w-full text-center md:text-left">
+              <div className="w-10 h-10 mb-3 mx-auto md:mx-0 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <GraduationCap className="w-5 h-5 text-cyan-400" />
               </div>
-              <h4 className="text-xl font-bold text-white">{language === 'en' ? 'Apply for Exam' : 'தேர்விற்கு விண்ணப்பிக்க'}</h4>
-              <p className="text-slate-300 mt-2 text-sm">{language === 'en' ? 'Register online for upcoming exams' : 'வரவிருக்கும் தேர்வுகளுக்கு ஆன்லைனில் பதிவு செய்யவும்'}</p>
+              <h4 className="text-lg font-bold text-white">
+                <span className="block md:hidden">{language === 'en' ? 'Exam' : 'தேர்வு'}</span>
+                <span className="hidden md:block">{language === 'en' ? 'Apply for Exam' : 'தேர்விற்கு விண்ணப்பிக்க'}</span>
+              </h4>
+              <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === 'en' ? 'Register online for upcoming exams' : 'வரவிருக்கும் தேர்வுகளுக்கு ஆன்லைனில் பதிவு செய்யவும்'}</p>
             </Link>
-
-            <Link to="/exam#results" className="group block rounded-2xl p-6 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition">
-              <div className="w-12 h-12 mb-4 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-cyan-400" />
+            <Link to="/exam#results" className="group block rounded-2xl p-3 md:p-4 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition w-full text-center md:text-left">
+              <div className="w-10 h-10 mb-3 mx-auto md:mx-0 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-cyan-400" />
               </div>
-              <h4 className="text-xl font-bold text-white">{language === 'en' ? 'View My Result' : 'என் மதிப்பெண்கள்'}</h4>
-              <p className="text-slate-300 mt-2 text-sm">{language === 'en' ? 'Check your scores and download certificates' : 'உங்கள் மதிப்பெண்களைப் பரிசீலிக்கவும் மற்றும் சான்றிதழ்களை பதிவிறக்கவும்'}</p>
+              <h4 className="text-lg font-bold text-white">
+                <span className="block md:hidden">{language === 'en' ? 'Results' : 'மதிப்பெண்கள்'}</span>
+                <span className="hidden md:block">{language === 'en' ? 'View My Result' : 'என் மதிப்பெண்கள்'}</span>
+              </h4>
+              <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === 'en' ? 'Check your scores and download certificates' : 'உங்கள் மதிப்பெண்களைப் பரிசீலிக்கவும் மற்றும் சான்றிதழ்களை பதிவிறக்கவும்'}</p>
             </Link>
-
-            <Link to="/resources" className="group block rounded-2xl p-6 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition">
-              <div className="w-12 h-12 mb-4 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-cyan-400" />
+            <Link to="/resources" className="group block rounded-2xl p-3 md:p-4 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition w-full text-center md:text-left">
+              <div className="w-10 h-10 mb-3 mx-auto md:mx-0 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-cyan-400" />
               </div>
-              <h4 className="text-xl font-bold text-white">{language === 'en' ? 'Exam Resources' : 'தேர்வு ஆதாரங்கள்'}</h4>
-              <p className="text-slate-300 mt-2 text-sm">{language === 'en' ? 'Past papers, study guides and sample questions' : 'முந்தைய पेக்குகள், படிப்பு வழிகாட்டிகள் மற்றும் மாதிரி கேள்விகள்'}</p>
+              <h4 className="text-lg font-bold text-white">
+                <span className="block md:hidden">{language === 'en' ? 'Resources' : 'ஆதாரங்கள்'}</span>
+                <span className="hidden md:block">{language === 'en' ? 'Exam Resources' : 'தேர்வு ஆதாரங்கள்'}</span>
+              </h4>
+              <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === 'en' ? 'Past papers, study guides and sample questions' : 'முந்தைய पेக்குகள், படிப்பு வழிகாட்டிகள் மற்றும் மாதிரி கேள்விகள்'}</p>
             </Link>
           </div>
         </div>
@@ -688,39 +701,39 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* About / Events / Donate Cards */}
-      <section className="py-16 md:py-24 bg-slate-800/30">
+      <section className="py-12 md:py-24 bg-slate-800/30">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          <div className="grid grid-cols-3 gap-3 md:gap-6 max-w-6xl mx-auto">
             {/* About Us Card (centered icon, title, description) */}
-            <Link to="/about" className="group block rounded-2xl p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
+            <Link to="/about" className="group block rounded-2xl p-4 md:p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
               <div className="flex flex-col items-center text-center gap-3">
-                <div className="w-14 h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
-                  <Users className="w-7 h-7 text-cyan-400" />
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
+                  <Users className="w-6 h-6 md:w-7 md:h-7 text-cyan-400" />
                 </div>
-                <h3 className="text-lg md:text-xl font-semibold text-white">{language === "en" ? "About Us" : "எங்களைப் பற்றி"}</h3>
-                <p className="text-sm text-slate-400 max-w-xs">{language === "en" ? "Learn more about our mission, vision, and the dedicated team behind AUSDAV." : "எங்கள் நோக்கம், பார்வை மற்றும் AUSDAV இன் பின்னால் உள்ள அர்ப்பணிப்பு குழுவைப் பற்றி மேலும் அறிக."}</p>
+                <h3 className="text-base md:text-xl font-semibold text-white">{language === "en" ? "About Us" : "எங்களைப் பற்றி"}</h3>
+                <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === "en" ? "Learn more about our mission, vision, and the dedicated team behind AUSDAV." : "எங்கள் நோக்கம், பார்வை மற்றும் AUSDAV இன் பின்னால் உள்ள அர்ப்பணிப்பு குழுவைப் பற்றி மேலும் அறிக."}</p>
               </div>
             </Link>
 
             {/* Events Card (centered) */}
-            <Link to="/events" className="group block rounded-2xl p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
+            <Link to="/events" className="group block rounded-2xl p-4 md:p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
               <div className="flex flex-col items-center text-center gap-3">
-                <div className="w-14 h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
-                  <Calendar className="w-7 h-7 text-cyan-400" />
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
+                  <Calendar className="w-6 h-6 md:w-7 md:h-7 text-cyan-400" />
                 </div>
-                <h3 className="text-lg md:text-xl font-semibold text-white">{language === "en" ? "Events" : "நிகழ்வுகள்"}</h3>
-                <p className="text-sm text-slate-400 max-w-xs">{language === "en" ? "Discover our upcoming events, seminars, and activities that empower students." : "மாணவர்களை வலுப்படுத்தும் எங்கள் வரவிருக்கும் நிகழ்வுகள், கருத்தரங்குகள் மற்றும் செயல்பாடுகளைக் கண்டறிக."}</p>
+                <h3 className="text-base md:text-xl font-semibold text-white">{language === "en" ? "Events" : "நிகழ்வுகள்"}</h3>
+                <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === "en" ? "Discover our upcoming events, seminars, and activities that empower students." : "மாணவர்களை வலுப்படுத்தும் எங்கள் வரவிருக்கும் நிகழ்வுகள், கருத்தரங்குகள் மற்றும் செயல்பாடுகளைக் கண்டறிக."}</p>
               </div>
             </Link>
 
             {/* Donate Card (centered) */}
-            <Link to="/donate" className="group block rounded-2xl p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
+            <Link to="/donate" className="group block rounded-2xl p-4 md:p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
               <div className="flex flex-col items-center text-center gap-3">
-                <div className="w-14 h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
-                  <Heart className="w-7 h-7 text-cyan-400" />
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
+                  <Heart className="w-6 h-6 md:w-7 md:h-7 text-cyan-400" />
                 </div>
-                <h3 className="text-lg md:text-xl font-semibold text-white">{language === "en" ? "Donate" : "தானம்"}</h3>
-                <p className="text-sm text-slate-400 max-w-xs">{language === "en" ? "Support our programs and help students reach their potential." : "எங்கள் திட்டங்களை ஆதரித்து மாணவர்களுக்கு உதவுங்கள்."}</p>
+                <h3 className="text-base md:text-xl font-semibold text-white">{language === "en" ? "Donate" : "தானம்"}</h3>
+                <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === "en" ? "Support our programs and help students reach their potential." : "எங்கள் திட்டங்களை ஆதரித்து மாணவர்களுக்கு உதவுங்கள்."}</p>
               </div>
             </Link>
           </div>

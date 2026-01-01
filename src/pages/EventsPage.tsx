@@ -159,7 +159,8 @@ const EventsPage: React.FC = () => {
   }, [events]);
 
   return (
-    <div>
+        //piri
+<!--     <div>
       {/* Hero */}
       <section className="py-16 md:py-24" style={{ backgroundImage: "var(--gradient-hero)" }}>
         <div className="container mx-auto px-4">
@@ -178,6 +179,63 @@ const EventsPage: React.FC = () => {
             </p>
           </motion.div>
         </div>
+      </section> -->
+
+ 
+        //main
+    <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      {/* Hero Section with Background Image */}
+      <section
+        className="relative min-h-screen bg-cover bg-center flex items-center justify-center"
+        style={{
+          backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.6)), url('${BG1}')`,
+          backgroundAttachment: "fixed",
+        }}
+      >
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center z-10 px-4"
+        >
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-cyan-400 text-sm font-semibold mb-4 uppercase tracking-widest"
+          >
+            ✦{" "}
+            {language === "en"
+              ? "Empowering Future Leaders Since 2015"
+              : "2015 முதல் ஆற்றல் சேர்ப்பு"}
+          </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
+          >
+            {language === "en" ? "Annual " : "வருடாந்த "}
+            <span className="text-cyan-400">
+              {language === "en" ? "Events" : "நிகழ்வுகள்"}
+            </span>
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto"
+          >
+            {language === "en"
+              ? "Discover our upcoming events and explore memories from past activities"
+              : "எங்கள் வரவிருக்கும் நிகழ்வுகளைக் கண்டறியுங்கள் மற்றும் கடந்த செயல்பாடுகளின் நினைவுகளை ஆராயுங்கள்"}
+          </motion.p>
+        </motion.div>
       </section>
 
       {/* Annual Events Timeline */}
