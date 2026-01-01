@@ -773,7 +773,7 @@ const CommitteePage: React.FC = () => {
       <div className="flex items-center justify-center gap-2 pb-14">
         {pages.map((p, i) => (
           <YearBtn key={p.year} active={i === idx} onClick={() => setIdx(i)}>
-            {p.year}
+            {p.year + 3}
           </YearBtn>
         ))}
         <NextBtn
