@@ -204,6 +204,21 @@ const Navbar: React.FC = () => {
               </Link>
             </Button>
 
+            {/* Mobile-only Donate (icon-only, like floating widget) */}
+            <Link
+              to="/donate"
+              aria-label={language === "en" ? "Donate" : "நன்கொடை"}
+              className={cn(
+                "relative flex items-center justify-center w-9 h-9 rounded-full sm:hidden",
+                "bg-primary text-primary-foreground neon-glow",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                "hover:scale-105 active:scale-95",
+                isActive("/donate") && "ring-2 ring-primary-foreground/50"
+              )}
+            >
+              <Heart className="w-4 h-4" />
+            </Link>
+
             {/* Theme Toggle */}
             {/* <Button
               variant="ghost"
