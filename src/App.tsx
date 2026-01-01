@@ -59,17 +59,31 @@ const queryClient = new QueryClient();
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [appReady, setAppReady] = useState(false);
+  const devStayOnSplash = import.meta.env.DEV;
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
+
+    // if (devStayOnSplash) {
+    if (false) {
+      setAppReady(true);
+      setShowSplash(true);
+      return;
+    }
+
     const hasSeenSplash = sessionStorage.getItem("ausdav-splash-shown");
     if (hasSeenSplash) {
       setShowSplash(false);
       setAppReady(true);
     }
-  }, []);
+  }, [devStayOnSplash]);
 
-  const handleSplashComplete = () => setAppReady(true);
+  const handleSplashComplete = () => {
+    setAppReady(true);
+    if (!devStayOnSplash) {
+      setShowSplash(false);
+    }
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -80,28 +94,113 @@ const App = () => {
             <Sonner />
 
             {showSplash && (
-              <NeuralNetworkSplash onComplete={handleSplashComplete} />
+              <NeuralNetworkSplash
+                onComplete={handleSplashComplete}
+                stayVisible={devStayOnSplash}
+              />
             )}
 
             {appReady && (
               <BrowserRouter basename={import.meta.env.BASE_URL}>
                 <Routes>
                   {/* Public routes with Layout */}
-                  <Route path="/" element={<Layout><HomePage /></Layout>} />
-                  <Route path="/" element={<Layout><HomePage /></Layout>} />
-                  <Route path="/about" element={<Layout><AboutPage /></Layout>} />
-                  <Route path="/under-construction" element={<Layout><UnderConstructionPage /></Layout>} />
-                  <Route path="/committee" element={<Layout><CommitteePage /></Layout>} />
-                  <Route path="/exam" element={<Layout><ExamPage /></Layout>} />
-                  <Route path="/resources" element={<Layout><ResourcesPage /></Layout>} />
-                  <Route path="/events" element={<Layout><EventsPage /></Layout>} />
-                  <Route path="/events/:id" element={<Layout><EventDetailsPage /></Layout>} />
-                  <Route path="/donate" element={<Layout><DonatePage /></Layout>} />
-                  <Route path="/login" element={<Layout><LoginPage /></Layout>} />
-                  <Route path="/signup" element={<Layout><SignupPortalPage /></Layout>} />
+                  <Route
+                    path="/splash"
+                    element={
+                      <Layout>
+                        <NeuralNetworkSplash stayVisible onComplete={handleSplashComplete} />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/"
+                    element={
+                      <Layout>
+                        <HomePage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/about"
+                    element={
+                      <Layout>
+                        <AboutPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/under-construction"
+                    element={
+                      <Layout>
+                        <UnderConstructionPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/committee"
+                    element={
+                      <Layout>
+                        <CommitteePage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/exam"
+                    element={
+                      <Layout>
+                        <ExamPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/resources"
+                    element={
+                      <Layout>
+                        <ResourcesPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/events"
+                    element={
+                      <Layout>
+                        <EventsPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/events/:id"
+                    element={
+                      <Layout>
+                        <EventDetailsPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/donate"
+                    element={
+                      <Layout>
+                        <DonatePage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/login"
+                    element={
+                      <Layout>
+                        <LoginPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/signup"
+                    element={
+                      <Layout>
+                        <SignupPortalPage />
+                      </Layout>
+                    }
+                  />
                   <Route path="/register" element={<Navigate to="/signup" replace />} />
-
-                  {/* ✅ Recommended clean profile route */}
 
                   <Route
                     path="/profile"
@@ -111,19 +210,12 @@ const App = () => {
                       </Layout>
                     }
                   />
-                  {/* Feedback form moved to footer; no dedicated page */}
-
-                  {/* ✅ Backward-compat: old (file-like) path redirects to /profile */}
                   <Route
                     path="/ausdav/src/pages/ProfilePage.tsx"
                     element={<Navigate to="/profile" replace />}
                   />
 
-                  {/* Admin login redirects to unified login */}
-                  <Route
-                    path="/admin/login"
-                    element={<Navigate to="/login" replace />}
-                  />
+                  <Route path="/admin/login" element={<Navigate to="/login" replace />} />
                   <Route
                     path="/admin"
                     element={
@@ -134,61 +226,30 @@ const App = () => {
                   >
                     <Route index element={<AdminDashboardPage />} />
                     <Route path="dashboard" element={<AdminDashboardPage />} />
-                    <Route
-                      path="profile-setup"
-                      element={<ProfileSetupPage />}
-                    />
+                    <Route path="profile-setup" element={<ProfileSetupPage />} />
                     <Route path="profile" element={<AdminProfilePage />} />
                     <Route path="members" element={<AdminMembersPage />} />
-                    <Route
-                      path="applicants"
-                      element={<AdminApplicantsPage />}
-                    />
+                    <Route path="applicants" element={<AdminApplicantsPage />} />
                     <Route path="patrons" element={<AdminPatronsPage />} />
-
-                    {/* ✅ ADDED: Results page route */}
                     <Route path="results" element={<AdminResultsPage />} />
-                    <Route
-                      path="designations"
-                      element={<AdminDesignationsPage />}
-                    />
+                    <Route path="designations" element={<AdminDesignationsPage />} />
                     <Route path="site-mode" element={<AdminSiteModePage />} />
-
                     <Route path="events" element={<AdminEventsPage />} />
                     <Route path="exam" element={<AdminExamPage />} />
                     <Route path="seminar" element={<AdminSeminarPage />} />
                     <Route path="past-paper" element={<AdminPastPaperPage />} />
-                    <Route
-                      path="announcements"
-                      element={<AdminAnnouncementsPage />}
-                    />
+                    <Route path="announcements" element={<AdminAnnouncementsPage />} />
                     <Route path="feedback" element={<AdminFeedbackPage />} />
-                    <Route
-                      path="claim-permission"
-                      element={<ClaimPermissionPage />}
-                    />
-                    <Route
-                      path="permissions"
-                      element={<AdminPermissionsPage />}
-                    />
+                    <Route path="claim-permission" element={<ClaimPermissionPage />} />
+                    <Route path="permissions" element={<AdminPermissionsPage />} />
                     <Route path="contact" element={<ContactSettingsPage />} />
                     <Route path="audit" element={<AdminAuditPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
-                    <Route
-                      path="finance/submit"
-                      element={<FinanceSubmitPage />}
-                    />
-                    <Route
-                      path="finance/verify"
-                      element={<FinanceVerifyPage />}
-                    />
-                    <Route
-                      path="finance/ledger"
-                      element={<FinanceLedgerPage />}
-                    />
+                    <Route path="finance/submit" element={<FinanceSubmitPage />} />
+                    <Route path="finance/verify" element={<FinanceVerifyPage />} />
+                    <Route path="finance/ledger" element={<FinanceLedgerPage />} />
                   </Route>
 
-                  {/* 404 */}
                   <Route
                     path="*"
                     element={
