@@ -212,8 +212,8 @@ const ResourcesPage: React.FC = () => {
           >
             ✦{" "}
             {language === "en"
-              ? "Empowering Future Leaders Since 2015"
-              : "2015 முதல் ஆற்றல் சேர்ப்பு"}
+              ? "Empowering Future Leaders Since 2021"
+              : "2021 முதல் ஆற்றல் சேர்ப்பு"}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, scale: 0.9 }}
@@ -237,7 +237,7 @@ const ResourcesPage: React.FC = () => {
           >
             {language === "en"
               ? "Download seminar papers, answers, and past papers to enhance your learning"
-              : "உங்கள் கல்வியை மேம்படுத்துவதற்கு செமினார் தாள்கள், பதில்கள் மற்றும் கடந்த கால வினாத்தாள்களை பதிவிறக்கவும்"}
+              : "உங்கள் கல்வியை மேம்படுத்துவதற்கு கருத்தரங்கு் தாள்கள், பதில்கள் மற்றும் கடந்த கால வினாத்தாள்களை பதிவிறக்கவும்"}
           </motion.p>
           <motion.div
             initial={{ opacity: 0 }}
@@ -251,7 +251,7 @@ const ResourcesPage: React.FC = () => {
               }
               className="bg-cyan-500 hover:bg-cyan-600 hover:shadow-cyan-500 hover:shadow-lg text-white transition-all duration-300"
             >
-              {language === "en" ? "Seminar" : "செமினார்"}
+              {language === "en" ? "Seminar" : "கருத்தரங்கு"}
             </Button>
             <Button
               onClick={() =>
@@ -348,7 +348,7 @@ const ResourcesPage: React.FC = () => {
                                     {paper.subject ||
                                       (language === "en"
                                         ? "Past Paper"
-                                        : "…r…rY…r\"…_?…r …r…r_…rý …ræ…r¨…rc…r_…r…_?…r…r_…r3…_?")}
+                                        : "கடந்த கால வினாக்கள்")}
                                   </h3>
                                   <p className="text-sm text-muted-foreground">
                                     {new Date(
@@ -378,7 +378,7 @@ const ResourcesPage: React.FC = () => {
                                   <Download className="w-4 h-4" />
                                   {language === "en"
                                     ? "Paper"
-                                    : "…r…r_…r3…_?"}
+                                    : "வினாத்தாள்"}
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -392,7 +392,7 @@ const ResourcesPage: React.FC = () => {
                                   <Download className="w-4 h-4" />
                                   {language === "en"
                                     ? "Scheme"
-                                    : "…r…r¨…rY…_?…rY…rr…_?"}
+                                    : "பதில்கள்"}
                                 </Button>
                               </div>
                             </motion.div>
@@ -422,7 +422,7 @@ const ResourcesPage: React.FC = () => {
                 Seminar <span className="text-cyan-400">Resources</span>
               </>
             ) : (
-              "செமினார் வளங்கள்"
+              "கருத்தரங்கு வளங்கள்"
             )}
           </motion.h2>
 
@@ -432,7 +432,7 @@ const ResourcesPage: React.FC = () => {
                 <div className="text-muted-foreground">
                   {language === "en"
                     ? "Loading seminars..."
-                    : "செமினார்களை ஏற்றுகிறது..."}
+                    : "கருத்தரங்கு ஏற்றுகிறது..."}
                 </div>
               </div>
             ) : seminars.length === 0 ? (
@@ -440,7 +440,7 @@ const ResourcesPage: React.FC = () => {
                 <div className="text-muted-foreground">
                   {language === "en"
                     ? "No seminars available"
-                    : "செமினார்கள் கிடைக்கவில்லை"}
+                    : "கருத்தரங்கு கிடைக்கவில்லை"}
                 </div>
               </div>
             ) : (
@@ -489,8 +489,8 @@ const ResourcesPage: React.FC = () => {
                                 <div>
                                   <h3 className="text-xl font-semibold text-foreground">
                                     {language === "en"
-                                      ? `Seminar ${seminar.yrs}`
-                                      : `${seminar.yrs} …rs…_+…rr…r¨…rc…r_…rø…_?`}
+                                      ? `Seminar Tutes`
+                                      : `Seminar Tutes`}
                                   </h3>
                                   <p className="text-sm text-muted-foreground">
                                     {new Date(
@@ -520,7 +520,7 @@ const ResourcesPage: React.FC = () => {
                                   <Download className="w-4 h-4" />
                                   {language === "en"
                                     ? "Paper"
-                                    : "…r…r_…r3…_?"}
+                                    : "வினாத்தாள்"}
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -534,7 +534,7 @@ const ResourcesPage: React.FC = () => {
                                   <Download className="w-4 h-4" />
                                   {language === "en"
                                     ? "Answers"
-                                    : "…r¦…r…r¨…rý…_?…r…r3…_?"}
+                                    : "பதில்கள்"}
                                 </Button>
                               </div>
                             </motion.div>

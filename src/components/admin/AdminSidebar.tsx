@@ -53,8 +53,7 @@ const navItems: NavItem[] = [
   { title: 'Designations', href: '/admin/designations', icon: User, roles: ['super_admin'] },
 
   { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['admin', 'super_admin'], permissionKey: 'events' },
-  { title: 'Exam', href: '/admin/exam', icon: GraduationCap, roles: ['admin', 'super_admin'], permissionKey: 'exam' },
-  { title: 'Resources', href: '/admin/seminar', icon: BookOpen, roles: ['admin', 'super_admin'], permissionKey: 'seminar' },
+  { title: 'Seminar', href: '/admin/seminar', icon: BookOpen, roles: ['admin', 'super_admin'], permissionKey: 'seminar' },
   { title: 'Past Papers', href: '/admin/past-paper', icon: FileText, roles: ['admin', 'super_admin'], permissionKey: 'seminar' },
 
   { title: 'Submit Finance', href: '/admin/finance/submit', icon: Receipt, roles: ['member'] },

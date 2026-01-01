@@ -653,7 +653,13 @@ const HomePage: React.FC = () => {
               className="space-y-6"
             >
               <h2 className="text-4xl md:text-5xl font-bold text-white">
-                Empowering <span className="text-cyan-400">Education</span>
+                {language === "en" ? (
+                  <>
+                    Empowering <span className="text-cyan-400">Education</span>
+                  </>
+                ) : (
+                  <span className="text-cyan-400">கல்வியை மேம்படுத்துதல்</span>
+                )}
               </h2>
 
               <div className="space-y-4 text-slate-300 text-lg leading-relaxed">
@@ -662,11 +668,15 @@ const HomePage: React.FC = () => {
                 </p> */}
 
                 <p>
-                  Kalvikaram is our grassroots upliftment initiative designed for underprivileged and under-resourced schools across the Northern Province, created in response to teacher shortages.
+                  {language === "en"
+                    ? "Kalvikaram is our grassroots upliftment initiative designed for underprivileged and under-resourced schools across the Northern Province, created in response to teacher shortages."
+                    : "கல்விகாரம் என்பது வடக்கு மாகாணம் முழுவதும் உள்ள பின்தங்கிய மற்றும் வளங்கள் குறைவாக உள்ள பள்ளிகளுக்காக வடிவமைக்கப்பட்ட எங்கள் அடிமட்ட மேம்பாட்டு முயற்சியாகும், இது ஆசிரியர் பற்றாக்குறையை நிவர்த்தி செய்யும் வகையில் உருவாக்கப்பட்டது."}
                 </p>
 
                 <p>
-                  Through Kalvikaram, volunteer educators deliver subject-focused learning support for both G.C.E (O/L) and G.C.E (A/L) students, strengthening understanding, improving exam readiness, and building a lasting motivation for learning—ensuring no student is held back due to limited institutional resources.
+                  {language === "en"
+                    ? "Through Kalvikaram, volunteer educators deliver subject-focused learning support for both G.C.E (O/L) and G.C.E (A/L) students, strengthening understanding, improving exam readiness, and building a lasting motivation for learning?ensuring no student is held back due to limited institutional resources."
+                    : "கல்விகாரம் மூலம், தன்னார்வ கல்வியாளர்கள் க.பொ.த (சா/த) மற்றும் க.பொ.த (உ/த) மாணவர்களுக்கு பாடம் சார்ந்த கற்றல் ஆதரவை வழங்குகிறார்கள், புரிதலை வலுப்படுத்துகிறார்கள், தேர்வுக்குத் தயாராக இருப்பதை மேம்படுத்துகிறார்கள், மேலும் கற்றலுக்கான நீடித்த உந்துதலை உருவாக்குகிறார்கள் - வரையறுக்கப்பட்ட நிறுவன வளங்கள் காரணமாக எந்த மாணவரும் பின்தங்கியிருக்க மாட்டார்கள் என்பதை உறுதி செய்கிறார்கள்."}
                 </p>
               </div>
 

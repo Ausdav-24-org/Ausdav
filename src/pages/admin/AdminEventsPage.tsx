@@ -350,6 +350,19 @@ const AdminEventsPage: React.FC = () => {
   });
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
+      const { data: eventData, error: fetchError } = await supabaseDb
+        .from('events')
+        .select('image_bucket,image_path')
+        .eq('id', id)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+
+      await deleteEventGalleryAssets(id);
+
+      if (eventData?.image_path) {
+        await deleteEventImage(eventData.image_bucket || 'events', eventData.image_path);
+      }
+
       const { error } = await supabase
         .from('events')
         .delete()
@@ -467,6 +480,77 @@ const AdminEventsPage: React.FC = () => {
     return { bucket, path };
   };
 
+  const deleteEventImage = async (bucket: string, path: string) => {
+    const { error } = await supabase.storage.from(bucket).remove([path]);
+    if (error) {
+      console.warn('Failed to delete old event image:', error);
+      toast.error('Failed to delete old event image from storage');
+    }
+  };
+
+  const deleteEventGalleryAssets = async (eventId: number) => {
+    const { data: galleriesForEvent, error: galleriesError } = await supabaseDb
+      .from('galleries')
+      .select('id')
+      .eq('event_id', eventId);
+
+    if (galleriesError) {
+      console.warn('Failed to fetch galleries for event:', galleriesError);
+      toast.error('Failed to delete event galleries');
+      return;
+    }
+
+    const galleries = galleriesForEvent || [];
+    if (galleries.length === 0) return;
+
+    for (const gallery of galleries) {
+      const { data: galleryImages, error: imagesError } = await supabaseDb
+        .from('gallery_images')
+        .select('file_path')
+        .eq('gallery_id', gallery.id);
+
+      if (imagesError) {
+        console.warn('Failed to fetch gallery images:', imagesError);
+        toast.error('Failed to delete gallery images');
+      } else {
+        const filePaths = (galleryImages || []).map((img) => img.file_path);
+        if (filePaths.length > 0) {
+          for (let i = 0; i < filePaths.length; i += 100) {
+            const chunk = filePaths.slice(i, i + 100);
+            const { error: storageError } = await supabase.storage
+              .from('event-gallery')
+              .remove(chunk);
+
+            if (storageError) {
+              console.warn('Failed to delete gallery images from storage:', storageError);
+              toast.error('Failed to delete gallery images from storage');
+            }
+          }
+        }
+      }
+
+      const { error: deleteImagesError } = await supabaseDb
+        .from('gallery_images')
+        .delete()
+        .eq('gallery_id', gallery.id);
+
+      if (deleteImagesError) {
+        console.warn('Failed to delete gallery images from database:', deleteImagesError);
+        toast.error('Failed to delete gallery images from database');
+      }
+
+      const { error: deleteGalleryError } = await supabaseDb
+        .from('galleries')
+        .delete()
+        .eq('id', gallery.id);
+
+      if (deleteGalleryError) {
+        console.warn('Failed to delete gallery:', deleteGalleryError);
+        toast.error('Failed to delete gallery');
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting || isSaving) return; // guard against double submits
@@ -495,7 +579,16 @@ const AdminEventsPage: React.FC = () => {
       };
 
       if (editingEvent) {
+        const oldImageBucket = editingEvent.image_bucket || 'events';
+        const oldImagePath = editingEvent.image_path;
         await updateMutation.mutateAsync({ id: editingEvent.id, data: payload });
+        if (
+          imageFile &&
+          oldImagePath &&
+          (oldImageBucket !== image_bucket || oldImagePath !== image_path)
+        ) {
+          await deleteEventImage(oldImageBucket, oldImagePath);
+        }
       } else {
         await createMutation.mutateAsync(payload);
       }

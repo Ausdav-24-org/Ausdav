@@ -197,6 +197,7 @@ export default function AdminProfilePage() {
     if (!profile) return;
     setUploading(true);
     try {
+      const oldProfilePath = profile.profile_path;
       const ext = file.name.split('.').pop() || 'jpg';
       const path = `${profile.auth_user_id || profile.mem_id}/avatar-${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
@@ -213,6 +214,14 @@ export default function AdminProfilePage() {
       if (updateError) throw updateError;
 
       await refreshProfile();
+      if (oldProfilePath && oldProfilePath !== path) {
+        const { error: deleteError } = await supabase.storage
+          .from('member-profiles')
+          .remove([oldProfilePath]);
+        if (deleteError) {
+          console.warn('Failed to delete old profile image:', deleteError);
+        }
+      }
       toast.success('Profile picture updated');
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload image');
