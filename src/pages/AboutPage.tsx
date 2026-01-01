@@ -1,5 +1,5 @@
-import React from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Target,
   Eye,
@@ -7,6 +7,7 @@ import {
   Users,
   Award,
   Lightbulb,
+  ChevronDown,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
@@ -16,6 +17,12 @@ import WhatWeDo from "@/assets/AboutUs/what we do.jpg";
 
 const AboutPage: React.FC = () => {
   const { t, language } = useLanguage();
+  const missionTitle = language === "en" ? "Our Mission" : "எங்கள் தூர நோக்கு";
+  const [openCard, setOpenCard] = useState<string | null>(missionTitle);
+
+  useEffect(() => {
+    setOpenCard(missionTitle);
+  }, [missionTitle]);
 
   const missionVisionValues = [
     {
@@ -74,13 +81,12 @@ const AboutPage: React.FC = () => {
   ];
 
   return (
-    <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+    <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 overflow-x-hidden">
       {/* Hero Section with Background Image */}
       <section
-        className="relative min-h-screen bg-cover bg-center flex items-center justify-center"
+        className="relative min-h-screen bg-cover bg-center md:bg-fixed flex items-center justify-center"
         style={{
           backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.6)), url('${BG1}')`,
-          backgroundAttachment: "fixed",
         }}
       >
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -102,8 +108,8 @@ const AboutPage: React.FC = () => {
           >
             ✦{" "}
             {language === "en"
-              ? "Empowering Future Leaders Since 2015"
-              : "2015 முதல் எதிர்காலத் தலைவர்களை உருவாக்குகிறோம்"}
+              ? "Empowering Future Leaders Since 1993"
+              : "1993 முதல் எதிர்காலத் தலைவர்களை உருவாக்குகிறோம்"}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, scale: 0.9 }}
@@ -129,8 +135,57 @@ const AboutPage: React.FC = () => {
 
       {/* Mission, Vision, Values Cards */}
       <section className="relative py-20 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Mobile accordion cards */}
+          <div className="md:hidden space-y-4">
+            {missionVisionValues.map((item, idx) => {
+              const isOpen = openCard === item.title;
+              return (
+                <motion.div
+                  key={item.title}
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="rounded-2xl border border-cyan-500/30 bg-slate-800/70 backdrop-blur-sm shadow-lg"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenCard(isOpen ? null : item.title)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 ${item.color} rounded-lg flex items-center justify-center`}>
+                        <item.icon className={`w-5 h-5 ${item.icon_color}`} />
+                      </div>
+                      <span className="text-base font-semibold text-white">{item.title}</span>
+                    </div>
+                    <ChevronDown
+                      className={`w-5 h-5 text-cyan-300 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.div
+                        key="content"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="px-4 pb-4 text-slate-300 text-sm leading-relaxed"
+                      >
+                        {item.content}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Desktop/grid view */}
+          <div className="hidden md:grid md:grid-cols-3 gap-8">
             {missionVisionValues.map((item, idx) => (
               <motion.div
                 key={idx}
@@ -139,7 +194,7 @@ const AboutPage: React.FC = () => {
                 whileHover={{ scale: 1.05, y: -10 }}
                 viewport={{ once: true }}
                 transition={{ delay: idx * 0.1 }}
-                className={`${item.color} backdrop-blur-sm rounded-2xl p-8 border border-cyan-500/40 hover:border-cyan-500/60 hover:bg-cyan-500/30 transition-all duration-300 cursor-pointer`}
+                className={`${item.color} backdrop-blur-sm rounded-2xl p-8 border border-cyan-500/40 hover:border-cyan-500/60 hover:bg-cyan-500/30 transition-all duration-300`}
               >
                 <div
                   className={`w-12 h-12 ${item.color} rounded-lg flex items-center justify-center mb-6`}
@@ -211,9 +266,25 @@ const AboutPage: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-2 gap-12 items-start">
             <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="relative order-1 md:order-2"
+            >
+              <div className="h-[300px] md:h-[500px] rounded-xl overflow-hidden border border-cyan-500/20">
+                <img
+                  src={WhatWeDo}
+                  alt="What We Do"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </motion.div>
+
+            <motion.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
+              className="order-2 md:order-1"
             >
               <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
                 What We <span className="text-cyan-400">Do</span>
@@ -236,21 +307,6 @@ const AboutPage: React.FC = () => {
                   ? "We also engage in community service initiatives, collaborating with local organizations to address pressing social issues and create lasting positive change in the communities we serve."
                   : "சமூக சேவை முயற்சிகளிலும் நாங்கள் ஈடுபடுகிறோம், உள்ளூர் அமைப்புகளுடன் இணைந்து அழுத்தும் சமூகப் பிரச்சினைகளைத் தீர்க்கவும், நாங்கள் சேவை செய்யும் சமூகங்களில் நீடித்த நேர்மறையான மாற்றத்தை உருவாக்கவும் செய்கிறோம்."}
               </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="relative"
-            >
-              <div className="h-[500px] rounded-xl overflow-hidden border border-cyan-500/20">
-                <img
-                  src={WhatWeDo}
-                  alt="What We Do"
-                  className="w-full h-full object-cover"
-                />
-              </div>
             </motion.div>
           </div>
         </div>
