@@ -64,8 +64,8 @@ const App = () => {
   useEffect(() => {
     document.documentElement.classList.add("dark");
 
-    // if (devStayOnSplash) {
-    if (false) {
+    if (devStayOnSplash) {
+      //if (false) {
       setAppReady(true);
       setShowSplash(true);
       return;
@@ -108,7 +108,10 @@ const App = () => {
                     path="/splash"
                     element={
                       <Layout>
-                        <NeuralNetworkSplash stayVisible onComplete={handleSplashComplete} />
+                        <NeuralNetworkSplash
+                          stayVisible
+                          onComplete={handleSplashComplete}
+                        />
                       </Layout>
                     }
                   />
@@ -200,7 +203,10 @@ const App = () => {
                       </Layout>
                     }
                   />
-                  <Route path="/register" element={<Navigate to="/signup" replace />} />
+                  <Route
+                    path="/register"
+                    element={<Navigate to="/signup" replace />}
+                  />
 
                   <Route
                     path="/profile"
@@ -215,7 +221,10 @@ const App = () => {
                     element={<Navigate to="/profile" replace />}
                   />
 
-                  <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+                  <Route
+                    path="/admin/login"
+                    element={<Navigate to="/login" replace />}
+                  />
                   <Route
                     path="/admin"
                     element={
@@ -226,28 +235,55 @@ const App = () => {
                   >
                     <Route index element={<AdminDashboardPage />} />
                     <Route path="dashboard" element={<AdminDashboardPage />} />
-                    <Route path="profile-setup" element={<ProfileSetupPage />} />
+                    <Route
+                      path="profile-setup"
+                      element={<ProfileSetupPage />}
+                    />
                     <Route path="profile" element={<AdminProfilePage />} />
                     <Route path="members" element={<AdminMembersPage />} />
-                    <Route path="applicants" element={<AdminApplicantsPage />} />
+                    <Route
+                      path="applicants"
+                      element={<AdminApplicantsPage />}
+                    />
                     <Route path="patrons" element={<AdminPatronsPage />} />
                     <Route path="results" element={<AdminResultsPage />} />
-                    <Route path="designations" element={<AdminDesignationsPage />} />
+                    <Route
+                      path="designations"
+                      element={<AdminDesignationsPage />}
+                    />
                     <Route path="site-mode" element={<AdminSiteModePage />} />
                     <Route path="events" element={<AdminEventsPage />} />
                     <Route path="exam" element={<AdminExamPage />} />
                     <Route path="seminar" element={<AdminSeminarPage />} />
                     <Route path="past-paper" element={<AdminPastPaperPage />} />
-                    <Route path="announcements" element={<AdminAnnouncementsPage />} />
+                    <Route
+                      path="announcements"
+                      element={<AdminAnnouncementsPage />}
+                    />
                     <Route path="feedback" element={<AdminFeedbackPage />} />
-                    <Route path="claim-permission" element={<ClaimPermissionPage />} />
-                    <Route path="permissions" element={<AdminPermissionsPage />} />
+                    <Route
+                      path="claim-permission"
+                      element={<ClaimPermissionPage />}
+                    />
+                    <Route
+                      path="permissions"
+                      element={<AdminPermissionsPage />}
+                    />
                     <Route path="contact" element={<ContactSettingsPage />} />
                     <Route path="audit" element={<AdminAuditPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
-                    <Route path="finance/submit" element={<FinanceSubmitPage />} />
-                    <Route path="finance/verify" element={<FinanceVerifyPage />} />
-                    <Route path="finance/ledger" element={<FinanceLedgerPage />} />
+                    <Route
+                      path="finance/submit"
+                      element={<FinanceSubmitPage />}
+                    />
+                    <Route
+                      path="finance/verify"
+                      element={<FinanceVerifyPage />}
+                    />
+                    <Route
+                      path="finance/ledger"
+                      element={<FinanceLedgerPage />}
+                    />
                   </Route>
 
                   <Route
