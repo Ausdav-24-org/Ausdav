@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kavivanar&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -212,7 +212,7 @@
   
   /* Tamil Typography */
   .font-tamil {
-    font-family: 'Noto Sans Tamil', 'Outfit', sans-serif;
+    font-family: 'Kavivanar', 'Outfit', sans-serif;
   }
 }
 
@@ -327,4 +327,7 @@
 .delay-300 { animation-delay: 300ms; }
 .delay-400 { animation-delay: 400ms; }
 .delay-500 { animation-delay: 500ms; }
+
+
+
 

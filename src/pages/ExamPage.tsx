@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ClipboardList, Award, ImageDown, Check, X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
+import { renderCyanTail } from "@/utils/text";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -824,7 +825,7 @@ const ExamPage: React.FC = () => {
                 Examination <span className="text-cyan-400">Services</span>
               </>
             ) : (
-              t("exam.title")
+              renderCyanTail(t("exam.title"))
             )}
           </motion.h1>
           <motion.p

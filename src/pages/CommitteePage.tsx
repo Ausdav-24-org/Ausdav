@@ -1,4 +1,4 @@
-import React, { useMemo, useState, ReactNode } from "react";
+import React, { useEffect, useMemo, useState, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
@@ -6,6 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
+import { renderCyanTail } from "@/utils/text";
 
 type Lang = "en" | "ta";
 type Member = {
@@ -273,6 +274,9 @@ const CommitteePage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const lang: Lang = language === "ta" ? "ta" : "en";
+  const [memberPhotoUrls, setMemberPhotoUrls] = useState<Map<number, string>>(
+    new Map()
+  );
 
   // Fetch patrons from DB
   type PatronRow = {
@@ -330,6 +334,38 @@ const CommitteePage: React.FC = () => {
     retry: 2,
   });
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadMemberPhotos = async () => {
+      if (!membersRows?.length) {
+        if (isActive) setMemberPhotoUrls(new Map());
+        return;
+      }
+
+      const entries = await Promise.all(
+        membersRows.map(async (row) => {
+          if (!row.profile_path) return [row.mem_id, ""] as const;
+          const bucket = row.profile_bucket || "member-profiles";
+          const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(row.profile_path, 60 * 60);
+          if (error || !data?.signedUrl) return [row.mem_id, ""] as const;
+          return [row.mem_id, data.signedUrl] as const;
+        })
+      );
+
+      if (!isActive) return;
+      setMemberPhotoUrls(new Map(entries));
+    };
+
+    loadMemberPhotos();
+
+    return () => {
+      isActive = false;
+    };
+  }, [membersRows]);
+
   // Map patrons to Member format
   const patronsMembers: Member[] = (patronsRows ?? []).map((p: PatronRow) => {
     const imgPath =
@@ -385,9 +421,9 @@ const CommitteePage: React.FC = () => {
     if (row.university) workParts.push(row.university);
     const work = workParts.join(",");
 
-    // Get photo URL if profile_path exists
-    let photo: string | null = null;
-    if (row.profile_path && row.profile_bucket) {
+    const signedUrl = memberPhotoUrls.get(row.mem_id) || "";
+    let photo: string | null = signedUrl || null;
+    if (!photo && row.profile_path && row.profile_bucket) {
       const { data } = supabase.storage
         .from(row.profile_bucket)
         .getPublicUrl(row.profile_path);
@@ -521,7 +557,7 @@ const CommitteePage: React.FC = () => {
 
       return { year: batch, blocks };
     });
-  }, [membersByBatch, lang, patronsMembers]);
+  }, [membersByBatch, lang, patronsMembers, memberPhotoUrls]);
 
   const [idx, setIdx] = useState(0);
   const cur = pages[idx] || pages[0];
@@ -696,7 +732,7 @@ const CommitteePage: React.FC = () => {
                 Executive <span className="text-cyan-400">Committee</span>
               </>
             ) : (
-              "நிர்வாக குழு"
+              renderCyanTail("நிர்வாக குழு")
             )}
           </motion.h1>
           <motion.p
@@ -722,7 +758,7 @@ const CommitteePage: React.FC = () => {
         return (
           <React.Fragment key={`${cur.year}-${bi}`}>
             <Section
-              title={lang === "en" ? b.tEn : b.tTa}
+              title={lang === "en" ? b.tEn : renderCyanTail(b.tTa)}
               sub={lang === "en" ? b.sEn : b.sTa}
               members={membersForBlock}
               cols={b.cols}
