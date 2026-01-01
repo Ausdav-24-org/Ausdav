@@ -284,7 +284,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
-            filter: "brightness(0.7)",
+            filter: "brightness(0.6)",
           }}
         >
           {/* Neural Network Canvas */}
@@ -331,7 +331,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
                     S
                   </motion.span>
                 </span>
-                <span className="text-cyan-600">
+                <span className="text-cyan-400" style={{ textShadow: '0 0 30px #00FFFF, 0 0 50px #00FFFF', filter: 'brightness(1.3)' }}>
                   <motion.span
                     initial={{ y: 200, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
