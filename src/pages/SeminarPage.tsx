@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Download, FileText } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
+import { renderCyanTail } from "@/utils/text";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -113,7 +114,7 @@ const SeminarPage: React.FC = () => {
                 Semin<span className="text-cyan-400">ar</span>
               </>
             ) : (
-              "செமினார்"
+              renderCyanTail("செமினார்")
             )}
           </motion.h1>
           <motion.p
@@ -143,7 +144,7 @@ const SeminarPage: React.FC = () => {
                 Seminar <span className="text-cyan-400">Resources</span>
               </>
             ) : (
-              "செமினார் வளங்கள்"
+              renderCyanTail("செமினார் வளங்கள்")
             )}
           </motion.h2>
 

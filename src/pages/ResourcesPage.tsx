@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
+import { renderCyanTail } from "@/utils/text";
 
 type Seminar = {
   sem_id: number;
@@ -226,7 +227,7 @@ const ResourcesPage: React.FC = () => {
                 Resou<span className="text-cyan-400">rces</span>
               </>
             ) : (
-              t("resources.title")
+              renderCyanTail(t("resources.title"))
             )}
           </motion.h1>
           <motion.p
@@ -279,7 +280,7 @@ const ResourcesPage: React.FC = () => {
                 Past <span className="text-cyan-400">Papers</span>
               </>
             ) : (
-              "கடந்த கால வினாத்தாள்கள்"
+              renderCyanTail("கடந்த கால வினாத்தாள்கள்")
             )}
           </motion.h2>
 
@@ -422,7 +423,7 @@ const ResourcesPage: React.FC = () => {
                 Seminar <span className="text-cyan-400">Resources</span>
               </>
             ) : (
-              "கருத்தரங்கு வளங்கள்"
+              renderCyanTail("கருத்தரங்கு வளங்கள்")
             )}
           </motion.h2>
 

@@ -466,14 +466,8 @@ const HomePage: React.FC = () => {
                 {language === "en" ? "Welcome to" : "வரவேற்கிறோம்"}
               </span>
               <span className="text-8xl md:text-9xl lg:text-10xl font-black">
-                {language === "en" ? (
-                  <>
-                    <span className="text-white">AUS</span>
-                    <span className="text-cyan-400">DAV</span>
-                  </>
-                ) : (
-                  "AUSDAV"
-                )}
+                <span className="text-white">AUS</span>
+                <span className="text-cyan-400">DAV</span>
               </span>
             </motion.h1>
 
@@ -551,7 +545,7 @@ const HomePage: React.FC = () => {
               <p className="text-slate-300 text-lg leading-relaxed">
                 {language === "en"
                   ? "AUSDAV is a passionate community of leaders, innovators, and changemakers dedicated to creating positive impact in our society. Our diverse team brings together unique perspectives and expertise to drive meaningful change."
-                  : "AUSDAV என்பது வவுனியா மற்றும் அதற்கு அப்பால் உள்ள பல்கலைக்கழக மாணவர்களின் முழுமையான வளர்ச்சিக்கு அர்ப்பணிக்கப்பட்ட லாভலாபி அமைப்பு. கல்வி இடைவெளிகளைக் குறைக்கவும் கல்வியுயர் சிறந்மையை ஊக்குவிக்கவும் வேண்டிய வெளிப்பாட்டுடன் நிறுவப்பட்ட இது, மாணவர்களின் கல்வி பயணத்தை ஆதரிக்க பாடுபடுகிறது."}
+                  : "AUSDAV என்பது நமது சமூகத்தில் நேர்மறையான தாக்கத்தை உருவாக்க அர்ப்பணிக்கப்பட்ட தலைவர்கள், புதுமைப்பித்தர்கள் மற்றும் மாற்றத்தை உருவாக்குபவர்களைக் கொண்ட ஒரு ஆர்வமுள்ள சமூகமாகும். அர்த்தமுள்ள மாற்றத்தை ஏற்படுத்த எங்கள் பன்முகத்தன்மை கொண்ட குழு தனித்துவமான கண்ணோட்டங்களையும் நிபுணத்துவத்தையும் ஒன்றிணைக்கிறது."}
               </p>
               <Button
                 asChild

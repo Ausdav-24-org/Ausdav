@@ -6,6 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
+import { renderCyanTail } from "@/utils/text";
 
 type Lang = "en" | "ta";
 type Member = {
@@ -696,7 +697,7 @@ const CommitteePage: React.FC = () => {
                 Executive <span className="text-cyan-400">Committee</span>
               </>
             ) : (
-              "நிர்வாக குழு"
+              renderCyanTail("நிர்வாக குழு")
             )}
           </motion.h1>
           <motion.p
@@ -722,7 +723,7 @@ const CommitteePage: React.FC = () => {
         return (
           <React.Fragment key={`${cur.year}-${bi}`}>
             <Section
-              title={lang === "en" ? b.tEn : b.tTa}
+              title={lang === "en" ? b.tEn : renderCyanTail(b.tTa)}
               sub={lang === "en" ? b.sEn : b.sTa}
               members={membersForBlock}
               cols={b.cols}
