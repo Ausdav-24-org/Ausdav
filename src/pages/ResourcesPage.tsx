@@ -340,9 +340,9 @@ const ResourcesPage: React.FC = () => {
                               initial={{ opacity: 0, y: 20 }}
                               whileInView={{ opacity: 1, y: 0 }}
                               viewport={{ once: true }}
-                              className="flex items-center justify-between p-6 bg-cyan-500/10 backdrop-blur-sm rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition-all duration-300"
+                              className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 sm:p-6 bg-cyan-500/10 backdrop-blur-sm rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition-all duration-300"
                             >
-                              <div className="flex items-center gap-4">
+                              <div className="flex items-start gap-4">
                                 <FileText className="w-8 h-8 text-secondary" />
                                 <div>
                                   <h3 className="text-xl font-semibold text-foreground">
@@ -351,7 +351,7 @@ const ResourcesPage: React.FC = () => {
                                         ? "Past Paper"
                                         : "கடந்த கால வினாக்கள்")}
                                   </h3>
-                                  <p className="text-sm text-muted-foreground">
+                                  <p className="hidden text-sm text-muted-foreground sm:block">
                                     {new Date(
                                       paper.created_at
                                     ).toLocaleDateString(
@@ -366,7 +366,7 @@ const ResourcesPage: React.FC = () => {
                                 </div>
                               </div>
 
-                              <div className="flex gap-3">
+                              <div className="flex w-full flex-row pl-12 flex-wrap items-center gap-3 sm:w-auto sm:flex-row sm:items-center">
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -483,9 +483,9 @@ const ResourcesPage: React.FC = () => {
                               initial={{ opacity: 0, y: 20 }}
                               whileInView={{ opacity: 1, y: 0 }}
                               viewport={{ once: true }}
-                              className="flex items-center justify-between p-6 bg-cyan-500/10 backdrop-blur-sm rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition-all duration-300"
+                              className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 sm:p-6 bg-cyan-500/10 backdrop-blur-sm rounded-xl border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition-all duration-300"
                             >
-                              <div className="flex items-center gap-4">
+                              <div className="flex items-start gap-4">
                                 <FileText className="w-8 h-8 text-secondary" />
                                 <div>
                                   <h3 className="text-xl font-semibold text-foreground">
@@ -493,7 +493,7 @@ const ResourcesPage: React.FC = () => {
                                       ? `Seminar Tutes`
                                       : `Seminar Tutes`}
                                   </h3>
-                                  <p className="text-sm text-muted-foreground">
+                                  <p className="hidden text-sm text-muted-foreground sm:block">
                                     {new Date(
                                       seminar.created_at
                                     ).toLocaleDateString(
@@ -508,7 +508,7 @@ const ResourcesPage: React.FC = () => {
                                 </div>
                               </div>
 
-                              <div className="flex gap-3">
+                              <div className="flex w-full pl-8 flex-row flex-wrap items-center gap-3 sm:w-auto sm:flex-row sm:items-center">
                                 <Button
                                   variant="outline"
                                   size="sm"
