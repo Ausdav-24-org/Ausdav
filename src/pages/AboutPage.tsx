@@ -155,32 +155,6 @@ const AboutPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Our Story Section */}
-      <section className="relative py-20 px-4 bg-slate-800/50">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-4xl md:text-5xl font-bold mb-6">
-                <span className="text-cyan-400">Our</span> Story
-              </h2>
-              <p className="text-slate-300 text-lg leading-relaxed mb-6">
-                {language === "en"
-                  ? "Founded with a vision to transform the industry, our organization has grown from a small team of passionate individuals into a thriving company that serves clients worldwide."
-                  : "எங்கள் நிறுவனம் பெரிய வெற்றிகளுடன் வளர்ந்துவிட்டது."}
-              </p>
-              <p className="text-slate-300 text-lg leading-relaxed mb-6">
-                {language === "en"
-                  ? "Over time, we have remained true to our values by creating meaningful projects and events that support young minds and strengthen our communities. Today, we continue to grow with enthusiasm, driven by the belief that small actions can create lasting positive change."
-                  : "நாங்கள் நமது கிளையன்டுகளுக்கு சிறந்த சேவை வழங்க உறுதிபட்டுள்ளோம்."}
-              </p>
-            </motion.div>
-          </div>
-        </div>
-      </section>
 
       {/* Who We Are Section */}
       <section className="relative py-20 px-4">

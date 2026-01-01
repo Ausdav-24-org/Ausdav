@@ -112,7 +112,7 @@ const EventDetailsPage: React.FC = () => {
 
   if (eventLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 pt-28 pb-12">
         <div className="text-center">Loading event details...</div>
       </div>
     );
@@ -120,7 +120,7 @@ const EventDetailsPage: React.FC = () => {
 
   if (eventError || !event) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 pt-28 pb-12">
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold">Event not found</h1>
           <Button asChild>
@@ -138,7 +138,7 @@ const EventDetailsPage: React.FC = () => {
   const eventDesc = language === 'ta' && event.description_ta ? event.description_ta : event.description_en;
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 pt-28 pb-12">
       <div className="mb-6">
         <Button variant="outline" asChild>
           <Link to="/events">
@@ -149,7 +149,7 @@ const EventDetailsPage: React.FC = () => {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
+        {/* <div className="flex items-center gap-3 mb-4 flex-wrap">
           <Badge variant="secondary" className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             {new Date(event.event_date).toLocaleDateString(language === 'en' ? 'en-US' : 'ta-LK', {
@@ -162,7 +162,7 @@ const EventDetailsPage: React.FC = () => {
               {event.location}
             </Badge>
           )}
-        </div>
+        </div> */}
 
         <h1 className="text-4xl font-bold mb-4">{eventTitle}</h1>
 
