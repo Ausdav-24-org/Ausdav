@@ -22,7 +22,7 @@ export default {
       fontFamily: {
         sans: ["Outfit", "sans-serif"],
         heading: ["Space Grotesk", "sans-serif"],
-        tamil: ["Noto Sans Tamil", "Outfit", "sans-serif"],
+        tamil: ["Kavivanar", "Outfit", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -120,3 +120,5 @@ export default {
   },
   plugins: [tailwindcssAnimate],
 } satisfies Config;
+
+
