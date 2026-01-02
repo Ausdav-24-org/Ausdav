@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
@@ -56,10 +56,20 @@ import AdminDesignationsPage from "@/pages/admin/AdminDesignationsPage";
 
 const queryClient = new QueryClient();
 
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  }, [pathname]);
+
+  return null;
+};
+
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [appReady, setAppReady] = useState(false);
-  const devStayOnSplash = import.meta.env.DEV;
+  const devStayOnSplash = false;
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -102,13 +112,17 @@ const App = () => {
 
             {appReady && (
               <BrowserRouter basename={import.meta.env.BASE_URL}>
+                <ScrollToTop />
                 <Routes>
                   {/* Public routes with Layout */}
                   <Route
                     path="/splash"
                     element={
                       <Layout>
-                        <NeuralNetworkSplash stayVisible onComplete={handleSplashComplete} />
+                        <NeuralNetworkSplash
+                          stayVisible
+                          onComplete={handleSplashComplete}
+                        />
                       </Layout>
                     }
                   />
@@ -200,7 +214,10 @@ const App = () => {
                       </Layout>
                     }
                   />
-                  <Route path="/register" element={<Navigate to="/signup" replace />} />
+                  <Route
+                    path="/register"
+                    element={<Navigate to="/signup" replace />}
+                  />
 
                   <Route
                     path="/profile"
@@ -217,7 +234,10 @@ const App = () => {
                     element={<Navigate to="/profile" replace />}
                   />
 
-                  <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+                  <Route
+                    path="/admin/login"
+                    element={<Navigate to="/login" replace />}
+                  />
                   <Route
                     path="/admin"
                     element={
@@ -228,28 +248,55 @@ const App = () => {
                   >
                     <Route index element={<AdminDashboardPage />} />
                     <Route path="dashboard" element={<AdminDashboardPage />} />
-                    <Route path="profile-setup" element={<ProfileSetupPage />} />
+                    <Route
+                      path="profile-setup"
+                      element={<ProfileSetupPage />}
+                    />
                     <Route path="profile" element={<AdminProfilePage />} />
                     <Route path="members" element={<AdminMembersPage />} />
-                    <Route path="applicants" element={<AdminApplicantsPage />} />
+                    <Route
+                      path="applicants"
+                      element={<AdminApplicantsPage />}
+                    />
                     <Route path="patrons" element={<AdminPatronsPage />} />
                     <Route path="results" element={<AdminResultsPage />} />
-                    <Route path="designations" element={<AdminDesignationsPage />} />
+                    <Route
+                      path="designations"
+                      element={<AdminDesignationsPage />}
+                    />
                     <Route path="site-mode" element={<AdminSiteModePage />} />
                     <Route path="events" element={<AdminEventsPage />} />
                     <Route path="exam" element={<AdminExamPage />} />
                     <Route path="seminar" element={<AdminSeminarPage />} />
                     <Route path="past-paper" element={<AdminPastPaperPage />} />
-                    <Route path="announcements" element={<AdminAnnouncementsPage />} />
+                    <Route
+                      path="announcements"
+                      element={<AdminAnnouncementsPage />}
+                    />
                     <Route path="feedback" element={<AdminFeedbackPage />} />
-                    <Route path="claim-permission" element={<ClaimPermissionPage />} />
-                    <Route path="permissions" element={<AdminPermissionsPage />} />
+                    <Route
+                      path="claim-permission"
+                      element={<ClaimPermissionPage />}
+                    />
+                    <Route
+                      path="permissions"
+                      element={<AdminPermissionsPage />}
+                    />
                     <Route path="contact" element={<ContactSettingsPage />} />
                     <Route path="audit" element={<AdminAuditPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
-                    <Route path="finance/submit" element={<FinanceSubmitPage />} />
-                    <Route path="finance/verify" element={<FinanceVerifyPage />} />
-                    <Route path="finance/ledger" element={<FinanceLedgerPage />} />
+                    <Route
+                      path="finance/submit"
+                      element={<FinanceSubmitPage />}
+                    />
+                    <Route
+                      path="finance/verify"
+                      element={<FinanceVerifyPage />}
+                    />
+                    <Route
+                      path="finance/ledger"
+                      element={<FinanceLedgerPage />}
+                    />
                   </Route>
 
                   <Route

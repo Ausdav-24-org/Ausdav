@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
 import { renderCyanTail } from "@/utils/text";
@@ -94,17 +95,96 @@ const Card = ({
   i,
   lang,
   isDark,
+  isMobile,
+  isExpanded,
+  onToggle,
 }: {
   m: Member;
   i: number;
   lang: Lang;
   isDark: boolean;
+  isMobile: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) => {
   const [imgOk, setImgOk] = useState<boolean>(!!m.photo);
   const name = lang === "en" ? m.name : m.nameTA;
   const role = lang === "en" ? m.role : m.roleTA;
   const work = (lang === "en" ? m.Work : m.WorkTA ?? m.Work).split(",");
 
+  // Mobile condensed view
+  if (isMobile) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 28 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ delay: i * 0.04, duration: 0.5, ease: "easeOut" }}
+        layout
+        onClick={onToggle}
+        className={cn(
+          "glass-card rounded-xl p-3 text-center cursor-pointer transition-all overflow-hidden",
+          isExpanded && "ring-2 ring-cyan-400"
+        )}
+      >
+        {/* Avatar */}
+        {imgOk && m.photo ? (
+          <div className="w-12 h-12 mx-auto mb-2 rounded-lg bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
+            <img
+              src={m.photo}
+              alt={name}
+              className="w-full h-full rounded-lg object-cover"
+              loading="lazy"
+              onError={() => setImgOk(false)}
+            />
+          </div>
+        ) : (
+          <div className="w-12 h-12 mx-auto mb-2 rounded-lg bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
+            <span className="text-xl font-bold text-primary-foreground">
+              {name.charAt(0)}
+            </span>
+          </div>
+        )}
+
+        {/* Name and Role */}
+        <h3 className={cn("font-bold mb-1 break-words", isMobile ? "text-xs leading-tight" : "text-base", isDark ? "text-white" : "")}>
+          {name}
+        </h3>
+        <p
+          className={cn(
+            "text-xs text-primary font-medium break-words",
+            isDark ? "text-cyan-200/90" : ""
+          )}
+        >
+          {role}
+        </p>
+
+        {/* Expanded content */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden mt-3 pt-3 border-t border-white/10"
+            >
+              <p className={cn("text-xs text-muted-foreground line-clamp-3")}>
+                {work.map((t, idx) => (
+                  <React.Fragment key={idx}>
+                    {t.trim()}
+                    {idx < work.length - 1 && <br />}
+                  </React.Fragment>
+                ))}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    );
+  }
+
+  // Desktop view (unchanged)
   return (
     <motion.div
       initial={{ opacity: 0, y: 28 }}
@@ -181,6 +261,9 @@ const Section = ({
   gradient = true,
   lang,
   isDark,
+  isMobile,
+  expandedCardId,
+  onToggleCard,
 }: {
   title: ReactNode;
   sub?: string;
@@ -189,21 +272,18 @@ const Section = ({
   gradient?: boolean;
   lang: Lang;
   isDark: boolean;
+  isMobile: boolean;
+  expandedCardId: string | number | null;
+  onToggleCard: (id: string | number) => void;
 }) => {
   if (!members.length) return null;
+
+  const gridCols = isMobile ? "grid grid-cols-2 gap-3 overflow-x-hidden" : cols;
 
   return (
     <>
       <section
         className={gradient ? "py-14 md:py-10" : "py-10"}
-        // style={
-        //   gradient
-        //     ? {
-        //         background:
-        //           "radial-gradient(900px 300px at 50% 0%, rgba(34,211,238,.18), transparent 60%), radial-gradient(900px 300px at 50% 100%, rgba(99,102,241,.16), transparent 65%)",
-        //       }
-        //     : undefined
-        // }
       >
         <div className="container mx-auto px-4 text-center max-w-4xl">
           <motion.div
@@ -214,7 +294,7 @@ const Section = ({
           >
             <div
               className={cn(
-                "inline-flex items-center gap-3 px-5 py-2 rounded-full border backdrop-blur-md shadow",
+                "inline-flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 rounded-full border backdrop-blur-md shadow max-w-full",
                 isDark
                   ? "border-white/10 bg-white/5"
                   : "border-border/60 bg-card/70"
@@ -223,7 +303,7 @@ const Section = ({
               <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(34,211,238,.8)]" />
               <h2
                 className={cn(
-                  "text-3xl md:text-4xl font-serif font-bold",
+                  "text-xl sm:text-3xl md:text-4xl font-serif font-bold",
                   isDark ? "text-white" : "text-foreground"
                 )}
               >
@@ -244,11 +324,20 @@ const Section = ({
         </div>
       </section>
 
-      <section className="py-12 md:py-1" >
+      <section className="py-12 md:py-1 overflow-x-hidden" >
         <div className="container mx-auto px-4">
-          <div className={cols}>
+          <div className={gridCols}>
             {members.map((m, i) => (
-              <Card key={m.id} m={m} i={i} lang={lang} isDark={isDark} />
+              <Card
+                key={m.id}
+                m={m}
+                i={i}
+                lang={lang}
+                isDark={isDark}
+                isMobile={isMobile}
+                isExpanded={expandedCardId === m.id}
+                onToggle={() => onToggleCard(m.id)}
+              />
             ))}
           </div>
         </div>
@@ -274,9 +363,16 @@ const CommitteePage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const lang: Lang = language === "ta" ? "ta" : "en";
+  const isMobile = useIsMobile();
   const [memberPhotoUrls, setMemberPhotoUrls] = useState<Map<number, string>>(
     new Map()
   );
+  const [expandedCardId, setExpandedCardId] = useState<string | number | null>(null);
+
+  const toggleCard = (id: string | number) => {
+    // Toggle: if same card clicked, close it; otherwise open only this card
+    setExpandedCardId(expandedCardId === id ? null : id);
+  };
 
   // Fetch patrons from DB
   type PatronRow = {
@@ -690,18 +786,18 @@ const CommitteePage: React.FC = () => {
   }
 
   return (
-    <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+    <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 overflow-x-hidden">
       {/* Hero Section with Background Image */}
       <section
-        className="relative min-h-screen bg-cover bg-center flex items-center justify-center"
+        className="relative min-h-screen bg-cover bg-center flex items-center justify-center overflow-hidden"
         style={{
           backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.6)), url('${BG1}')`,
           backgroundAttachment: "fixed",
         }}
       >
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-20 left-4 md:left-10 w-40 md:w-72 h-40 md:h-72 bg-blue-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-4 md:right-10 w-48 md:w-96 h-48 md:h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
         </div>
 
         <motion.div
@@ -725,7 +821,7 @@ const CommitteePage: React.FC = () => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3 }}
-            className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
+            className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
           >
             {language === "en" ? (
               <>
@@ -765,6 +861,9 @@ const CommitteePage: React.FC = () => {
               gradient={b.gradient}
               lang={lang}
               isDark={isDark}
+              isMobile={isMobile}
+              expandedCardId={expandedCardId}
+              onToggleCard={toggleCard}
             />
           </React.Fragment>
         );

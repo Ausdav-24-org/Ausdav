@@ -84,6 +84,7 @@ export default function AdminMembersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBatch, setFilterBatch] = useState<string>('all');
   const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterDesignation, setFilterDesignation] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
@@ -505,10 +506,12 @@ export default function AdminMembersPage() {
     const matchesBatch =
       filterBatch === 'all' || String(member.batch) === filterBatch;
     const matchesRole = filterRole === 'all' || member.role === filterRole;
-    return matchesSearch && matchesBatch && matchesRole;
+    const matchesDesignation = filterDesignation === 'all' || member.designation === filterDesignation;
+    return matchesSearch && matchesBatch && matchesRole && matchesDesignation;
   });
 
   const uniqueBatches = [...new Set(members.map((m) => m.batch).filter((b) => b !== null))];
+  const uniqueDesignations = [...new Set(members.map((m) => m.designation).filter((d) => d && d !== 'none'))];
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -568,6 +571,20 @@ export default function AdminMembersPage() {
                 <SelectItem value="admin">Admins</SelectItem>
                 <SelectItem value="honourable">Honourables</SelectItem>
                 <SelectItem value="super_admin">Super Admins</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterDesignation} onValueChange={setFilterDesignation}>
+              <SelectTrigger className="w-[160px] bg-background/50">
+                <SelectValue placeholder="All Designations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Designations</SelectItem>
+                {uniqueDesignations.map((designation) => (
+                  <SelectItem key={designation} value={designation}>
+                    {designation}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

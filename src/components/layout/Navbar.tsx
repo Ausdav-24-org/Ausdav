@@ -22,6 +22,7 @@ const Navbar: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [hasUser, setHasUser] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [userLabel, setUserLabel] = useState('');
   const { language, setLanguage, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
@@ -40,7 +41,7 @@ const Navbar: React.FC = () => {
     const loadAvatarForUser = async (userId: string) => {
       const { data: member } = await supabase
         .from('members')
-        .select('fullname, profile_bucket, profile_path')
+        .select('fullname, profile_bucket, profile_path, role')
         .eq('auth_user_id', userId)
         .maybeSingle();
 
@@ -48,8 +49,13 @@ const Navbar: React.FC = () => {
 
       if (!member?.profile_path) {
         if (isMounted) setAvatarUrl(null);
+        // also set admin flag from member row if available
+        if (isMounted) setIsAdmin(!!(member && (member.role === 'admin' || member.role === 'super_admin')));
         return;
       }
+
+      // set admin flag when member exists
+      if (isMounted) setIsAdmin(!!(member && (member.role === 'admin' || member.role === 'super_admin')));
 
       const bucket = member.profile_bucket || 'member-profiles';
       const { data, error } = await supabase.storage
@@ -69,12 +75,17 @@ const Navbar: React.FC = () => {
           setAvatarUrl(null);
           setHasUser(false);
           setUserLabel('');
+          setIsAdmin(false);
         }
         return;
       }
       if (isMounted) {
         const metaName = (session?.user?.user_metadata as any)?.full_name as string | undefined;
         setUserLabel(metaName || session?.user?.email || '');
+        // check metadata roles fallback
+        const meta = session?.user?.user_metadata as any;
+        const metaIsAdmin = meta?.is_super_admin === true || (Array.isArray(meta?.roles) && (meta.roles.includes('admin') || meta.roles.includes('super_admin')));
+        setIsAdmin(!!metaIsAdmin);
       }
       if (isMounted) setHasUser(true);
       await loadAvatarForUser(userId);
@@ -88,6 +99,7 @@ const Navbar: React.FC = () => {
         setAvatarUrl(null);
         setHasUser(false);
         setUserLabel('');
+        setIsAdmin(false);
         return;
       }
       const metaName = (session?.user?.user_metadata as any)?.full_name as string | undefined;
@@ -204,6 +216,21 @@ const Navbar: React.FC = () => {
               </Link>
             </Button>
 
+            {/* Mobile-only Donate (icon-only, like floating widget) */}
+            <Link
+              to="/donate"
+              aria-label={language === "en" ? "Donate" : "நன்கொடை"}
+              className={cn(
+                "relative flex items-center justify-center w-9 h-9 rounded-full sm:hidden",
+                "bg-primary text-primary-foreground neon-glow",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                "hover:scale-105 active:scale-95",
+                isActive("/donate") && "ring-2 ring-primary-foreground/50"
+              )}
+            >
+              <Heart className="w-4 h-4" />
+            </Link>
+
             {/* Theme Toggle */}
             {/* <Button
               variant="ghost"
@@ -290,6 +317,14 @@ const Navbar: React.FC = () => {
                       Profile
                     </Link>
                   </DropdownMenuItem>
+
+                  {isAdmin && (
+                    <DropdownMenuItem asChild className="cursor-pointer rounded-md hover:bg-blue-100 dark:hover:bg-blue-950">
+                      <Link to="/admin" className="w-full px-2 py-1.5">
+                        Admin
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
 
                   <DropdownMenuItem
                     className="cursor-pointer rounded-md hover:bg-blue-100 dark:hover:bg-blue-950"

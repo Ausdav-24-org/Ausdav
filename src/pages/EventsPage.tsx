@@ -24,6 +24,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type EventRecord = {
   id: string;
@@ -89,9 +90,12 @@ const annualEvents = [
 const EventsPage: React.FC = () => {
   const { t, language } = useLanguage();
   const [events, setEvents] = useState<EventDisplay[]>([]);
+  const isMobile = useIsMobile();
 
-  // track hover item in timeline
+  // track hover item in timeline (desktop)
   const [hoveredAnnualId, setHoveredAnnualId] = useState<string | null>(null);
+  // track tapped/expanded item in timeline (mobile)
+  const [expandedMobileId, setExpandedMobileId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -187,8 +191,8 @@ const EventsPage: React.FC = () => {
           >
             ✦{" "}
             {language === "en"
-              ? "Empowering Future Leaders Since 2015"
-              : "2015 முதல் ஆற்றல் சேர்ப்பு"}
+              ? "Empowering Future Leaders Since 1993"
+              : "1993 முதல் ஆற்றல் சேர்ப்பு"}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, scale: 0.9 }}
@@ -217,133 +221,268 @@ const EventsPage: React.FC = () => {
       {/* Annual Events Timeline */}
       <section className="py-24 relative overflow-hidden bg-slate-800/50">
         <div className="container mx-auto px-4 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white">
-              {language === "en" ? "Annual " : "வருடாந்த "}
-              <span className="text-cyan-400">{language === "en" ? "Events" : "நிகழ்வுகள்"}</span>
-            </h2>
-            <p className="text-slate-300 max-w-2xl mx-auto">
-              {language === "en"
-                ? "Our year-round activities designed to support and develop students"
-                : "மாணவர்களை ஆதரிக்கவும் வளர்க்கவும் வடிவமைக்கப்பட்ட எங்கள் ஆண்டு முழுவதும் செயல்பாடுகள்"}
-            </p>
-          </motion.div>
 
-          <div className="relative max-w-4xl mx-auto">
-            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-cyan-500/50 to-transparent -translate-x-1/2" />
+          {/* ===== MOBILE TIMELINE ===== */}
+          {isMobile ? (
+            <div className="relative max-w-sm mx-auto px-2">
+              <div className="space-y-0">
+                {timelineEvents.map((item, idx) => {
+                  const isLeftIcon = idx % 2 === 0;
+                  const isExpanded = expandedMobileId === item.id;
+                  const isLast = idx === timelineEvents.length - 1;
+                  const nextIsLeftIcon = (idx + 1) % 2 === 0;
 
-            <div className="space-y-12">
-              {timelineEvents.map((item, idx) => {
-                const isHovered = hoveredAnnualId === item.id;
+                  return (
+                    <div key={item.id} className="relative">
+                      {/* Curved connector to next icon */}
+                      {!isLast && (
+                        <svg
+                          className="absolute w-full pointer-events-none"
+                          style={{
+                            top: "28px",
+                            left: 0,
+                            height: "120px",
+                            zIndex: 0,
+                          }}
+                          viewBox="0 0 300 120"
+                          preserveAspectRatio="none"
+                        >
+                          <path
+                            d={
+                              isLeftIcon
+                                ? "M 28 0 Q 28 60, 150 60 T 272 120"
+                                : "M 272 0 Q 272 60, 150 60 T 28 120"
+                            }
+                            stroke="rgba(34,211,238,0.5)"
+                            strokeWidth="2"
+                            fill="none"
+                            strokeDasharray="6 4"
+                          />
+                        </svg>
+                      )}
 
-                return (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, x: idx % 2 === 0 ? -50 : 50 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.6, delay: idx * 0.1 }}
-                    className={`flex items-center gap-6 ${
-                      idx % 2 === 0 ? "flex-row" : "flex-row-reverse"
-                    }`}
-                  >
-                    <div className={`flex-1 ${idx % 2 === 0 ? "text-right" : "text-left"}`}>
-                      {/* SAME BOX expands in same position */}
                       <motion.div
-                        layout
-                        transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                        onMouseEnter={() => setHoveredAnnualId(item.id)}
-                        onMouseLeave={() => setHoveredAnnualId(null)}
-                        className={`
-                          inline-block w-fit
-                          rounded-xl border backdrop-blur-sm
-                          bg-cyan-500/20
-                          border-cyan-500/40 hover:border-cyan-500/60
-                          ${idx % 2 === 0 ? "mr-4" : "ml-4"}
-                        `}
+                        initial={{ opacity: 0, y: 30 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: idx * 0.08 }}
+                        className={`relative z-10 flex items-start gap-3 pb-16 ${
+                          isLeftIcon ? "flex-row" : "flex-row-reverse"
+                        }`}
                       >
-                        {/* Title always visible */}
-                        <div className="px-3 py-2">
-                          <p className="font-bold text-base text-white whitespace-nowrap">
-                            {language === "en" ? item.titleEN : item.titleTA || item.titleEN}
-                          </p>
-                        </div>
+                        {/* Icon */}
+                        <motion.div
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() =>
+                            setExpandedMobileId(isExpanded ? null : item.id)
+                          }
+                          className="relative z-20 w-14 h-14 rounded-xl bg-cyan-400 flex items-center justify-center flex-shrink-0 cursor-pointer shadow-lg shadow-cyan-400/30"
+                        >
+                          <item.icon className="w-6 h-6 text-slate-900" />
+                        </motion.div>
 
-                        {/* Expanded content inside SAME box */}
-                        <AnimatePresence initial={false}>
-                          {isHovered && (
-                            <motion.div
-                              key="content"
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="w-96 max-w-[24rem] sm:max-w-none px-3 pb-3">
-                                <div className="rounded-xl bg-card text-left shadow-2xl overflow-hidden">
-                                  <Link
-                                    to={`/events/${item.id}`}
-                                    className="block h-44 bg-gradient-to-br from-primary/10 to-secondary/10 overflow-hidden"
-                                  >
-                                    {item.coverImage ? (
-                                      <div
-                                        className="w-full h-full bg-cover bg-center"
-                                        style={{ backgroundImage: `url(${item.coverImage})` }}
-                                      />
-                                    ) : (
-                                      <div className="flex items-center justify-center h-full">
-                                        <Calendar className="w-8 h-8 text-secondary" />
-                                      </div>
-                                    )}
-                                  </Link>
+                        {/* Title + Expandable Card */}
+                        <motion.div
+                          layout
+                          transition={{ type: "spring", stiffness: 280, damping: 24 }}
+                          onClick={() =>
+                            setExpandedMobileId(isExpanded ? null : item.id)
+                          }
+                          className={`flex-1 rounded-xl border backdrop-blur-sm cursor-pointer
+                            bg-cyan-500/20 border-cyan-500/40
+                            ${isLeftIcon ? "text-left" : "text-right"}
+                          `}
+                        >
+                          {/* Title */}
+                          <div className="px-3 py-2">
+                            <p className="font-bold text-sm text-white">
+                              {language === "en"
+                                ? item.titleEN
+                                : item.titleTA || item.titleEN}
+                            </p>
+                          </div>
 
-                                  <div className="p-4 pt-2">
-                                    <p className="text-xs text-muted-foreground line-clamp-3">
-                                      {language === "en"
-                                        ? item.descriptionEN || ""
-                                        : item.descriptionTA ||
-                                          item.descriptionEN ||
-                                          ""}
-                                    </p>
+                          {/* Expanded content */}
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                key="mobile-content"
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.25 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="px-3 pb-3">
+                                  <div className="rounded-xl bg-card text-left shadow-xl overflow-hidden">
+                                    <Link
+                                      to={`/events/${item.id}`}
+                                      className="block h-36 bg-gradient-to-br from-primary/10 to-secondary/10 overflow-hidden"
+                                    >
+                                      {item.coverImage ? (
+                                        <div
+                                          className="w-full h-full bg-cover bg-center"
+                                          style={{
+                                            backgroundImage: `url(${item.coverImage})`,
+                                          }}
+                                        />
+                                      ) : (
+                                        <div className="flex items-center justify-center h-full">
+                                          <Calendar className="w-8 h-8 text-secondary" />
+                                        </div>
+                                      )}
+                                    </Link>
 
-                                    <div className="mt-4 flex items-center justify-between">
-                                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <div className="p-3">
+                                      <p className="text-xs text-muted-foreground line-clamp-4">
+                                        {language === "en"
+                                          ? item.descriptionEN || ""
+                                          : item.descriptionTA ||
+                                            item.descriptionEN ||
+                                            ""}
+                                      </p>
+
+                                      <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
                                         <MapPin className="w-3 h-3" />
                                         {item.location ||
                                           (language === "en"
                                             ? "TBA"
                                             : "பின்னர் அறிவிக்கப்படும்")}
-                                      </span>
+                                      </div>
+
+                                      <Link
+                                        to={`/events/${item.id}`}
+                                        className="mt-3 inline-flex items-center gap-1 text-xs text-cyan-400 font-medium"
+                                      >
+                                        {language === "en" ? "View Details" : "விவரங்களைப் பார்க்க"}
+                                        <ChevronRight className="w-3 h-3" />
+                                      </Link>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
                       </motion.div>
                     </div>
-
-                    {/* Center icon */}
-                    <motion.div
-                      whileHover={{ scale: 1.2, rotate: 10 }}
-                      className="relative z-10 w-14 h-14 rounded-xl bg-cyan-400 flex items-center justify-center flex-shrink-0"
-                    >
-                      <item.icon className="w-6 h-6 text-slate-900" />
-                    </motion.div>
-
-                    <div className="flex-1" />
-                  </motion.div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* ===== DESKTOP TIMELINE ===== */
+            <div className="relative max-w-4xl mx-auto">
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-cyan-500/50 to-transparent -translate-x-1/2" />
+
+              <div className="space-y-12">
+                {timelineEvents.map((item, idx) => {
+                  const isHovered = hoveredAnnualId === item.id;
+
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, x: idx % 2 === 0 ? -50 : 50 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: idx * 0.1 }}
+                      className={`flex items-center gap-6 ${
+                        idx % 2 === 0 ? "flex-row" : "flex-row-reverse"
+                      }`}
+                    >
+                      <div className={`flex-1 ${idx % 2 === 0 ? "text-right" : "text-left"}`}>
+                        {/* SAME BOX expands in same position */}
+                        <motion.div
+                          layout
+                          transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                          onMouseEnter={() => setHoveredAnnualId(item.id)}
+                          onMouseLeave={() => setHoveredAnnualId(null)}
+                          className={`
+                            inline-block w-fit
+                            rounded-xl border backdrop-blur-sm
+                            bg-cyan-500/20
+                            border-cyan-500/40 hover:border-cyan-500/60
+                            ${idx % 2 === 0 ? "mr-4" : "ml-4"}
+                          `}
+                        >
+                          {/* Title always visible */}
+                          <div className="px-3 py-2">
+                            <p className="font-bold text-base text-white whitespace-nowrap">
+                              {language === "en" ? item.titleEN : item.titleTA || item.titleEN}
+                            </p>
+                          </div>
+
+                          {/* Expanded content inside SAME box */}
+                          <AnimatePresence initial={false}>
+                            {isHovered && (
+                              <motion.div
+                                key="content"
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="w-96 max-w-[24rem] sm:max-w-none px-3 pb-3">
+                                  <div className="rounded-xl bg-card text-left shadow-2xl overflow-hidden">
+                                    <Link
+                                      to={`/events/${item.id}`}
+                                      className="block h-44 bg-gradient-to-br from-primary/10 to-secondary/10 overflow-hidden"
+                                    >
+                                      {item.coverImage ? (
+                                        <div
+                                          className="w-full h-full bg-cover bg-center"
+                                          style={{ backgroundImage: `url(${item.coverImage})` }}
+                                        />
+                                      ) : (
+                                        <div className="flex items-center justify-center h-full">
+                                          <Calendar className="w-8 h-8 text-secondary" />
+                                        </div>
+                                      )}
+                                    </Link>
+
+                                    <div className="p-4 pt-2">
+                                      <p className="text-xs text-muted-foreground line-clamp-3">
+                                        {language === "en"
+                                          ? item.descriptionEN || ""
+                                          : item.descriptionTA ||
+                                            item.descriptionEN ||
+                                            ""}
+                                      </p>
+
+                                      <div className="mt-4 flex items-center justify-between">
+                                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                          <MapPin className="w-3 h-3" />
+                                          {item.location ||
+                                            (language === "en"
+                                              ? "TBA"
+                                              : "பின்னர் அறிவிக்கப்படும்")}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      </div>
+
+                      {/* Center icon */}
+                      <motion.div
+                        whileHover={{ scale: 1.2, rotate: 10 }}
+                        className="relative z-10 w-14 h-14 rounded-xl bg-cyan-400 flex items-center justify-center flex-shrink-0"
+                      >
+                        <item.icon className="w-6 h-6 text-slate-900" />
+                      </motion.div>
+
+                      <div className="flex-1" />
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
