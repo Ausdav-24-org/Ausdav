@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -37,6 +39,7 @@ export default function AdminDesignationsPage() {
   const [admins, setAdmins] = useState<AdminMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingIds, setSavingIds] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (isSuperAdmin) fetchAdmins();
@@ -92,6 +95,16 @@ export default function AdminDesignationsPage() {
     }
   };
 
+  const filteredAdmins = admins.filter((a) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      a.fullname.toLowerCase().includes(q) ||
+      a.username.toLowerCase().includes(q) ||
+      (a.designation ?? '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="space-y-4">
         <AdminHeader title="Designations" breadcrumb="Admin / Designations" />
@@ -102,6 +115,16 @@ export default function AdminDesignationsPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">Only super admins can assign designations to admins.</p>
+
+          <div className="relative max-w-md mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, username, or designation..."
+              className="pl-10"
+            />
+          </div>
 
           <div>
             <Table>
@@ -114,7 +137,7 @@ export default function AdminDesignationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {admins.map((a) => (
+                {filteredAdmins.map((a) => (
                   <TableRow key={a.mem_id}>
                     <TableCell>
                       <div>
@@ -143,10 +166,10 @@ export default function AdminDesignationsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {admins.length === 0 && (
+                {filteredAdmins.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8">
-                      {loading ? 'Loading...' : 'No admins found'}
+                      {loading ? 'Loading...' : searchQuery ? 'No admins match your search' : 'No admins found'}
                     </TableCell>
                   </TableRow>
                 )}

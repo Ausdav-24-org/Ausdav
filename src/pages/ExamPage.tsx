@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ClipboardList, Award, ImageDown, Check, X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
+import { renderCyanTail } from "@/utils/text";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -810,8 +811,8 @@ const ExamPage: React.FC = () => {
           >
             ✦{" "}
             {language === "en"
-              ? "Empowering Future Leaders Since 2015"
-              : "2015 முதல் ஆற்றல் சேர்ப்பு"}
+              ? "Empowering Future Leaders Since 1993"
+              : "1993 முதல் ஆற்றல் சேர்ப்பு"}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, scale: 0.9 }}
@@ -824,7 +825,7 @@ const ExamPage: React.FC = () => {
                 Examination <span className="text-cyan-400">Services</span>
               </>
             ) : (
-              t("exam.title")
+              renderCyanTail(t("exam.title"))
             )}
           </motion.h1>
           <motion.p

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -18,6 +18,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 /** ✅ SVG overlay ONLY (no background fill) so it matches your site's container background */
 const SpaceOverlay: React.FC<{ opacity?: number }> = ({ opacity = 0.35 }) => {
@@ -122,6 +123,8 @@ const ProfilePage: React.FC = () => {
   const { profile, user } = useAdminAuth();
   const isDark = theme === 'dark';
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const loadSignedAvatar = async () => {
@@ -142,6 +145,43 @@ const ProfilePage: React.FC = () => {
 
     loadSignedAvatar();
   }, [profile?.profile_path, profile?.profile_bucket]);
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!profile) return;
+    setUploading(true);
+    try {
+      const oldProfilePath = profile.profile_path;
+      const ext = file.name.split('.').pop() || 'jpg';
+      const bucket = profile.profile_bucket || 'member-profiles';
+      const path = `${profile.auth_user_id || profile.mem_id}/avatar-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from('members' as any)
+        .update({ profile_path: path, profile_bucket: bucket })
+        .eq('mem_id', profile.mem_id);
+      if (updateError) throw updateError;
+
+      if (oldProfilePath && oldProfilePath !== path) {
+        const { error: deleteError } = await supabase.storage
+          .from(bucket)
+          .remove([oldProfilePath]);
+        if (deleteError) {
+          console.warn('Failed to delete old profile image:', deleteError);
+        }
+      }
+
+      toast.success('Profile picture updated');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const profileData = {
     photo: avatarUrl,
@@ -238,7 +278,26 @@ const ProfilePage: React.FC = () => {
             )}
           >
             <div className="flex flex-col items-center text-center">
+              <button
+                type="button"
+                className="relative rounded-full"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploading}
+              >
                 <ImageAvatar photo={profileData.photo} alt={profileData.fullName} isDark={isDark} />
+                <span className="sr-only">Edit profile photo</span>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAvatarUpload(file);
+                }}
+              />
 
               <h2 className={cn('mt-5 text-2xl md:text-3xl font-serif font-bold', textMain)}>
                 {profileData.fullName}

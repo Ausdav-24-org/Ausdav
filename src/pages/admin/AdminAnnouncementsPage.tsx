@@ -107,6 +107,8 @@ export default function AdminAnnouncementsPage() {
     }
   };
 
+  const announcementPk = 'announcement_id';
+
   // external refresh support
   const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve());
   fetchRef.current = fetchAnnouncements;
@@ -225,7 +227,7 @@ export default function AdminAnnouncementsPage() {
         const { error } = await supabase
           .from('announcements')
           .update(payload)
-          .eq('id', editingId);
+          .eq(announcementPk, editingId);
         if (error) throw error;
         toast.success('Announcement updated');
       } else {
@@ -246,7 +248,7 @@ export default function AdminAnnouncementsPage() {
       const { error } = await supabase
         .from('announcements')
         .update({ is_active: !announcement.is_active })
-        .eq('id', announcement.id);
+        .eq(announcementPk, announcement.id);
 
       if (error) throw error;
       setAnnouncements((prev) =>
@@ -264,7 +266,10 @@ export default function AdminAnnouncementsPage() {
     if (!confirm('Are you sure you want to delete this announcement?')) return;
 
     try {
-      const { error } = await supabase.from('announcements').delete().eq('id', id);
+      const { error } = await supabase
+        .from('announcements')
+        .delete()
+        .eq(announcementPk, id);
       if (error) throw error;
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
       toast.success('Announcement deleted');

@@ -15,6 +15,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -36,6 +43,8 @@ interface PastPaper {
   created_at: string;
   updated_at: string;
 }
+
+const SUBJECT_OPTIONS = ['Physics', 'Mathematics', 'Biology', 'Chemistry'] as const;
 
 export default function AdminPastPaperPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -226,10 +235,14 @@ export default function AdminPastPaperPage() {
   };
 
   const handleEdit = (pastPaper: PastPaper) => {
+    const subject =
+      SUBJECT_OPTIONS.includes(pastPaper.subject as (typeof SUBJECT_OPTIONS)[number])
+        ? pastPaper.subject
+        : '';
     setEditingPastPaper(pastPaper);
     setFormData({
       yrs: pastPaper.yrs,
-      subject: pastPaper.subject,
+      subject,
     });
   };
 
@@ -285,13 +298,23 @@ export default function AdminPastPaperPage() {
               </div>
               <div>
                 <Label htmlFor="subject">Subject</Label>
-                <Input
-                  id="subject"
-                  type="text"
+                <Select
                   value={formData.subject}
-                  onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-                  placeholder="e.g., Mathematics"
-                />
+                  onValueChange={(value) =>
+                    setFormData(prev => ({ ...prev, subject: value }))
+                  }
+                >
+                  <SelectTrigger id="subject">
+                    <SelectValue placeholder="Select a subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUBJECT_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="exam-paper">Exam Paper (PDF)</Label>

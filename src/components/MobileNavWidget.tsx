@@ -1,15 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import {
-  Home,
-  Info,
-  FileText,
-  BookOpen,
-  Calendar,
-  Users,
-  Heart,
-} from "lucide-react";
+import { Home, Info, FileText, BookOpen, Calendar, Users } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +36,7 @@ const MobileNavWidget: React.FC = () => {
       role="navigation"
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-t-3xl rounded-b-none glass-card border border-border/30 neon-glow">
+      <div className="flex items-center gap-1.5 px-2 py-3 rounded-t-3xl rounded-b-none glass-card border border-border/30 neon-glow">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -95,20 +87,6 @@ const MobileNavWidget: React.FC = () => {
           );
         })}
 
-        {/* Donate button - emphasized */}
-        <Link
-          to="/donate"
-          aria-label={language === "en" ? "Donate" : "நன்கொடை"}
-          className={cn(
-            "relative flex items-center justify-center w-11 h-11 ml-2 rounded-full transition-all duration-300",
-            "bg-primary text-primary-foreground neon-glow",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            "hover:scale-105 active:scale-95",
-            isActive("/donate") && "ring-2 ring-primary-foreground/50"
-          )}
-        >
-          <Heart className="w-4 h-4" />
-        </Link>
       </div>
     </motion.nav>
   );

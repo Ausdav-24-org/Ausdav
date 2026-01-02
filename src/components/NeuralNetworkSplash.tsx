@@ -284,14 +284,14 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
-            filter: "brightness(0.6)",
+            filter: "brightness(0.9)",
           }}
         >
           {/* Neural Network Canvas */}
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
           {/* Content Overlay */}
-          <div className="relative z-10 text-center">
+          <div className="relative z-100 text-center text-white px-4">
             {/* Logo */}
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -306,7 +306,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2, duration: 0.5 }}
-                className="text-9xl md:text-9xl font-serif font-bold mb-3 tracking-wide"
+                className="text-5xl sm:text-7xl md:text-9xl font-bold mb-3 tracking-wide text-white"
               >
                 <span className="text-foreground">
                   <motion.span
@@ -360,7 +360,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
-                className="text-sm md:text-base text-muted-foreground max-w-md mx-auto px-4"
+                className="text-xs sm:text-sm md:text-base text-slate-100 max-w-md mx-auto px-2"
               >
                 All University Students' Development Association Vavuniya
               </motion.p>
@@ -369,7 +369,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6, duration: 0.5 }}
-                className="text-xs text-primary mt-4 font-medium tracking-widest uppercase"
+                className="text-[10px] sm:text-xs text-cyan-300 mt-3 sm:mt-4 font-medium tracking-wider sm:tracking-widest uppercase"
               >
                 Empowering Students, Transforming Futures
               </motion.p>
@@ -380,14 +380,14 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8, duration: 0.4 }}
-              className="flex justify-center mt-8"
+              className="flex justify-center mt-4 sm:mt-8"
             >
               <motion.img
                 src={logo}
                 alt="AUSDAV Logo"
-                className="h-16 w-auto"
+                className="h-12 sm:h-16 w-auto"
                 animate={{
-                  x: prefersReducedMotion ? 0 : [-200, 200, -200],
+                  x: prefersReducedMotion ? 0 : [-80, 80, -80],
                 }}
                 transition={{
                   duration: 3,
