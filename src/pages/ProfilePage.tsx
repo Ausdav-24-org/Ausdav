@@ -19,6 +19,7 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { ImageCropper } from '@/components/ui/ImageCropper';
 
 /** ✅ SVG overlay ONLY (no background fill) so it matches your site's container background */
 const SpaceOverlay: React.FC<{ opacity?: number }> = ({ opacity = 0.35 }) => {
@@ -125,6 +126,8 @@ const ProfilePage: React.FC = () => {
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSignedAvatar = async () => {
@@ -295,9 +298,33 @@ const ProfilePage: React.FC = () => {
                 disabled={uploading}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) handleAvatarUpload(file);
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      setSelectedImageSrc(reader.result as string);
+                      setCropperOpen(true);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                  e.target.value = '';
                 }}
               />
+              {selectedImageSrc && (
+                <ImageCropper
+                  open={cropperOpen}
+                  onClose={() => {
+                    setCropperOpen(false);
+                    setSelectedImageSrc(null);
+                  }}
+                  imageSrc={selectedImageSrc}
+                  onCropComplete={(blob) => {
+                    const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    handleAvatarUpload(file);
+                    setCropperOpen(false);
+                    setSelectedImageSrc(null);
+                  }}
+                />
+              )}
 
               <h2 className={cn('mt-5 text-2xl md:text-3xl font-serif font-bold', textMain)}>
                 {profileData.fullName}

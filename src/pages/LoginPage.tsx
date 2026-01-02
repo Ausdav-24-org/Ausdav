@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
+import logo from '@/assets/logo/AUSDAV_llogo.png';
+
 
 /**
  * Zod schema for validating login form data.
@@ -174,8 +176,8 @@ const LoginPage: React.FC = () => {
 
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center neon-glow">
-              <Sparkles className="w-8 h-8 text-primary-foreground" />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full  flex items-center justify-center neon-glow">
+                 <img src={logo} alt="AUSDAV" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">
               {language === 'en' ? 'Member Login' : 'உறுப்பினர் உள்நுழைவு'}

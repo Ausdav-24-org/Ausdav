@@ -106,9 +106,9 @@ const HOME_DESIGNATION_TO_ROLE: Record<string, { en: string; ta: string }> = {
 };
 
 const stats = [
-  { value: "500+", label: "Students Helped", labelTA: "உதவிய மாணவர்கள்" },
-  { value: "50+", label: "Events Organized", labelTA: "நிகழ்வுகள்" },
-  { value: "10+", label: "Years of Service", labelTA: "சேவை ஆண்டுகள்" },
+  { value: "2500+", label: "Students Helped", labelTA: "உதவிய மாணவர்கள்" },
+  { value: "100+", label: "Events Organized", labelTA: "நிகழ்வுகள்" },
+  { value: "32+", label: "Years of Service", labelTA: "சேவை ஆண்டுகள்" },
   { value: "100%", label: "Commitment", labelTA: "அர்ப்பணிப்பு" },
 ];
 
@@ -368,19 +368,26 @@ const HomePage: React.FC = () => {
     });
   }, [execRows, execPhotoUrls, language]);
 
-  // Auto-scroll for executive committee row: loop with snap and pause on hover/focus
+  // Auto-scroll for executive committee row: pause on hover/touch, resume on leave/click outside
+  // Native touch scrolling is preserved for mobile; custom drag only for mouse
+  const execDragActiveRef = useRef(false);
+  const execDragStartXRef = useRef(0);
+  const execDragScrollStartRef = useRef(0);
+
   useEffect(() => {
     const el = execRowRef.current;
     if (!el) return;
     // Respect reduced motion preference
     const prefersReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReduced) return;
+    if (prefersReduced) {
+      execIsPausedRef.current = true;
+    }
 
     // ensure start at beginning
     el.scrollLeft = 0;
 
     let last = performance.now();
-    const speed = 200; // px per second (increased rollover speed)
+    const speed = 50; // px per second
 
     const step = (now: number) => {
       const dt = now - last;
@@ -398,22 +405,77 @@ const HomePage: React.FC = () => {
 
     execAnimRef.current = requestAnimationFrame(step);
 
-    const onPointerEnter = () => { execIsPausedRef.current = true; };
-    const onPointerLeave = () => { execIsPausedRef.current = false; };
-    const onFocusIn = () => { execIsPausedRef.current = true; };
-    const onFocusOut = () => { execIsPausedRef.current = false; };
+    // Pause auto-scroll on hover/focus/touch
+    const pauseAutoScroll = () => { execIsPausedRef.current = true; };
+    // Resume auto-scroll on leave/blur
+    const resumeAutoScroll = () => {
+      if (!execDragActiveRef.current) {
+        execIsPausedRef.current = false;
+      }
+    };
 
-    el.addEventListener('pointerenter', onPointerEnter);
-    el.addEventListener('pointerleave', onPointerLeave);
-    el.addEventListener('focusin', onFocusIn);
-    el.addEventListener('focusout', onFocusOut);
+    // Touch start pauses, touch end resumes (native scroll works)
+    const onTouchStart = () => { pauseAutoScroll(); };
+    const onTouchEnd = () => { resumeAutoScroll(); };
+
+    // Mouse drag for desktop (not touch)
+    const onMouseDown = (e: MouseEvent) => {
+      // Ignore right-click
+      if (e.button !== 0) return;
+      pauseAutoScroll();
+      execDragActiveRef.current = true;
+      execDragStartXRef.current = e.clientX;
+      execDragScrollStartRef.current = el.scrollLeft;
+      el.style.scrollBehavior = 'auto';
+      el.style.userSelect = 'none';
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!execDragActiveRef.current) return;
+      e.preventDefault();
+      const delta = execDragStartXRef.current - e.clientX;
+      el.scrollLeft = execDragScrollStartRef.current + delta;
+    };
+
+    const onMouseUp = () => {
+      if (!execDragActiveRef.current) return;
+      execDragActiveRef.current = false;
+      el.style.scrollBehavior = '';
+      el.style.userSelect = '';
+      // Small delay before resuming to avoid immediate re-trigger
+      setTimeout(() => resumeAutoScroll(), 100);
+    };
+
+    // Click outside detection to resume auto-scroll
+    const onDocumentClick = (e: MouseEvent) => {
+      if (!el.contains(e.target as Node)) {
+        execIsPausedRef.current = false;
+      }
+    };
+
+    el.addEventListener('mouseenter', pauseAutoScroll);
+    el.addEventListener('mouseleave', resumeAutoScroll);
+    el.addEventListener('focusin', pauseAutoScroll);
+    el.addEventListener('focusout', resumeAutoScroll);
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('click', onDocumentClick);
 
     return () => {
       if (execAnimRef.current !== null) cancelAnimationFrame(execAnimRef.current);
-      el.removeEventListener('pointerenter', onPointerEnter);
-      el.removeEventListener('pointerleave', onPointerLeave);
-      el.removeEventListener('focusin', onFocusIn);
-      el.removeEventListener('focusout', onFocusOut);
+      el.removeEventListener('mouseenter', pauseAutoScroll);
+      el.removeEventListener('mouseleave', resumeAutoScroll);
+      el.removeEventListener('focusin', pauseAutoScroll);
+      el.removeEventListener('focusout', resumeAutoScroll);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('click', onDocumentClick);
     };
   }, [execMembers]);
 
@@ -509,8 +571,10 @@ const HomePage: React.FC = () => {
                     <span className="text-cyan-400">DAV</span>
                   </>
                 ) : (
-                  "AUSDAV"
-                )}
+                  <>
+                    <span className="text-white">AUS</span>
+                    <span className="text-cyan-400">DAV</span>
+                  </>                )}
               </span>
             </motion.h1>
 
@@ -801,8 +865,8 @@ const HomePage: React.FC = () => {
           </motion.div>
 
           <div className="max-w-6xl mx-auto">
-            <style>{`.no-scrollbar::-webkit-scrollbar{display:none} .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}`}</style>
-            <div ref={execRowRef} className="flex gap-6 overflow-x-auto py-4 px-4 md:px-0 scroll-smooth no-scrollbar" role="list" aria-label="Executive committee members" tabIndex={0}>
+            <style>{`.no-scrollbar::-webkit-scrollbar{display:none} .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none} .exec-row{cursor:grab;} .exec-row:active{cursor:grabbing;}`}</style>
+            <div ref={execRowRef} className="exec-row flex gap-6 overflow-x-auto py-4 px-4 md:px-0 no-scrollbar" role="list" aria-label="Executive committee members" tabIndex={0}>
               {/* primary sequence */}
               {(execMembers && execMembers.length ? execMembers : committeePreview).map((member, idx) => (
                 <motion.div

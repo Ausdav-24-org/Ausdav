@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ImageCropper } from '@/components/ui/ImageCropper';
 
 interface FormState {
   fullname: string;
@@ -43,6 +44,8 @@ export default function ProfileSetupPage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batchDisabled, setBatchDisabled] = useState(false);
@@ -230,9 +233,16 @@ export default function ProfileSetupPage() {
                       type="file"
                       accept="image/*"
                       onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setPhotoFile(file);
-                        setPhotoPreview(file ? URL.createObjectURL(file) : null);
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setSelectedImageSrc(reader.result as string);
+                            setCropperOpen(true);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                        e.target.value = '';
                       }}
                       className="bg-background/50 cursor-pointer"
                     />
@@ -250,6 +260,23 @@ export default function ProfileSetupPage() {
                       </Button>
                     )}
                   </div>
+                  {selectedImageSrc && (
+                    <ImageCropper
+                      open={cropperOpen}
+                      onClose={() => {
+                        setCropperOpen(false);
+                        setSelectedImageSrc(null);
+                      }}
+                      imageSrc={selectedImageSrc}
+                      onCropComplete={(blob) => {
+                        const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                        setPhotoFile(file);
+                        setPhotoPreview(URL.createObjectURL(blob));
+                        setCropperOpen(false);
+                        setSelectedImageSrc(null);
+                      }}
+                    />
+                  )}
                 </div>
               </div>
 

@@ -658,6 +658,24 @@ const CommitteePage: React.FC = () => {
   const [idx, setIdx] = useState(0);
   const cur = pages[idx] || pages[0];
 
+  const visibleYears = useMemo(() => {
+    if (!pages.length) return [] as { page: Page; index: number }[];
+
+    const windowSize = Math.min(3, pages.length);
+    const start = Math.max(0, Math.min(idx - 1, pages.length - windowSize));
+
+    return pages.slice(start, start + windowSize).map((page, offset) => ({
+      page,
+      index: start + offset,
+    }));
+  }, [pages, idx]);
+
+  useEffect(() => {
+    if (idx > pages.length - 1) {
+      setIdx(Math.max(pages.length - 1, 0));
+    }
+  }, [pages.length, idx]);
+
   const bgStyle = useMemo(
     () => ({
       background: isDark
@@ -679,15 +697,15 @@ const CommitteePage: React.FC = () => {
     <motion.button
       type="button"
       onClick={onClick}
-      whileTap={{ scale: 0.96 }}
-      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.95 }}
+      whileHover={{ y: -1 }}
       className={cn(
-        "h-10 px-4 rounded-full font-semibold transition outline-none border backdrop-blur-md",
+        "h-9 px-3 rounded-full text-sm font-semibold transition outline-none border backdrop-blur-md shadow-sm",
         active
-          ? "bg-gradient-to-r from-cyan-300/90 to-indigo-400/90 text-black border-transparent"
+          ? "bg-gradient-to-r from-cyan-300 to-sky-500 text-slate-900 border-transparent shadow-lg"
           : isDark
-          ? "bg-white/5 text-white border-white/10 hover:bg-white/10"
-          : "bg-card/70 text-foreground border-border/60 hover:bg-card"
+          ? "bg-white/5 text-white border-white/15 hover:bg-white/10"
+          : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
       )}
       aria-current={active ? "page" : undefined}
     >
@@ -695,10 +713,12 @@ const CommitteePage: React.FC = () => {
     </motion.button>
   );
 
-  const NextBtn = ({
+  const ArrowBtn = ({
+    direction,
     disabled,
     onClick,
   }: {
+    direction: "prev" | "next";
     disabled: boolean;
     onClick: () => void;
   }) => (
@@ -706,18 +726,21 @@ const CommitteePage: React.FC = () => {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      whileTap={{ scale: 0.96 }}
-      whileHover={!disabled ? { y: -2 } : undefined}
+      whileTap={{ scale: 0.95 }}
+      whileHover={!disabled ? { y: -1 } : undefined}
       className={cn(
-        "h-10 px-5 rounded-full font-semibold transition flex items-center gap-2 outline-none border backdrop-blur-md",
+        "h-9 w-9 rounded-full text-sm font-semibold transition flex items-center justify-center outline-none border backdrop-blur-md",
         disabled
           ? isDark
-            ? "bg-white/5 text-white/40 border-white/10 cursor-not-allowed"
-            : "bg-muted text-muted-foreground border-border/60 cursor-not-allowed"
-          : "bg-gradient-to-r from-rose-500/90 to-orange-400/90 text-black border-transparent hover:brightness-110"
+            ? "bg-white/5 text-white/30 border-white/10 cursor-not-allowed"
+            : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+          : isDark
+          ? "bg-white/10 text-white border-white/20 hover:bg-white/20"
+          : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
       )}
+      aria-label={direction === "prev" ? "Previous years" : "Next years"}
     >
-      Next <span aria-hidden="true">›</span>
+      {direction === "prev" ? "‹" : "›"}
     </motion.button>
   );
 
@@ -814,8 +837,8 @@ const CommitteePage: React.FC = () => {
           >
             ✦{" "}
             {language === "en"
-              ? "Empowering Future Leaders Since 2015"
-              : "2015 முதல் ஆற்றல் சேர்ப்பு"}
+              ? "Empowering Future Leaders Since 1993"
+              : "1993 முதல் ஆற்றல் சேர்ப்பு"}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, scale: 0.9 }}
@@ -842,6 +865,23 @@ const CommitteePage: React.FC = () => {
               : "AUSDAV இல் உள்ளவர்களை அறிந்து கொள்ளுங்கள்"}
           </motion.p>
         </motion.div>
+
+        {/* Scroll indicator */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2"
+        >
+          <motion.div
+            animate={{ y: [0, 10, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1"
+          >
+            <motion.div className="w-1.5 h-3 bg-primary rounded-full" />
+          </motion.div>
+        </motion.div>
+
       </section>
 
       {cur.blocks.map((b, bi) => {
@@ -869,15 +909,31 @@ const CommitteePage: React.FC = () => {
         );
       })}
 
-      <div className="flex items-center justify-center gap-2 pb-14">
-        {pages.map((p, i) => (
-          <YearBtn key={p.year} active={i === idx} onClick={() => setIdx(i)}>
-            {p.year + 3}
-          </YearBtn>
-        ))}
-        <NextBtn
+      <div className="flex items-center justify-center gap-3 pb-14">
+        <ArrowBtn
+          direction="prev"
+          disabled={idx === 0}
+          onClick={() => setIdx((v) => Math.max(v - 1, 0))}
+        />
+
+        <div className="flex items-center gap-2">
+          {visibleYears.map(({ page, index }) => (
+            <YearBtn
+              key={page.year}
+              active={index === idx}
+              onClick={() => setIdx(index)}
+            >
+              {page.year + 3}
+            </YearBtn>
+          ))}
+        </div>
+
+        <ArrowBtn
+          direction="next"
           disabled={idx === pages.length - 1}
-          onClick={() => setIdx((v) => Math.min(v + 1, pages.length - 1))}
+          onClick={() =>
+            setIdx((v) => Math.min(v + 1, Math.max(pages.length - 1, 0)))
+          }
         />
       </div>
     </div>
