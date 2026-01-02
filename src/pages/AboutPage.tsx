@@ -66,15 +66,15 @@ const AboutPage: React.FC = () => {
 
   const stats = [
     {
-      number: "500+",
+      number: "2500+",
       label: language === "en" ? "Students Helped" : "உதவிய மாணவர்கள்",
     },
     {
-      number: "50+",
+      number: "100+",
       label: language === "en" ? "Events Organized" : "அமைத்த நிகழ்வுகள்",
     },
     {
-      number: "10+",
+      number: "32+",
       label: language === "en" ? "Years of Service" : "சேவை ஆண்டுகள்",
     },
     { number: "100%", label: language === "en" ? "Commitment" : "உறுதிப்பாடு" },

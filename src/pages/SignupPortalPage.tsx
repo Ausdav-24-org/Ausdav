@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Lock, Sparkles, ArrowRight, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowRight, AlertTriangle, Loader2, Users, GraduationCap, Heart } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { invokeFunction } from '@/integrations/supabase/functions';
@@ -60,7 +60,7 @@ const SignupPortalPage = () => {
     setSuccess('');
 
     if (!signupOpen) {
-      setError('Signups are currently locked.');
+      setError('Registration is currently closed. Please check back later or contact AUSDAV for more information.');
       return;
     }
 
@@ -76,19 +76,19 @@ const SignupPortalPage = () => {
       const { data, error: fnError } = await invokeFunction('controlled-signup', { email, password });
 
       if (fnError) throw fnError;
-      if (!data?.userId) throw new Error('Failed to create account');
+      if (!data?.userId) throw new Error('Unable to create your account. Please try again.');
 
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
       if (signInError) {
-        setSuccess('Account created. Please sign in to continue.');
+        setSuccess('Welcome to AUSDAV! Your account has been created. Please sign in to continue.');
         return;
       }
 
-      setSuccess('Account created! Redirecting to profile setup...');
+      setSuccess('Welcome to AUSDAV! Redirecting you to complete your profile...');
       navigate('/admin/profile-setup');
     } catch (err: any) {
-      setError(err.message || 'Failed to create account');
+      setError(err.message || 'Unable to create your account. Please try again.');
     } finally {
       setSubmitLoading(false);
     }
@@ -111,44 +111,44 @@ const SignupPortalPage = () => {
           <div className="flex flex-col lg:flex-row gap-10 items-center">
             <div className="flex-1 space-y-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                <Sparkles className="w-4 h-4" />
-                Controlled Sign Up
+                <Users className="w-4 h-4" />
+                Member Registration
               </div>
 
               <div className="space-y-3">
-                <h1 className="text-3xl md:text-4xl font-bold text-foreground">Invitation-only access</h1>
+                <h1 className="text-3xl md:text-4xl font-bold text-foreground">Join the AUSDAV Family</h1>
                 <p className="text-muted-foreground text-lg">
-                  New accounts are created through a controlled signup. When enabled by a Super Admin, the Sign Up flow becomes available. Otherwise, signups remain locked for security.
+                  Become a member of the All University Students' Development Association Vavuniya. Join our community of educators, mentors, and changemakers dedicated to empowering students across Sri Lanka.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-2xl bg-background/60 border border-border/60 flex items-start gap-3">
-                  <ShieldCheck className="w-5 h-5 text-primary mt-0.5" />
+                  <GraduationCap className="w-5 h-5 text-primary mt-0.5" />
                   <div>
-                    <p className="font-semibold text-foreground">Server-enforced</p>
-                    <p className="text-sm text-muted-foreground">Even if the UI is hidden, the Edge Function blocks signups unless Super Admins enable it.</p>
+                    <p className="font-semibold text-foreground">Educational Excellence</p>
+                    <p className="text-sm text-muted-foreground">Access resources, organize seminars, and contribute to student development programs.</p>
                   </div>
                 </div>
                 <div className="p-4 rounded-2xl bg-background/60 border border-border/60 flex items-start gap-3">
-                  <Lock className="w-5 h-5 text-primary mt-0.5" />
+                  <Heart className="w-5 h-5 text-primary mt-0.5" />
                   <div>
-                    <p className="font-semibold text-foreground">No public registration</p>
-                    <p className="text-sm text-muted-foreground">The Supabase Auth setting “Allow new users to sign up” is disabled to prevent bypassing the UI.</p>
+                    <p className="font-semibold text-foreground">Community Impact</p>
+                    <p className="text-sm text-muted-foreground">Make a difference in students' lives through mentorship, guidance, and support initiatives.</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
                 {loading ? (
-                  <Badge className="bg-muted text-muted-foreground">Checking status...</Badge>
+                  <Badge className="bg-muted text-muted-foreground">Checking registration status...</Badge>
                 ) : signupOpen ? (
-                  <Badge className="bg-green-500/15 text-green-500">Signups enabled</Badge>
+                  <Badge className="bg-green-500/15 text-green-500">Registration Open</Badge>
                 ) : (
-                  <Badge className="bg-muted text-muted-foreground">Signups locked</Badge>
+                  <Badge className="bg-muted text-muted-foreground">Registration Currently Closed</Badge>
                 )}
                 {state?.updated_at && (
-                  <span className="text-xs text-muted-foreground">Updated {new Date(state.updated_at).toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground">Last updated: {new Date(state.updated_at).toLocaleString()}</span>
                 )}
               </div>
 
@@ -181,11 +181,11 @@ const SignupPortalPage = () => {
               <div className="rounded-3xl border border-primary/20 bg-background p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-sm text-primary">Create your admin account</p>
-                    <h2 className="text-xl font-semibold text-foreground">Sign up with email</h2>
+                    <p className="text-sm text-primary">Become a member today</p>
+                    <h2 className="text-xl font-semibold text-foreground">Create your AUSDAV account</h2>
                   </div>
                   <div className={`px-4 py-2 rounded-full text-sm font-semibold ${signupOpen ? 'bg-green-500/20 text-green-500' : 'bg-border text-muted-foreground'}`}>
-                    {signupOpen ? 'Enabled' : 'Locked'}
+                    {signupOpen ? 'Open' : 'Closed'}
                   </div>
                 </div>
 
@@ -208,7 +208,7 @@ const SignupPortalPage = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="admin@ausdav.org"
+                      placeholder="your.email@example.com"
                       autoComplete="email"
                       disabled={!signupOpen || submitLoading}
                     />
@@ -229,14 +229,14 @@ const SignupPortalPage = () => {
 
                   <Button type="submit" className="w-full" disabled={!signupOpen || submitLoading}>
                     {submitLoading ? (
-                      <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Creating account...</span>
+                      <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Creating your account...</span>
                     ) : (
-                      <span className="flex items-center gap-2">Create & Continue <ArrowRight className="w-4 h-4" /></span>
+                      <span className="flex items-center gap-2">Join AUSDAV <ArrowRight className="w-4 h-4" /></span>
                     )}
                   </Button>
 
                   <p className="text-xs text-muted-foreground text-center">
-                    After signup, you’ll be taken to set up your member profile.
+                    After registration, you'll complete your member profile to join the AUSDAV community.
                   </p>
                 </form>
               </div>

@@ -106,9 +106,9 @@ const HOME_DESIGNATION_TO_ROLE: Record<string, { en: string; ta: string }> = {
 };
 
 const stats = [
-  { value: "500+", label: "Students Helped", labelTA: "உதவிய மாணவர்கள்" },
-  { value: "50+", label: "Events Organized", labelTA: "நிகழ்வுகள்" },
-  { value: "10+", label: "Years of Service", labelTA: "சேவை ஆண்டுகள்" },
+  { value: "2500+", label: "Students Helped", labelTA: "உதவிய மாணவர்கள்" },
+  { value: "100+", label: "Events Organized", labelTA: "நிகழ்வுகள்" },
+  { value: "32+", label: "Years of Service", labelTA: "சேவை ஆண்டுகள்" },
   { value: "100%", label: "Commitment", labelTA: "அர்ப்பணிப்பு" },
 ];
 
