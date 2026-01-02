@@ -213,8 +213,8 @@ const ResourcesPage: React.FC = () => {
           >
             ✦{" "}
             {language === "en"
-              ? "Empowering Future Leaders Since 2021"
-              : "2021 முதல் ஆற்றல் சேர்ப்பு"}
+              ? "Empowering Future Leaders Since 1993"
+              : "1993 முதல் ஆற்றல் சேர்ப்பு"}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, scale: 0.9 }}
@@ -264,6 +264,23 @@ const ResourcesPage: React.FC = () => {
             </Button>
           </motion.div>
         </motion.div>
+
+        {/* Scroll indicator */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2"
+        >
+          <motion.div
+            animate={{ y: [0, 10, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1"
+          >
+            <motion.div className="w-1.5 h-3 bg-primary rounded-full" />
+          </motion.div>
+        </motion.div>
+
       </section>
 
       {/* Past Papers */}

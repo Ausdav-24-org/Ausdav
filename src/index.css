@@ -212,7 +212,8 @@
   
   /* Tamil Typography */
   .font-tamil {
-    font-family: 'Kavivanar', 'Outfit', sans-serif;
+    /* Keep English glyphs on the primary Latin font; fall back to Tamil font only when needed */
+    font-family: 'Outfit', 'Kavivanar', sans-serif;
   }
 }
 
