@@ -153,7 +153,7 @@ const SignupPortalPage = () => {
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <Button asChild size="lg" disabled={!signupOpen}>
+                {/* <Button asChild size="lg" disabled={!signupOpen}>
                   <Link to="/login">
                     {loading ? (
                       <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</span>
@@ -163,7 +163,7 @@ const SignupPortalPage = () => {
                       <span className="flex items-center gap-2">Signups Locked</span>
                     )}
                   </Link>
-                </Button>
+                </Button> */}
                 <Button variant="outline" asChild size="lg">
                   <Link to="/login">Already have an account? Sign in</Link>
                 </Button>

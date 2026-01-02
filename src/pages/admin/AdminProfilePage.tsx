@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { ImageCropper } from '@/components/ui/ImageCropper';
 
 export default function AdminProfilePage() {
   const { profile, role, refreshProfile } = useAdminAuth();
@@ -34,6 +35,8 @@ export default function AdminProfilePage() {
   const [showUniversitySuggestions, setShowUniversitySuggestions] = useState(false);
   const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
 
   useEffect(() => {
     setFormData({
@@ -265,9 +268,33 @@ export default function AdminProfilePage() {
                     disabled={uploading}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) handleAvatarUpload(file);
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          setSelectedImageSrc(reader.result as string);
+                          setCropperOpen(true);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                      e.target.value = '';
                     }}
                   />
+                  {selectedImageSrc && (
+                    <ImageCropper
+                      open={cropperOpen}
+                      onClose={() => {
+                        setCropperOpen(false);
+                        setSelectedImageSrc(null);
+                      }}
+                      imageSrc={selectedImageSrc}
+                      onCropComplete={(blob) => {
+                        const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                        handleAvatarUpload(file);
+                        setCropperOpen(false);
+                        setSelectedImageSrc(null);
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="text-center md:text-left">
                   <h2 className="text-2xl font-bold">{profile?.fullname || 'User'}</h2>
