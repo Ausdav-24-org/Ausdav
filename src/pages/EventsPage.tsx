@@ -163,30 +163,6 @@ const EventsPage: React.FC = () => {
   }, [events]);
 
   return (
-        //piri
-    // <div>
-    //   {/* Hero */}
-    //   <section className="py-16 md:py-24" style={{ backgroundImage: "var(--gradient-hero)" }}>
-    //     <div className="container mx-auto px-4">
-    //       <motion.div
-    //         initial={{ opacity: 0, y: 30 }}
-    //         animate={{ opacity: 1, y: 0 }}
-    //         className="text-center max-w-3xl mx-auto"
-    //       >
-    //         <h1 className="text-4xl md:text-5xl font-serif font-bold text-foreground mb-4">
-    //           {t("events.title")}
-    //         </h1>
-    //         <p className="text-foreground/80 text-lg">
-    //           {language === "en"
-    //             ? "Discover our upcoming events and explore memories from past activities"
-    //             : "எங்கள் வரவிருக்கும் நிகழ்வுகளைக் கண்டறியுங்கள் மற்றும் கடந்த செயல்பாடுகளின் நினைவுகளை ஆராயுங்கள்"}
-    //         </p>
-    //       </motion.div>
-    //     </div>
-    //   </section> 
-
- 
-        //main
     <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
       {/* Hero Section with Background Image */}
       <section

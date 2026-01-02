@@ -222,9 +222,11 @@ const App = () => {
                   <Route
                     path="/profile"
                     element={
-                      <Layout>
-                        <ProfilePage />
-                      </Layout>
+                      <AdminAuthProvider>
+                        <Layout>
+                          <ProfilePage />
+                        </Layout>
+                      </AdminAuthProvider>
                     }
                   />
                   <Route
