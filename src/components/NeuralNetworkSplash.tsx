@@ -278,7 +278,7 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
             },
             opacity: { duration: 0.5, ease: "easeInOut" },
           }}
-          className="fixed inset-0 z-[99] flex items-center justify-center bg-background"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-background"
           style={{
             backgroundImage: `url(${BG1})`,
             backgroundSize: "cover",
