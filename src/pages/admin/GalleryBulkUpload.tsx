@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Upload, X, Loader2, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 interface GalleryBulkUploadProps {
   galleryId: string;
@@ -57,12 +58,17 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
   const uploadImagesMutation = useMutation({
     mutationFn: async (files: File[]) => {
       const uploadPromises = files.map(async (file) => {
-        const ext = file.name.split('.').pop() || 'jpg';
-        const path = `${eventId}/${galleryId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const compressedBlob = await compressImageBlob(file, {
+          maxSize: 1600,
+          quality: 0.82,
+          mimeType: 'image/jpeg',
+        });
+        const compressedFile = new File([compressedBlob], `gallery-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const path = `${eventId}/${galleryId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
         const { error: uploadError } = await supabase.storage
           .from('event-gallery')
-          .upload(path, file, { upsert: true, contentType: file.type });
+          .upload(path, compressedFile, { upsert: true, contentType: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
 

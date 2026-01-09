@@ -29,6 +29,7 @@ import { Plus, Pencil, Trash2, Calendar, Image as ImageIcon, Loader2 } from 'luc
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import GalleryBulkUpload from './GalleryBulkUpload';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 interface Event {
   id: number;
@@ -467,13 +468,18 @@ const AdminEventsPage: React.FC = () => {
       return formData.image_path ? { bucket: formData.image_bucket, path: formData.image_path } : null;
     }
 
-    const ext = imageFile.name.split('.').pop() || 'jpg';
+    const compressedBlob = await compressImageBlob(imageFile, {
+      maxSize: 1600,
+      quality: 0.82,
+      mimeType: 'image/jpeg',
+    });
+    const compressedFile = new File([compressedBlob], `event-${Date.now()}.jpg`, { type: 'image/jpeg' });
     const bucket = 'events';
-    const path = `events/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const path = `events/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+      .upload(path, compressedFile, { upsert: true, contentType: 'image/jpeg' });
 
     if (uploadError) throw uploadError;
 

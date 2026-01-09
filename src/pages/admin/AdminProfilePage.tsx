@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { ImageCropper } from '@/components/ui/ImageCropper';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 export default function AdminProfilePage() {
   const { profile, role, refreshProfile } = useAdminAuth();
@@ -287,8 +288,13 @@ export default function AdminProfilePage() {
                         setSelectedImageSrc(null);
                       }}
                       imageSrc={selectedImageSrc}
-                      onCropComplete={(blob) => {
-                        const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                      onCropComplete={async (blob) => {
+                        const compressedBlob = await compressImageBlob(blob, {
+                          maxSize: 512,
+                          quality: 0.82,
+                          mimeType: 'image/jpeg',
+                        });
+                        const file = new File([compressedBlob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
                         handleAvatarUpload(file);
                         setCropperOpen(false);
                         setSelectedImageSrc(null);
