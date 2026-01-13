@@ -22,6 +22,7 @@ import {
   HandHelping,
   TrendingUp, // ✅ added for Results page icon
   Wrench,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -53,6 +54,7 @@ const navItems: NavItem[] = [
   { title: 'Designations', href: '/admin/designations', icon: User, roles: ['super_admin'] },
 
   { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['admin', 'super_admin'], permissionKey: 'events' },
+  { title: 'Quiz', href: '/admin/quiz', icon: ClipboardCheck, roles: ['admin', 'super_admin'], permissionKey: 'settings' },
   { title: 'Seminar', href: '/admin/seminar', icon: BookOpen, roles: ['admin', 'super_admin'], permissionKey: 'seminar' },
   { title: 'Past Papers', href: '/admin/past-paper', icon: FileText, roles: ['admin', 'super_admin'], permissionKey: 'seminar' },
 

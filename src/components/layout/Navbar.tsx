@@ -24,6 +24,7 @@ const Navbar: React.FC = () => {
   const [hasUser, setHasUser] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userLabel, setUserLabel] = useState('');
+  const [isQuizEnabled, setIsQuizEnabled] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
@@ -114,10 +115,50 @@ const Navbar: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const fetchQuizStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("app_settings")
+          .select("allow_exam_applications")
+          .single();
+
+        if (error) throw error;
+        setIsQuizEnabled(data?.allow_exam_applications || false);
+      } catch (error) {
+        console.error("Error fetching quiz status:", error);
+        setIsQuizEnabled(false);
+      }
+    };
+
+    fetchQuizStatus();
+
+    // Listen for changes to app_settings
+    const channel = supabase
+      .channel('quiz-settings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'app_settings',
+        },
+        () => {
+          fetchQuizStatus();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const navLinks = [
     { href: "/", label: t("nav.home") },
     { href: "/about", label: t("nav.about") },
     { href: "/exam", label: t("nav.exam") },
+    ...(isQuizEnabled ? [{ href: "/quiz", label: "Quiz" }] : []),
     { href: "/resources", label: t("nav.resources") },
     { href: "/events", label: t("nav.events") },
     { href: "/committee", label: t("nav.committee") },

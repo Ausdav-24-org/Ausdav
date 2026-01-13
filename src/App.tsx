@@ -15,6 +15,8 @@ import AboutPage from "@/pages/AboutPage";
 import UnderConstructionPage from "@/pages/UnderConstructionPage";
 import CommitteePage from "@/pages/CommitteePage";
 import ExamPage from "@/pages/ExamPage";
+import QuizPage from "@/pages/QuizPage";
+import MemberQuizUploadPage from "@/pages/MemberQuizUploadPage";
 import ResourcesPage from "@/pages/ResourcesPage";
 import SeminarPage from "@/pages/SeminarPage";
 import EventsPage from "@/pages/EventsPage";
@@ -42,6 +44,7 @@ import FinanceVerifyPage from "@/pages/admin/finance/FinanceVerifyPage";
 import FinanceLedgerPage from "@/pages/admin/finance/FinanceLedgerPage";
 import ProfileSetupPage from "@/pages/admin/ProfileSetupPage";
 import AdminExamPage from "@/pages/admin/AdminExamPage";
+import AdminQuizPage from "@/pages/admin/AdminQuizPage";
 import AdminSeminarPage from "@/pages/admin/AdminSeminarPage";
 import AdminPastPaperPage from "@/pages/admin/AdminPastPaperPage";
 import AdminApplicantsPage from "@/pages/admin/AdminApplicantsPage";
@@ -167,6 +170,14 @@ const App = () => {
                     }
                   />
                   <Route
+                    path="/quiz"
+                    element={
+                      <Layout>
+                        <QuizPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
                     path="/resources"
                     element={
                       <Layout>
@@ -267,6 +278,7 @@ const App = () => {
                     <Route path="site-mode" element={<AdminSiteModePage />} />
                     <Route path="events" element={<AdminEventsPage />} />
                     <Route path="exam" element={<AdminExamPage />} />
+                    <Route path="quiz" element={<AdminQuizPage />} />
                     <Route path="seminar" element={<AdminSeminarPage />} />
                     <Route path="past-paper" element={<AdminPastPaperPage />} />
                     <Route

@@ -737,6 +737,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      quiz_mcq: {
+        Row: {
+          id: number;
+          question_text: string;
+          language: string;
+          option_a: string;
+          option_b: string;
+          option_c: string;
+          option_d: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          question_text: string;
+          language?: string;
+          option_a: string;
+          option_b: string;
+          option_c: string;
+          option_d: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          question_text?: string;
+          language?: string;
+          option_a?: string;
+          option_b?: string;
+          option_c?: string;
+          option_d?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
