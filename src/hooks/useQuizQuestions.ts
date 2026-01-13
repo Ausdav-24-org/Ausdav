@@ -9,6 +9,7 @@ export type QuizQuestion = {
   option_b: string;
   option_c: string;
   option_d: string;
+  correct_answer: string | null;
   created_at: string;
 };
 
@@ -34,7 +35,7 @@ const formatQuestions = (
       { id: "c", text: q.option_c },
       { id: "d", text: q.option_d },
     ],
-    correctOptionId: "", // Note: correctOptionId needs to be stored in DB or derived
+    correctOptionId: q.correct_answer || "", // Use correct_answer from database
   }));
 };
 

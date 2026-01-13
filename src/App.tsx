@@ -16,7 +16,6 @@ import UnderConstructionPage from "@/pages/UnderConstructionPage";
 import CommitteePage from "@/pages/CommitteePage";
 import ExamPage from "@/pages/ExamPage";
 import QuizPage from "@/pages/QuizPage";
-import MemberQuizUploadPage from "@/pages/MemberQuizUploadPage";
 import ResourcesPage from "@/pages/ResourcesPage";
 import SeminarPage from "@/pages/SeminarPage";
 import EventsPage from "@/pages/EventsPage";

@@ -20,6 +20,7 @@ type QuizQuestion = {
   option_b: string;
   option_c: string;
   option_d: string;
+  correct_answer: string | null;
   created_at: string;
 };
 
@@ -30,12 +31,28 @@ type QuestionFormData = {
   option_b: string;
   option_c: string;
   option_d: string;
+  correct_answer: string;
+};
+
+type SchoolQuizResult = {
+  id: number;
+  school_name: string;
+  total_questions: number;
+  correct_answers: number;
+  wrong_answers: number;
+  not_answered: number;
+  final_score: number;
+  language: string;
+  completed_at: string;
+  created_at: string;
 };
 
 const AdminQuizPage: React.FC = () => {
   const { language } = useLanguage();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [schoolResults, setSchoolResults] = useState<SchoolQuizResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingResults, setLoadingResults] = useState(true);
   const [isQuizEnabled, setIsQuizEnabled] = useState(false);
   const [isMemberUploadEnabled, setIsMemberUploadEnabled] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -49,10 +66,12 @@ const AdminQuizPage: React.FC = () => {
     option_b: "",
     option_c: "",
     option_d: "",
+    correct_answer: "a",
   });
 
   useEffect(() => {
     fetchQuestions();
+    fetchSchoolResults();
     checkQuizEnabled();
   }, []);
 
@@ -93,6 +112,24 @@ const AdminQuizPage: React.FC = () => {
     } catch (error) {
       console.error("Error toggling quiz:", error);
       toast.error(language === "ta" ? "பிழை ஏற்பட்டது" : "Error occurred");
+    }
+  };
+
+  const fetchSchoolResults = async () => {
+    try {
+      setLoadingResults(true);
+      const { data, error } = await supabase
+        .from("school_quiz_results")
+        .select("*")
+        .order("final_score", { ascending: false });
+
+      if (error) throw error;
+      setSchoolResults(data || []);
+    } catch (error) {
+      console.error("Error fetching school results:", error);
+      toast.error(language === "ta" ? "முடிவுகளை ஏற்ற முடியவில்லை" : "Failed to load results");
+    } finally {
+      setLoadingResults(false);
     }
   };
 
@@ -181,6 +218,7 @@ const AdminQuizPage: React.FC = () => {
       option_b: question.option_b,
       option_c: question.option_c,
       option_d: question.option_d,
+      correct_answer: question.correct_answer || "a",
     });
     setShowAddForm(true);
   };
@@ -193,6 +231,7 @@ const AdminQuizPage: React.FC = () => {
       option_b: "",
       option_c: "",
       option_d: "",
+      correct_answer: "a",
     });
     setEditingId(null);
     setShowAddForm(false);
@@ -239,6 +278,85 @@ const AdminQuizPage: React.FC = () => {
                     : "Disabled"}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* School Quiz Results */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>
+                {language === "ta" ? "பள்ளி வினாடிவினா முடிவுகள்" : "School Quiz Results"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingResults ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {language === "ta" ? "ஏற்றுகிறது..." : "Loading..."}
+                </div>
+              ) : schoolResults.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {language === "ta" ? "முடிவுகள் இல்லை" : "No results yet"}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {schoolResults.map((result, index) => (
+                    <motion.div
+                      key={result.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Card className={`relative overflow-hidden ${
+                        index === 0 ? 'border-yellow-500 border-2 shadow-lg' :
+                        index === 1 ? 'border-gray-400 border-2' :
+                        index === 2 ? 'border-orange-600 border-2' :
+                        'border-primary/20'
+                      }`}>
+                        <CardContent className="pt-6">
+                          {index < 3 && (
+                            <div className="absolute top-2 right-2">
+                              <div className={`text-2xl ${
+                                index === 0 ? '🥇' :
+                                index === 1 ? '🥈' :
+                                '🥉'
+                              }`}></div>
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <h3 className="font-bold text-lg text-primary line-clamp-1">
+                              {result.school_name}
+                            </h3>
+                            <div className="text-3xl font-bold text-center my-4">
+                              {result.final_score.toFixed(1)}
+                            </div>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                              <div className="flex justify-between">
+                                <span>{language === "ta" ? "சரியான பதில்கள்:" : "Correct:"}</span>
+                                <span className="font-semibold text-green-600">{result.correct_answers}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>{language === "ta" ? "தவறான பதில்கள்:" : "Wrong:"}</span>
+                                <span className="font-semibold text-red-600">{result.wrong_answers}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>{language === "ta" ? "பதிலளிக்கவில்லை:" : "Not Answered:"}</span>
+                                <span className="font-semibold text-yellow-600">{result.not_answered}</span>
+                              </div>
+                              <div className="flex justify-between border-t pt-1 mt-2">
+                                <span>{language === "ta" ? "மொத்தம்:" : "Total:"}</span>
+                                <span className="font-semibold">{result.total_questions}</span>
+                              </div>
+                              <div className="text-xs text-center mt-2 text-muted-foreground">
+                                {new Date(result.completed_at).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -293,6 +411,23 @@ const AdminQuizPage: React.FC = () => {
                         <SelectContent>
                           <SelectItem value="ta">தமிழ் (Tamil)</SelectItem>
                           <SelectItem value="en">English</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{language === "ta" ? "சரியான விடை" : "Correct Answer"}</Label>
+                      <Select
+                        value={formData.correct_answer}
+                        onValueChange={(value) => setFormData({ ...formData, correct_answer: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="a">{language === "ta" ? "விருப்பம் A" : "Option A"}</SelectItem>
+                          <SelectItem value="b">{language === "ta" ? "விருப்பம் B" : "Option B"}</SelectItem>
+                          <SelectItem value="c">{language === "ta" ? "விருப்பம் C" : "Option C"}</SelectItem>
+                          <SelectItem value="d">{language === "ta" ? "விருப்பம் D" : "Option D"}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -410,21 +545,25 @@ const AdminQuizPage: React.FC = () => {
                         </div>
                         <p className="font-semibold mb-4">{question.question_text}</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          <div className="flex items-center gap-2">
+                          <div className={`flex items-center gap-2 ${question.correct_answer === 'a' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                             <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">A</span>
                             <span className="text-sm">{question.option_a}</span>
+                            {question.correct_answer === 'a' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ {language === "ta" ? "சரி" : "Correct"}</span>}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className={`flex items-center gap-2 ${question.correct_answer === 'b' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                             <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">B</span>
                             <span className="text-sm">{question.option_b}</span>
+                            {question.correct_answer === 'b' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ {language === "ta" ? "சரி" : "Correct"}</span>}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className={`flex items-center gap-2 ${question.correct_answer === 'c' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                             <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">C</span>
                             <span className="text-sm">{question.option_c}</span>
+                            {question.correct_answer === 'c' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ {language === "ta" ? "சரி" : "Correct"}</span>}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className={`flex items-center gap-2 ${question.correct_answer === 'd' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                             <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">D</span>
                             <span className="text-sm">{question.option_d}</span>
+                            {question.correct_answer === 'd' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ {language === "ta" ? "சரி" : "Correct"}</span>}
                           </div>
                         </div>
                       </div>
