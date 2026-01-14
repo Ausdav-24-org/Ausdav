@@ -154,11 +154,16 @@ const Navbar: React.FC = () => {
     };
   }, []);
 
+  const quizLabel = t("nav.quiz");
+  const safeQuizLabel = quizLabel === "nav.quiz"
+    ? (language === "ta" ? "வினாடிவினா" : "Quiz")
+    : quizLabel;
+
   const navLinks = [
     { href: "/", label: t("nav.home") },
     { href: "/about", label: t("nav.about") },
     { href: "/exam", label: t("nav.exam") },
-    ...(isQuizEnabled ? [{ href: "/quiz", label: "Quiz" }] : []),
+    { href: "/quiz", label: safeQuizLabel },
     { href: "/resources", label: t("nav.resources") },
     { href: "/events", label: t("nav.events") },
     { href: "/committee", label: t("nav.committee") },

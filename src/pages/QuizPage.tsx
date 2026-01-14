@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useQuizQuestions } from "@/hooks/useQuizQuestions";
 import { supabase } from "@/integrations/supabase/client";
+import { renderCyanTail } from "@/utils/text";
+import BG1 from "@/assets/AboutUs/BG1.jpg";
 
 type Option = {
   id: string;
@@ -32,12 +34,23 @@ const QuizTamilMCQ: React.FC = () => {
 
   // School name and quiz start control
   const [showSchoolDialog, setShowSchoolDialog] = useState(true);
+  const [showSchoolInput, setShowSchoolInput] = useState(false);
   const [schoolName, setSchoolName] = useState("");
+  const [quizPassword, setQuizPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [incorrectPassword, setIncorrectPassword] = useState(false);
   const [quizStarted, setQuizStarted] = useState(false);
   const [checkingAttempt, setCheckingAttempt] = useState(false);
+  const [alreadyAttempted, setAlreadyAttempted] = useState(false);
+  const [requestPending, setRequestPending] = useState(false);
+  const [submittingRequest, setSubmittingRequest] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [canViewReview, setCanViewReview] = useState(false);
+
+  // Quiz availability
+  const [isQuizEnabled, setIsQuizEnabled] = useState(false);
+  const [loadingQuizStatus, setLoadingQuizStatus] = useState(true);
 
   // Anti-copy / anti-screenshot (best-effort deterrents)
   const [copyAttempts, setCopyAttempts] = useState(0);
@@ -46,6 +59,29 @@ const QuizTamilMCQ: React.FC = () => {
 
   const { questions: dbQuestions, loading: questionsLoading, error: questionsError } =
     useQuizQuestions(language);
+  
+  // Check if quiz is enabled
+  useEffect(() => {
+    const checkQuizEnabled = async () => {
+      try {
+        setLoadingQuizStatus(true);
+        const { data, error } = await supabase
+          .from("app_settings")
+          .select("allow_exam_applications")
+          .single();
+
+        if (error) throw error;
+        setIsQuizEnabled(data?.allow_exam_applications || false);
+      } catch (error) {
+        console.error("Error checking quiz status:", error);
+        setIsQuizEnabled(false);
+      } finally {
+        setLoadingQuizStatus(false);
+      }
+    };
+
+    checkQuizEnabled();
+  }, []);
   
   // Shuffle questions based on school name for consistent but different order per school
   const activeQuestions = useMemo(() => {
@@ -188,7 +224,11 @@ const QuizTamilMCQ: React.FC = () => {
     setCopyAttempts(0);
     setPrivacyBlur(false);
     setShowSchoolDialog(true);
+    setShowSchoolInput(false);
     setSchoolName("");
+    setQuizPassword("");
+    setShowPassword(false);
+    setIncorrectPassword(false);
     setQuizStarted(false);
     setQuizStartTime(null);
     setTimeRemaining(60);
@@ -201,9 +241,34 @@ const QuizTamilMCQ: React.FC = () => {
       return;
     }
 
+    if (!quizPassword.trim()) {
+      toast.error(language === "ta" ? "கடவுச்சொல்லை உள்ளிடவும்" : "Please enter password");
+      return;
+    }
+
     // Check if school has already attempted the quiz
     setCheckingAttempt(true);
     try {
+      // Fetch the quiz password from app_settings
+      const { data: settingsData, error: settingsError } = await supabase
+        .from("app_settings" as any)
+        .select("quiz_password")
+        .single();
+
+      if (settingsError) throw settingsError;
+
+      const storedPassword = (settingsData as { quiz_password?: string | null })?.quiz_password || "";
+
+      // Validate password
+      if (quizPassword.trim() !== storedPassword.trim()) {
+        setIncorrectPassword(true);
+        toast.error(language === "ta" ? "தவறான கடவுச்சொல்" : "Incorrect password");
+        setCheckingAttempt(false);
+        return;
+      }
+
+      setIncorrectPassword(false);
+
       const { data, error } = await supabase
         .from("school_quiz_results")
         .select("id")
@@ -451,97 +516,281 @@ const QuizTamilMCQ: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-12 px-4">
-      <div className="container mx-auto max-w-4xl">
-        {/* School Name Form - Show inline instead of modal */}
-        {showSchoolDialog && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <Card className="border-primary/20 shadow-lg">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-bold">
-                  {language === "ta" ? "வினாடிவினா தொடங்க" : "Start Quiz"}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {language === "ta" 
-                    ? "உங்கள் பள்ளியின் பெயரை உள்ளிடவும்" 
-                    : "Please enter your school name"}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="school-name" className="mb-2 block">
-                      {language === "ta" ? "பள்ளியின் பெயர்" : "School Name"}
-                    </Label>
-                    <Input
-                      id="school-name"
-                      type="text"
-                      placeholder={language === "ta" ? "பள்ளியின் பெயர்..." : "Enter school name..."}
-                      value={schoolName}
-                      onChange={(e) => setSchoolName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          handleStartQuiz();
-                        }
-                      }}
-                      className="w-full"
-                      autoFocus
-                    />
-                  </div>
-                  <Button
-                    onClick={handleStartQuiz}
-                    className="w-full bg-primary hover:bg-primary/90"
-                    disabled={checkingAttempt}
-                  >
-                    {checkingAttempt 
-                      ? (language === "ta" ? "சரிபார்க்கிறது..." : "Checking...") 
-                      : (language === "ta" ? "தொடங்கு" : "Start Quiz")}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
+    <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      {/* Hero Section with Background Image */}
+      <section
+        className="relative min-h-screen bg-cover bg-center flex items-center justify-center"
+        style={{
+          backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.6)), url('${BG1}')`,
+          backgroundAttachment: "fixed",
+        }}
+      >
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+        </div>
 
-        <div style={{ display: quizStarted ? "block" : "none" }}>
-        {/* Anti-screenshot protection overlay */}
-        <div 
-          className="fixed inset-0 pointer-events-none z-50 mix-blend-screen"
-          style={{
-            background: "repeating-linear-gradient(0deg, rgba(255,255,255,.03), rgba(255,255,255,.03) 1px, transparent 1px, transparent 2px)",
-            WebkitUserSelect: "none",
-            userSelect: "none",
-          }}
-        />
-        
-        {/* If user switches tabs / window loses focus, blur the whole quiz area */}
-        <div className={privacyBlur ? "blur-xl select-none pointer-events-none" : ""}>
-          {/* Header Section */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mb-8 text-center"
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center z-10 px-4"
+        >
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-cyan-400 text-sm font-semibold mb-4 uppercase tracking-widest"
           >
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent mb-4">
-              {language === "ta" ? "ஆன்லைன் MCQ வினாடிவினா" : "Online MCQ Quiz"}
-            </h1>
-            <p className="text-lg text-foreground/70 mb-2">
-              {language === "ta"
-                ? "ஒவ்வொரு கேள்வியும் ஒன்றன்பின் ஒன்றாக வரும். Back இல்லை."
-                : "Answer one by one. No going back."}
-            </p>
-            {copyAttempts > 0 && (
-              <p className="text-sm text-red-500 font-semibold">
-                {language === "ta"
-                  ? `Copy/Screenshot முயற்சிகள்: ${copyAttempts}`
-                  : `Copy/Screenshot attempts: ${copyAttempts}`}
-              </p>
+            ✦{" "}
+            {language === "ta"
+              ? "1993 முதல் ஆற்றல் சேர்ப்பு"
+              : "Empowering Future Leaders Since 1993"}
+          </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
+          >
+            {language === "ta" ? (
+              renderCyanTail("வினாடிவினா போட்டி")
+            ) : (
+              <>
+                Quiz <span className="text-cyan-400">Competition</span>
+              </>
             )}
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto"
+          >
+            {language === "ta"
+              ? "உங்கள் அறிவை சோதித்து வெற்றி பெறுங்கள்"
+              : "Test your knowledge and win prizes"}
+          </motion.p>
+        </motion.div>
+
+        {/* Scroll indicator */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2"
+        >
+          <motion.div
+            animate={{ y: [0, 10, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1"
+          >
+            <motion.div className="w-1.5 h-3 bg-primary rounded-full" />
+          </motion.div>
+        </motion.div>
+      </section>
+
+      {/* Quiz Card Section */}
+      <section className="relative py-16 md:py-24">
+        <div className="relative z-10 container mx-auto px-4">
+          <div className="max-w-4xl mx-auto">
+            {/* Landing Card - Show before quiz starts */}
+            {showSchoolDialog && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="space-y-6"
+              >
+                <Card className="overflow-hidden border border-border">
+                  <CardContent className="p-0">
+                    <div className="grid grid-cols-1 md:grid-cols-[320px_1fr]">
+                      {/* Left Side - Illustration */}
+                      <div className="bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent p-6 flex items-center justify-center">
+                        <div className="h-40 w-full rounded-2xl overflow-hidden border border-border bg-white/60 flex items-center justify-center">
+                          <div className="text-center">
+                            <div className="flex items-center justify-center mb-4">
+                              <div className="bg-cyan-500/20 rounded-2xl p-4">
+                                <svg className="w-20 h-20 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                </svg>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-center">
+                              <svg className="w-12 h-12 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Side - Content */}
+                      <div className="p-6 md:p-8 flex flex-col justify-center gap-4">
+                        <div>
+                          <h2 className="text-2xl md:text-3xl font-serif font-bold text-foreground">
+                            {language === "ta" ? "பெண்டாத்லான் 2026" : "Pentathlon 2026"}
+                          </h2>
+                          <p className="text-muted-foreground mt-2">
+                            {language === "ta" 
+                              ? "விண்ணப்ப படிவத்தை நிரப்பி நுழைவு தேர்விற்கு பதிவு செய்யுங்கள்" 
+                              : "Sign up for the entrance examination by filling out the application form"}
+                          </p>
+                        </div>
+
+                        {!showSchoolInput ? (
+                          <div>
+                            {loadingQuizStatus ? (
+                              <Button
+                                variant="donate"
+                                className="px-10"
+                                disabled
+                              >
+                                {language === "ta" ? "ஏற்றுகிறது..." : "Loading..."}
+                              </Button>
+                            ) : !isQuizEnabled ? (
+                              <div className="space-y-3">
+                                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+                                  <p className="text-destructive font-semibold text-center">
+                                    {language === "ta" 
+                                      ? "வினாடிவினா போட்டி தற்போது மூடப்பட்டுள்ளது" 
+                                      : "Quiz Competition is Currently Closed"}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground text-center mt-2">
+                                    {language === "ta"
+                                      ? "தயவுசெய்து பின்னர் மீண்டும் சரிபார்க்கவும்"
+                                      : "Please check back later"}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <Button
+                                onClick={() => setShowSchoolInput(true)}
+                                variant="donate"
+                                className="px-10"
+                              >
+                                {language === "ta" ? "வினாடிவினாவைத் தொடங்கு" : "Start Quiz"}
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="school-name" className="block text-sm font-semibold text-foreground mb-2">
+                                {language === "ta" ? "பள்ளியின் பெயர்" : "School Name"}
+                              </Label>
+                              <Input
+                                id="school-name"
+                                type="text"
+                                placeholder={language === "ta" ? "உங்கள் பள்ளியின் பெயரை உள்ளீடு செய்யவும்" : "Enter your school name"}
+                                value={schoolName}
+                                onChange={(e) => setSchoolName(e.target.value)}
+                                className="w-full"
+                                autoFocus
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="quiz-password" className="block text-sm font-semibold text-foreground mb-2">
+                                {language === "ta" ? "கடவுச்சொல்" : "Password"}
+                              </Label>
+                              <div className="relative">
+                                <Input
+                                  id="quiz-password"
+                                  type={showPassword ? "text" : "password"}
+                                  placeholder={language === "ta" ? "வினாடிவினா கடவுச்சொல்லை உள்ளீடு செய்யவும்" : "Enter quiz password"}
+                                  value={quizPassword}
+                                  onChange={(e) => {
+                                    setQuizPassword(e.target.value);
+                                    setIncorrectPassword(false);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      handleStartQuiz();
+                                    }
+                                  }}
+                                  className="w-full pr-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  {showPassword ? (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-4.753 4.753m7.371-1.414L19 7m-1 1L7 19" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                            {incorrectPassword && (
+                              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+                                <p className="text-destructive text-sm font-semibold">
+                                  {language === "ta" ? "தவறான கடவுச்சொல்" : "Incorrect password"}
+                                </p>
+                              </div>
+                            )}
+                            <Button
+                              onClick={handleStartQuiz}
+                              variant="donate"
+                              className="px-10 w-full"
+                              disabled={checkingAttempt}
+                            >
+                              {checkingAttempt 
+                                ? (language === "ta" ? "சரிபார்க்கிறது..." : "Checking...") 
+                                : (language === "ta" ? "தொடரவும்" : "Continue")}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Quiz Content - Show when quiz started */}
+            {quizStarted && (
+              <div>
+                {/* Anti-screenshot protection overlay */}
+                <div 
+                  className="fixed inset-0 pointer-events-none z-50 mix-blend-screen"
+                  style={{
+                    background: "repeating-linear-gradient(0deg, rgba(255,255,255,.03), rgba(255,255,255,.03) 1px, transparent 1px, transparent 2px)",
+                    WebkitUserSelect: "none",
+                    userSelect: "none",
+                  }}
+                />
+                
+                {/* If user switches tabs / window loses focus, blur the whole quiz area */}
+                <div className={privacyBlur ? "blur-xl select-none pointer-events-none" : ""}>
+                  {/* Header Section */}
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="mb-8 text-center"
+                  >
+                    <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent mb-4">
+                      {language === "ta" ? "ஆன்லைன் MCQ வினாடிவினா" : "Online MCQ Quiz"}
+                    </h1>
+                    <p className="text-lg text-foreground/70 mb-2">
+                      {language === "ta"
+                        ? "ஒவ்வொரு கேள்வியும் ஒன்றன்பின் ஒன்றாக வரும். Back இல்லை."
+                        : "Answer one by one. No going back."}
+                    </p>
+                    {copyAttempts > 0 && (
+                      <p className="text-sm text-red-500 font-semibold">
+                        {language === "ta"
+                          ? `Copy/Screenshot முயற்சிகள்: ${copyAttempts}`
+                          : `Copy/Screenshot attempts: ${copyAttempts}`}
+                      </p>
+                    )}
           </motion.div>
 
           {/* Progress Section */}
@@ -847,25 +1096,28 @@ const QuizTamilMCQ: React.FC = () => {
               </Card>
             </motion.div>
           )}
-        </div>
+                </div>
 
-        {/* Overlay when privacyBlur is on */}
-        {privacyBlur && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="bg-background/80 border border-primary/20 rounded-xl p-6 text-center shadow-lg">
-              <p className="text-lg font-bold">
-                {language === "ta" ? "உள்ளடக்கம் மறைக்கப்பட்டுள்ளது" : "Content Hidden"}
-              </p>
-              <p className="text-sm text-foreground/70 mt-2">
-                {language === "ta"
-                  ? "Tab / window மாற்றும்போது பாதுகாப்புக்காக blur செய்யப்படுகிறது."
-                  : "Blurred for privacy when switching tabs/windows."}
-              </p>
-            </div>
+                {/* Overlay when privacyBlur is on */}
+                {privacyBlur && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-background/80 border border-primary/20 rounded-xl p-6 text-center shadow-lg">
+                      <p className="text-lg font-bold">
+                        {language === "ta" ? "உள்ளடக்கம் மறைக்கப்பட்டுள்ளது" : "Content Hidden"}
+                      </p>
+                      <p className="text-sm text-foreground/70 mt-2">
+                        {language === "ta"
+                          ? "Tab / window மாற்றும்போது பாதுகாப்புக்காக blur செய்யப்படுகிறது."
+                          : "Blurred for privacy when switching tabs/windows."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        )}
         </div>
-      </div>
+      </section>
     </div>
   );
 };

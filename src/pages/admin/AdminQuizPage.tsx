@@ -45,6 +45,7 @@ type SchoolQuizResult = {
   language: string;
   completed_at: string;
   created_at: string;
+  quiz_password?: string | null;
 };
 
 const AdminQuizPage: React.FC = () => {
@@ -55,6 +56,9 @@ const AdminQuizPage: React.FC = () => {
   const [loadingResults, setLoadingResults] = useState(true);
   const [isQuizEnabled, setIsQuizEnabled] = useState(false);
   const [isMemberUploadEnabled, setIsMemberUploadEnabled] = useState(false);
+  const [quizPassword, setQuizPassword] = useState("");
+  const [loadingQuizPassword, setLoadingQuizPassword] = useState(false);
+  const [savingQuizPassword, setSavingQuizPassword] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -73,6 +77,7 @@ const AdminQuizPage: React.FC = () => {
     fetchQuestions();
     fetchSchoolResults();
     checkQuizEnabled();
+    fetchQuizPassword();
   }, []);
 
   const checkQuizEnabled = async () => {
@@ -100,18 +105,54 @@ const AdminQuizPage: React.FC = () => {
       if (error) throw error;
 
       setIsQuizEnabled(newStatus);
-      toast.success(
-        newStatus
-          ? language === "ta"
-            ? "Quiz இயக்கப்பட்டது"
-            : "Quiz enabled"
-          : language === "ta"
-          ? "Quiz முடக்கப்பட்டது"
-          : "Quiz disabled"
-      );
+      toast.success(newStatus ? "Quiz enabled" : "Quiz disabled");
     } catch (error) {
       console.error("Error toggling quiz:", error);
-      toast.error(language === "ta" ? "பிழை ஏற்பட்டது" : "Error occurred");
+      toast.error("Error occurred");
+    }
+  };
+
+  const fetchQuizPassword = async () => {
+    try {
+      setLoadingQuizPassword(true);
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("quiz_password")
+        .single();
+
+      if (error) throw error;
+
+      const pwd = (data as { quiz_password?: string | null })?.quiz_password || "";
+      setQuizPassword(pwd);
+    } catch (error) {
+      console.error("Error fetching quiz password:", error);
+      toast.error("Failed to load password");
+    } finally {
+      setLoadingQuizPassword(false);
+    }
+  };
+
+  const saveQuizPassword = async () => {
+    if (!quizPassword.trim()) {
+      toast.error("Enter a password");
+      return;
+    }
+
+    try {
+      setSavingQuizPassword(true);
+      const { error } = await supabase
+        .from("app_settings" as any)
+        .update({ quiz_password: quizPassword.trim() } as any)
+        .eq("id", 1);
+
+      if (error) throw error;
+
+      toast.success("Password updated");
+    } catch (error) {
+      console.error("Error saving quiz password:", error);
+      toast.error("Failed to save");
+    } finally {
+      setSavingQuizPassword(false);
     }
   };
 
@@ -127,7 +168,7 @@ const AdminQuizPage: React.FC = () => {
       setSchoolResults(data || []);
     } catch (error) {
       console.error("Error fetching school results:", error);
-      toast.error(language === "ta" ? "முடிவுகளை ஏற்ற முடியவில்லை" : "Failed to load results");
+      toast.error("Failed to load results");
     } finally {
       setLoadingResults(false);
     }
@@ -145,7 +186,7 @@ const AdminQuizPage: React.FC = () => {
       setQuestions(data || []);
     } catch (error) {
       console.error("Error fetching questions:", error);
-      toast.error(language === "ta" ? "கேள்விகளை ஏற்ற முடியவில்லை" : "Failed to load questions");
+      toast.error("Failed to load questions");
     } finally {
       setLoading(false);
     }
@@ -153,7 +194,7 @@ const AdminQuizPage: React.FC = () => {
 
   const handleAddQuestion = async () => {
     if (!formData.question_text || !formData.option_a || !formData.option_b || !formData.option_c || !formData.option_d) {
-      toast.error(language === "ta" ? "அனைத்து புலங்களையும் நிரப்பவும்" : "Fill all fields");
+      toast.error("Fill all fields");
       return;
     }
 
@@ -162,12 +203,12 @@ const AdminQuizPage: React.FC = () => {
 
       if (error) throw error;
 
-      toast.success(language === "ta" ? "கேள்வி சேர்க்கப்பட்டது" : "Question added");
+      toast.success("Question added");
       resetForm();
       fetchQuestions();
     } catch (error) {
       console.error("Error adding question:", error);
-      toast.error(language === "ta" ? "சேர்க்க முடியவில்லை" : "Failed to add");
+      toast.error("Failed to add");
     }
   };
 
@@ -182,17 +223,17 @@ const AdminQuizPage: React.FC = () => {
 
       if (error) throw error;
 
-      toast.success(language === "ta" ? "கேள்வி புதுப்பிக்கப்பட்டது" : "Question updated");
+      toast.success("Question updated");
       resetForm();
       fetchQuestions();
     } catch (error) {
       console.error("Error updating question:", error);
-      toast.error(language === "ta" ? "புதுப்பிக்க முடியவில்லை" : "Failed to update");
+      toast.error("Failed to update");
     }
   };
 
   const handleDeleteQuestion = async (id: number) => {
-    if (!confirm(language === "ta" ? "நிச்சயமாக நீக்க வேண்டுமா?" : "Are you sure you want to delete?")) {
+    if (!confirm("Are you sure you want to delete?")) {
       return;
     }
 
@@ -201,11 +242,11 @@ const AdminQuizPage: React.FC = () => {
 
       if (error) throw error;
 
-      toast.success(language === "ta" ? "கேள்வி நீக்கப்பட்டது" : "Question deleted");
+      toast.success("Question deleted");
       fetchQuestions();
     } catch (error) {
       console.error("Error deleting question:", error);
-      toast.error(language === "ta" ? "நீக்க முடியவில்லை" : "Failed to delete");
+      toast.error("Failed to delete");
     }
   };
 
@@ -246,7 +287,7 @@ const AdminQuizPage: React.FC = () => {
           className="mb-8"
         >
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-4">
-            {language === "ta" ? "Quiz நிர்வாகம்" : "Quiz Management"}
+            Quiz Management
           </h1>
 
           {/* Quiz Enable/Disable Toggle */}
@@ -255,12 +296,10 @@ const AdminQuizPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-lg">
-                    {language === "ta" ? "Quiz கிடைக்கும் தன்மை" : "Quiz Availability"}
+                    Quiz Availability
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {language === "ta"
-                      ? "Navigation bar இல் Quiz காட்ட/மறைக்க"
-                      : "Show/Hide Quiz in navigation bar"}
+                    Show/Hide Quiz in navigation bar
                   </p>
                 </div>
                 <Button
@@ -269,13 +308,49 @@ const AdminQuizPage: React.FC = () => {
                   className="gap-2"
                 >
                   {isQuizEnabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  {isQuizEnabled
-                    ? language === "ta"
-                      ? "இயக்கத்தில்"
-                      : "Enabled"
-                    : language === "ta"
-                    ? "முடக்கப்பட்டது"
-                    : "Disabled"}
+                  {isQuizEnabled ? "Enabled" : "Disabled"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quiz Password */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>
+                Quiz Password
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Set a password required to start the quiz
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Input
+                  type="text"
+                  value={quizPassword}
+                  onChange={(e) => setQuizPassword(e.target.value)}
+                  placeholder="Enter password"
+                  disabled={loadingQuizPassword || savingQuizPassword}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={fetchQuizPassword}
+                  disabled={loadingQuizPassword || savingQuizPassword}
+                >
+                  {loadingQuizPassword
+                    ? "Loading..."
+                    : "Reload"}
+                </Button>
+                <Button
+                  onClick={saveQuizPassword}
+                  className="gap-2"
+                  disabled={savingQuizPassword}
+                >
+                  {savingQuizPassword ? "Saving..." : "Save"}
                 </Button>
               </div>
             </CardContent>
@@ -285,17 +360,17 @@ const AdminQuizPage: React.FC = () => {
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>
-                {language === "ta" ? "பள்ளி வினாடிவினா முடிவுகள்" : "School Quiz Results"}
+                School Quiz Results
               </CardTitle>
             </CardHeader>
             <CardContent>
               {loadingResults ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  {language === "ta" ? "ஏற்றுகிறது..." : "Loading..."}
+                  Loading...
                 </div>
               ) : schoolResults.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  {language === "ta" ? "முடிவுகள் இல்லை" : "No results yet"}
+                  No results yet
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -331,19 +406,19 @@ const AdminQuizPage: React.FC = () => {
                             </div>
                             <div className="space-y-1 text-sm text-muted-foreground">
                               <div className="flex justify-between">
-                                <span>{language === "ta" ? "சரியான பதில்கள்:" : "Correct:"}</span>
+                                <span>Correct:</span>
                                 <span className="font-semibold text-green-600">{result.correct_answers}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span>{language === "ta" ? "தவறான பதில்கள்:" : "Wrong:"}</span>
+                                <span>Wrong:</span>
                                 <span className="font-semibold text-red-600">{result.wrong_answers}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span>{language === "ta" ? "பதிலளிக்கவில்லை:" : "Not Answered:"}</span>
+                                <span>Not Answered:</span>
                                 <span className="font-semibold text-yellow-600">{result.not_answered}</span>
                               </div>
                               <div className="flex justify-between border-t pt-1 mt-2">
-                                <span>{language === "ta" ? "மொத்தம்:" : "Total:"}</span>
+                                <span>Total:</span>
                                 <span className="font-semibold">{result.total_questions}</span>
                               </div>
                               <div className="text-xs text-center mt-2 text-muted-foreground">
@@ -389,18 +464,14 @@ const AdminQuizPage: React.FC = () => {
                 <CardHeader>
                   <CardTitle>
                     {editingId
-                      ? language === "ta"
-                        ? "கேள்வி திருத்து"
-                        : "Edit Question"
-                      : language === "ta"
-                      ? "புதிய கேள்வி சேர்"
+                      ? "Edit Question"
                       : "Add New Question"}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>{language === "ta" ? "மொழி" : "Language"}</Label>
+                      <Label>Language</Label>
                       <Select
                         value={formData.language}
                         onValueChange={(value) => setFormData({ ...formData, language: value })}
@@ -415,7 +486,7 @@ const AdminQuizPage: React.FC = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>{language === "ta" ? "சரியான விடை" : "Correct Answer"}</Label>
+                      <Label>Correct Answer</Label>
                       <Select
                         value={formData.correct_answer}
                         onValueChange={(value) => setFormData({ ...formData, correct_answer: value })}
@@ -424,28 +495,28 @@ const AdminQuizPage: React.FC = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="a">{language === "ta" ? "விருப்பம் A" : "Option A"}</SelectItem>
-                          <SelectItem value="b">{language === "ta" ? "விருப்பம் B" : "Option B"}</SelectItem>
-                          <SelectItem value="c">{language === "ta" ? "விருப்பம் C" : "Option C"}</SelectItem>
-                          <SelectItem value="d">{language === "ta" ? "விருப்பம் D" : "Option D"}</SelectItem>
+                          <SelectItem value="a">Option A</SelectItem>
+                          <SelectItem value="b">Option B</SelectItem>
+                          <SelectItem value="c">Option C</SelectItem>
+                          <SelectItem value="d">Option D</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>{language === "ta" ? "கேள்வி" : "Question"}</Label>
+                    <Label>Question</Label>
                     <Textarea
                       value={formData.question_text}
                       onChange={(e) => setFormData({ ...formData, question_text: e.target.value })}
-                      placeholder={language === "ta" ? "கேள்வியை உள்ளிடவும்" : "Enter question"}
+                      placeholder="Enter question"
                       rows={3}
                     />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>{language === "ta" ? "விருப்பம் A" : "Option A"}</Label>
+                      <Label>Option A</Label>
                       <Input
                         value={formData.option_a}
                         onChange={(e) => setFormData({ ...formData, option_a: e.target.value })}
@@ -453,7 +524,7 @@ const AdminQuizPage: React.FC = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>{language === "ta" ? "விருப்பம் B" : "Option B"}</Label>
+                      <Label>Option B</Label>
                       <Input
                         value={formData.option_b}
                         onChange={(e) => setFormData({ ...formData, option_b: e.target.value })}
@@ -461,7 +532,7 @@ const AdminQuizPage: React.FC = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>{language === "ta" ? "விருப்பம் C" : "Option C"}</Label>
+                      <Label>Option C</Label>
                       <Input
                         value={formData.option_c}
                         onChange={(e) => setFormData({ ...formData, option_c: e.target.value })}
@@ -469,7 +540,7 @@ const AdminQuizPage: React.FC = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>{language === "ta" ? "விருப்பம் D" : "Option D"}</Label>
+                      <Label>Option D</Label>
                       <Input
                         value={formData.option_d}
                         onChange={(e) => setFormData({ ...formData, option_d: e.target.value })}
@@ -480,7 +551,7 @@ const AdminQuizPage: React.FC = () => {
 
                   <div className="flex gap-2 justify-end">
                     <Button variant="outline" onClick={resetForm}>
-                      {language === "ta" ? "ரத்து செய்" : "Cancel"}
+                      Cancel
                     </Button>
                     <Button
                       onClick={editingId ? handleUpdateQuestion : handleAddQuestion}
@@ -488,11 +559,7 @@ const AdminQuizPage: React.FC = () => {
                     >
                       <Save className="w-4 h-4" />
                       {editingId
-                        ? language === "ta"
-                          ? "புதுப்பி"
-                          : "Update"
-                        : language === "ta"
-                        ? "சேர்"
+                        ? "Update"
                         : "Add"}
                     </Button>
                   </div>
@@ -505,7 +572,7 @@ const AdminQuizPage: React.FC = () => {
         {/* Questions List */}
         <div className="space-y-4">
           <h2 className="text-2xl font-semibold mb-4">
-            {language === "ta" ? "கேள்விகள் பட்டியல்" : "Questions List"}
+            Questions List
             <span className="text-sm text-muted-foreground ml-2">({questions.length})</span>
           </h2>
 
@@ -513,7 +580,7 @@ const AdminQuizPage: React.FC = () => {
             <Card>
               <CardContent className="py-10 text-center">
                 <p className="text-muted-foreground">
-                  {language === "ta" ? "ஏற்றுகிறது..." : "Loading..."}
+                  Loading...
                 </p>
               </CardContent>
             </Card>
@@ -521,7 +588,7 @@ const AdminQuizPage: React.FC = () => {
             <Card>
               <CardContent className="py-10 text-center">
                 <p className="text-muted-foreground">
-                  {language === "ta" ? "கேள்விகள் இல்லை" : "No questions available"}
+                  No questions available
                 </p>
               </CardContent>
             </Card>
@@ -540,7 +607,7 @@ const AdminQuizPage: React.FC = () => {
                         <div className="flex items-center gap-2 mb-2">
                           <span className="font-bold text-lg">Q{index + 1}.</span>
                           <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                            {question.language === "ta" ? "தமிழ்" : "English"}
+                            {question.language === "ta" ? "Tamil" : "English"}
                           </span>
                         </div>
                         <p className="font-semibold mb-4">{question.question_text}</p>
@@ -548,22 +615,22 @@ const AdminQuizPage: React.FC = () => {
                           <div className={`flex items-center gap-2 ${question.correct_answer === 'a' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                             <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">A</span>
                             <span className="text-sm">{question.option_a}</span>
-                            {question.correct_answer === 'a' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ {language === "ta" ? "சரி" : "Correct"}</span>}
+                            {question.correct_answer === 'a' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                           </div>
                           <div className={`flex items-center gap-2 ${question.correct_answer === 'b' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                             <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">B</span>
                             <span className="text-sm">{question.option_b}</span>
-                            {question.correct_answer === 'b' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ {language === "ta" ? "சரி" : "Correct"}</span>}
+                            {question.correct_answer === 'b' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                           </div>
                           <div className={`flex items-center gap-2 ${question.correct_answer === 'c' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                             <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">C</span>
                             <span className="text-sm">{question.option_c}</span>
-                            {question.correct_answer === 'c' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ {language === "ta" ? "சரி" : "Correct"}</span>}
+                            {question.correct_answer === 'c' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                           </div>
                           <div className={`flex items-center gap-2 ${question.correct_answer === 'd' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                             <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">D</span>
                             <span className="text-sm">{question.option_d}</span>
-                            {question.correct_answer === 'd' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ {language === "ta" ? "சரி" : "Correct"}</span>}
+                            {question.correct_answer === 'd' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                           </div>
                         </div>
                       </div>
@@ -575,7 +642,7 @@ const AdminQuizPage: React.FC = () => {
                           className="gap-2"
                         >
                           <Edit2 className="w-4 h-4" />
-                          {language === "ta" ? "திருத்து" : "Edit"}
+                          Edit
                         </Button>
                         <Button
                           variant="destructive"
@@ -584,7 +651,7 @@ const AdminQuizPage: React.FC = () => {
                           className="gap-2"
                         >
                           <Trash2 className="w-4 h-4" />
-                          {language === "ta" ? "நீக்கு" : "Delete"}
+                          Delete
                         </Button>
                       </div>
                     </div>
