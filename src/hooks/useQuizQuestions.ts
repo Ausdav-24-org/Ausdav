@@ -49,12 +49,12 @@ export const useQuizQuestions = (language: string = "ta") => {
       try {
         setLoading(true);
         setError(null);
-        console.log(`Fetching quiz questions for language: ${language}`);
+        console.log(`Fetching quiz questions`);
         
+        // Fetch all questions regardless of language - questions are the same for all language users
         const { data, error: supabaseError } = await supabase
           .from("quiz_mcq")
           .select("*")
-          .eq("language", language)
           .order("created_at", { ascending: true });
 
         if (supabaseError) {
@@ -62,16 +62,16 @@ export const useQuizQuestions = (language: string = "ta") => {
           throw supabaseError;
         }
 
-        console.log(`Fetched ${data?.length || 0} questions for language: ${language}`);
+        console.log(`Fetched ${data?.length || 0} questions`);
         
         if (data && data.length > 0) {
           const formatted = formatQuestions(data as QuizQuestion[]);
           console.log(`Formatted ${formatted.length} questions`);
           setQuestions(formatted);
         } else {
-          console.warn(`No questions found for language: ${language}`);
+          console.warn(`No questions found`);
           setQuestions([]);
-          setError(`No questions available for language: ${language}`);
+          setError(`No questions available`);
         }
       } catch (err) {
         const errorMessage =

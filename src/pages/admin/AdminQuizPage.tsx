@@ -199,7 +199,8 @@ const AdminQuizPage: React.FC = () => {
     }
 
     try {
-      const { error } = await supabase.from("quiz_mcq").insert([formData]);
+      // Always set language to "ta" since questions are language-agnostic
+      const { error } = await supabase.from("quiz_mcq").insert([{ ...formData, language: "ta" }]);
 
       if (error) throw error;
 
@@ -218,7 +219,7 @@ const AdminQuizPage: React.FC = () => {
     try {
       const { error } = await supabase
         .from("quiz_mcq")
-        .update(formData)
+        .update({ ...formData, language: "ta" })
         .eq("id", editingId);
 
       if (error) throw error;
@@ -469,39 +470,22 @@ const AdminQuizPage: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Language</Label>
-                      <Select
-                        value={formData.language}
-                        onValueChange={(value) => setFormData({ ...formData, language: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ta">தமிழ் (Tamil)</SelectItem>
-                          <SelectItem value="en">English</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Correct Answer</Label>
-                      <Select
-                        value={formData.correct_answer}
-                        onValueChange={(value) => setFormData({ ...formData, correct_answer: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="a">Option A</SelectItem>
-                          <SelectItem value="b">Option B</SelectItem>
-                          <SelectItem value="c">Option C</SelectItem>
-                          <SelectItem value="d">Option D</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Correct Answer</Label>
+                    <Select
+                      value={formData.correct_answer}
+                      onValueChange={(value) => setFormData({ ...formData, correct_answer: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="a">Option A</SelectItem>
+                        <SelectItem value="b">Option B</SelectItem>
+                        <SelectItem value="c">Option C</SelectItem>
+                        <SelectItem value="d">Option D</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">

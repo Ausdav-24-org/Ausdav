@@ -59,6 +59,89 @@ const QuizTamilMCQ: React.FC = () => {
 
   const { questions: dbQuestions, loading: questionsLoading, error: questionsError } =
     useQuizQuestions(language);
+
+  // Session storage helper functions
+  const saveQuizSession = (currentIdx: number, savedAnswers: AnswerState[], startTime: number) => {
+    const session = {
+      schoolName,
+      currentIndex: currentIdx,
+      answers: savedAnswers,
+      startTime: startTime,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(`quiz_session_${schoolName}`, JSON.stringify(session));
+  };
+
+  const getQuizSession = (school: string) => {
+    const session = localStorage.getItem(`quiz_session_${school}`);
+    return session ? JSON.parse(session) : null;
+  };
+
+  const clearQuizSession = (school: string) => {
+    localStorage.removeItem(`quiz_session_${school}`);
+  };
+
+  const findExistingSession = () => {
+    // Check localStorage for any quiz session
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('quiz_session_')) {
+        const session = localStorage.getItem(key);
+        if (session) {
+          return JSON.parse(session);
+        }
+      }
+    }
+    return null;
+  };
+
+  // Check for existing quiz session on initial page load
+  useEffect(() => {
+    // Only run once on initial mount
+    const existingSession = findExistingSession();
+    if (existingSession && existingSession.schoolName) {
+      // Check if session is still valid (not expired)
+      const elapsed = Math.floor((Date.now() - existingSession.startTime) / 1000);
+      if (elapsed < 120) { // 2 minutes buffer time
+        // Restore school name first
+        setSchoolName(existingSession.schoolName);
+      } else {
+        // Session expired, clear it
+        clearQuizSession(existingSession.schoolName);
+      }
+    }
+  }, []); // Run only once on mount
+
+  // Restore quiz state when questions are loaded and schoolName is available
+  useEffect(() => {
+    if (dbQuestions.length === 0 || !schoolName) return;
+
+    // Check if there's a saved session for this school
+    const savedSession = getQuizSession(schoolName);
+    if (savedSession && savedSession.schoolName === schoolName) {
+      // Calculate elapsed time
+      const elapsed = Math.floor((Date.now() - savedSession.startTime) / 1000);
+      const remainingTime = Math.max(0, 60 - elapsed);
+      
+      if (elapsed < 120) { // Only restore if within 2 minutes
+        // Restore the session
+        setShowSchoolDialog(false);
+        setShowSchoolInput(false);
+        setQuizStarted(true);
+        setCurrentIndex(savedSession.currentIndex);
+        setAnswers(savedSession.answers);
+        setTimeRemaining(remainingTime);
+        setQuizStartTime(savedSession.startTime);
+
+        if (remainingTime === 0) {
+        setIsFinished(true);
+        setCanViewReview(true);
+      }
+
+      toast.info(language === "ta" ? "உங்கள் வினாடிவினா சत்தம்복원되ました" : "Quiz session restored");
+      }
+    }
+  }, [dbQuestions.length, schoolName, language]);
   
   // Check if quiz is enabled
   useEffect(() => {
@@ -146,6 +229,11 @@ const QuizTamilMCQ: React.FC = () => {
       const remaining = Math.max(0, 60 - elapsed);
       setTimeRemaining(remaining);
 
+      // Save quiz session every second to preserve progress
+      if (schoolName && !isFinished) {
+        saveQuizSession(currentIndex, answers, quizStartTime);
+      }
+
       // Auto-finish quiz after 60 seconds
       if (remaining === 0 && !isFinished) {
         setIsFinished(true);
@@ -217,6 +305,8 @@ const QuizTamilMCQ: React.FC = () => {
   };
 
   const resetQuiz = () => {
+    const schoolToReset = schoolName;
+    
     setCurrentIndex(0);
     setAnswers(Array.from({ length: activeQuestions.length }, () => ({ selectedOptionId: null })));
     setIsFinished(false);
@@ -229,10 +319,18 @@ const QuizTamilMCQ: React.FC = () => {
     setQuizPassword("");
     setShowPassword(false);
     setIncorrectPassword(false);
+    setAlreadyAttempted(false);
+    setRequestPending(false);
+    setSubmittingRequest(false);
     setQuizStarted(false);
     setQuizStartTime(null);
     setTimeRemaining(60);
     setCanViewReview(false);
+    
+    // Clear the saved session
+    if (schoolToReset) {
+      clearQuizSession(schoolToReset);
+    }
   };
 
   const handleStartQuiz = async () => {
@@ -326,6 +424,8 @@ const QuizTamilMCQ: React.FC = () => {
         toast.error(language === "ta" ? "முடிவுகளை சேமிக்க முடியவில்லை" : "Failed to save results");
       } else {
         toast.success(language === "ta" ? "முடிவுகள் சேமிக்கப்பட்டன" : "Results saved successfully");
+        // Clear the saved session after quiz is completed
+        clearQuizSession(schoolName);
       }
     } catch (error) {
       console.error("Error saving quiz results:", error);
