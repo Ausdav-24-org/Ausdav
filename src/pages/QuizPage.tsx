@@ -47,6 +47,7 @@ const QuizTamilMCQ: React.FC = () => {
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [canViewReview, setCanViewReview] = useState(false);
+  const [restoringSession, setRestoringSession] = useState(false);
 
   // Quiz availability
   const [isQuizEnabled, setIsQuizEnabled] = useState(false);
@@ -125,6 +126,7 @@ const QuizTamilMCQ: React.FC = () => {
       
       if (elapsed < 120) { // Only restore if within 2 minutes
         // Restore the session
+        setRestoringSession(true);
         setShowSchoolDialog(false);
         setShowSchoolInput(false);
         setQuizStarted(true);
@@ -212,13 +214,15 @@ const QuizTamilMCQ: React.FC = () => {
     : 0;
 
   useEffect(() => {
+    if (restoringSession) return; // Skip reset during session restoration
+    
     setCurrentIndex(0);
     setAnswers(Array.from({ length: activeQuestions.length }, () => ({ selectedOptionId: null })));
     setIsFinished(false);
     setCompromised(false);
     setCopyAttempts(0);
     setPrivacyBlur(false);
-  }, [activeQuestions.length]);
+  }, [activeQuestions.length, restoringSession]);
 
   // Timer countdown effect
   useEffect(() => {
