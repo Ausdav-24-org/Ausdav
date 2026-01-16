@@ -36,6 +36,12 @@ type AnswerState = {
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
+const getOptionText = (question: Question, optId: string | null) => {
+  if (!optId) return null;
+  const opt = question.options.find((o) => o.id === optId);
+  return opt?.text ?? null;
+};
+
 /**
  * ✅ ROUTE SETUP (React Router v6)
  *
@@ -305,6 +311,7 @@ const QuizTamilMCQ: React.FC = () => {
 
       if (remaining === 0 && !isFinished) {
         setIsFinished(true);
+        setCanViewReview(true);
         saveQuizResults();
         toast.info(language === "ta" ? "நேரம் முடிந்தது!" : "Time's up!");
       }
@@ -355,9 +362,8 @@ const QuizTamilMCQ: React.FC = () => {
       else wrong += 1;
     });
 
-    // NOTE: your current scoring in this code is correct*2 + wrong*1
-    // If you want (+1,0,-0.5) change here.
-    const score = correct * 2 + wrong * 1 + notAnswered * 0;
+    // Scoring: +2 for correct, -1 for wrong, 0 for not answered
+    const score = correct * 2 + wrong * -1 + notAnswered * 0;
     return { correct, wrong, notAnswered, score };
   };
 
@@ -376,6 +382,7 @@ const QuizTamilMCQ: React.FC = () => {
     }
 
     setIsFinished(true);
+    setCanViewReview(true);
     saveQuizResults();
   };
 
@@ -439,7 +446,7 @@ const QuizTamilMCQ: React.FC = () => {
       const { data, error } = await supabase
         .from("school_quiz_results")
         .select("id")
-        .eq("school_name", schoolName.trim())
+        .ilike("school_name", schoolName.trim())
         .eq("language", language)
         .limit(1);
 
@@ -906,12 +913,11 @@ const QuizTamilMCQ: React.FC = () => {
                       </CardHeader>
 
                       <CardContent className="pt-8">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                           {[
                             { label: language === "ta" ? "சரி" : "Correct", value: result.correct, icon: CheckCircle, cls: "text-green-500" },
                             { label: language === "ta" ? "தவறு" : "Wrong", value: result.wrong, icon: XCircle, cls: "text-red-500" },
                             { label: language === "ta" ? "பதில் இல்லை" : "Not Answered", value: result.notAnswered, icon: HelpCircle, cls: "text-yellow-500" },
-                            { label: language === "ta" ? "மதிப்பெண்" : "Score", value: result.score, icon: CheckCircle, cls: "text-primary" },
                           ].map((s, i) => {
                             const Icon = s.icon;
                             return (
@@ -931,6 +937,8 @@ const QuizTamilMCQ: React.FC = () => {
                               {activeQuestions.map((q, idx) => {
                                 const picked = answers[idx]?.selectedOptionId ?? null;
                                 const isCorrect = picked && picked === q.correctOptionId;
+                                const pickedText = getOptionText(q, picked);
+                                const correctText = getOptionText(q, q.correctOptionId);
 
                                 return (
                                   <div
@@ -945,6 +953,37 @@ const QuizTamilMCQ: React.FC = () => {
                                   >
                                     <div className="font-semibold">
                                       {idx + 1}. {q.question}
+                                    </div>
+
+                                    <div className="mt-2 space-y-1 text-sm text-foreground/80">
+                                      {picked === null ? (
+                                        <div className="text-yellow-600 font-medium">
+                                          {language === "ta" ? "பதில் அளிக்கப்படவில்லை" : "Not answered"}
+                                        </div>
+                                      ) : isCorrect ? (
+                                        <div className="text-green-600 font-medium">
+                                          {language === "ta" ? "சரியான பதில்" : "Correct"}
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <div className="text-red-600 font-medium">
+                                            {language === "ta" ? "தவறான பதில்" : "Wrong answer"}
+                                          </div>
+                                          {pickedText && (
+                                            <div>
+                                              {language === "ta" ? "நீங்கள் தேர்ந்தெடுத்தது: " : "Your answer: "}
+                                              <span className="font-semibold text-foreground">{pickedText}</span>
+                                            </div>
+                                          )}
+                                        </>
+                                      )}
+
+                                      {correctText && (
+                                        <div>
+                                          {language === "ta" ? "சரியான பதில்: " : "Correct answer: "}
+                                          <span className="font-semibold text-foreground">{correctText}</span>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 );

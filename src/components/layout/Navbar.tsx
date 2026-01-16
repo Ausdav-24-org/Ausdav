@@ -169,7 +169,12 @@ const Navbar: React.FC = () => {
     { href: "/committee", label: t("nav.committee") },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === "/quiz") {
+      return location.pathname.startsWith("/quiz");
+    }
+    return location.pathname === path;
+  };
   const initials = userLabel
     ? userLabel
         .split(' ')
