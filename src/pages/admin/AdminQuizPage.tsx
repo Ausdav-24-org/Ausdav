@@ -21,7 +21,9 @@ type QuizQuestion = {
   option_c: string;
   option_d: string;
   correct_answer: string | null;
+  image_path?: string | null;
   created_at: string;
+  [key: string]: any;
 };
 
 type QuestionFormData = {
@@ -32,6 +34,8 @@ type QuestionFormData = {
   option_c: string;
   option_d: string;
   correct_answer: string;
+  image_path?: string | null;
+  [key: string]: any;
 };
 
 type SchoolQuizResult = {
@@ -63,6 +67,8 @@ const AdminQuizPage: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState<QuestionFormData>({
     question_text: "",
     language: "ta",
@@ -71,6 +77,7 @@ const AdminQuizPage: React.FC = () => {
     option_c: "",
     option_d: "",
     correct_answer: "a",
+    image_path: null,
   });
 
   useEffect(() => {
@@ -239,6 +246,24 @@ const AdminQuizPage: React.FC = () => {
     }
 
     try {
+      // Get question to check for image
+      const { data: question } = await supabase
+        .from("quiz_mcq" as any)
+        .select("image_path")
+        .eq("id", id)
+        .single();
+
+      // Delete image from storage if exists
+      if ((question as any)?.image_path) {
+        const fileName = (question as any).image_path.split("/").pop();
+        if (fileName) {
+          await supabase.storage
+            .from("quiz-question-images")
+            .remove([`questions/${fileName}`]);
+        }
+      }
+
+      // Delete question
       const { error } = await supabase.from("quiz_mcq").delete().eq("id", id);
 
       if (error) throw error;
@@ -261,8 +286,96 @@ const AdminQuizPage: React.FC = () => {
       option_c: question.option_c,
       option_d: question.option_d,
       correct_answer: question.correct_answer || "a",
+      image_path: question.image_path || null,
     });
+    
+    // Load image preview if exists
+    if (question.image_path) {
+      setImagePreview(question.image_path);
+    } else {
+      setImagePreview(null);
+    }
     setShowAddForm(true);
+  };
+
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      // Delete old image if exists
+      if (formData.image_path) {
+        const oldFileName = formData.image_path.split("/").pop();
+        if (oldFileName) {
+          await supabase.storage
+            .from("quiz-question-images")
+            .remove([`questions/${oldFileName}`]);
+        }
+      }
+
+      // Upload new image
+      const fileName = `${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("quiz-question-images")
+        .upload(`questions/${fileName}`, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data } = supabase.storage
+        .from("quiz-question-images")
+        .getPublicUrl(`questions/${fileName}`);
+
+      setFormData({
+        ...formData,
+        image_path: data?.publicUrl || `questions/${fileName}`,
+      });
+
+      // Show preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      toast.success("Image uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast.error("Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    try {
+      if (formData.image_path) {
+        const fileName = formData.image_path.split("/").pop();
+        if (fileName) {
+          await supabase.storage
+            .from("quiz-question-images")
+            .remove([`questions/${fileName}`]);
+        }
+      }
+
+      setFormData({
+        ...formData,
+        image_path: null,
+      });
+      setImagePreview(null);
+      toast.success("Image deleted");
+    } catch (error) {
+      console.error("Error deleting image:", error);
+      toast.error("Failed to delete image");
+    }
   };
 
   const resetForm = () => {
@@ -274,7 +387,9 @@ const AdminQuizPage: React.FC = () => {
       option_c: "",
       option_d: "",
       correct_answer: "a",
+      image_path: null,
     });
+    setImagePreview(null);
     setEditingId(null);
     setShowAddForm(false);
   };
@@ -533,6 +648,57 @@ const AdminQuizPage: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label>Question Image (Optional)</Label>
+                    <div className="border-2 border-dashed border-primary/30 rounded-lg p-4">
+                      {imagePreview ? (
+                        <div className="relative">
+                          <img 
+                            src={imagePreview} 
+                            alt="Preview" 
+                            className="max-h-48 rounded-lg mx-auto"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={handleDeleteImage}
+                            disabled={uploadingImage}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleImageUpload(file);
+                            }}
+                            disabled={uploadingImage}
+                            className="hidden"
+                            id="image-upload"
+                          />
+                          <label
+                            htmlFor="image-upload"
+                            className="flex flex-col items-center justify-center cursor-pointer"
+                          >
+                            <Upload className="w-8 h-8 text-primary/60 mb-2" />
+                            <p className="text-sm text-muted-foreground">
+                              {uploadingImage ? "Uploading..." : "Click to upload image"}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              PNG, JPG up to 5MB
+                            </p>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex gap-2 justify-end">
                     <Button variant="outline" onClick={resetForm}>
                       Cancel
@@ -587,12 +753,28 @@ const AdminQuizPage: React.FC = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex justify-between items-start gap-4">
+                      {/* Image Section */}
+                      {question.image_path && (
+                        <div className="flex-shrink-0">
+                          <img 
+                            src={question.image_path} 
+                            alt="Question" 
+                            className="max-h-40 max-w-40 rounded-lg object-cover border border-primary/20"
+                          />
+                        </div>
+                      )}
+                      
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="font-bold text-lg">Q{index + 1}.</span>
                           <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
                             {question.language === "ta" ? "Tamil" : "English"}
                           </span>
+                          {question.image_path && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2 py-1 rounded">
+                              📸 Has Image
+                            </span>
+                          )}
                         </div>
                         <p className="font-semibold mb-4">{question.question_text}</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

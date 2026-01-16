@@ -168,8 +168,9 @@ const App = () => {
                       </Layout>
                     }
                   />
+                  <Route path="/quiz" element={<Navigate to="/quiz/1" replace />} />
                   <Route
-                    path="/quiz"
+                    path="/quiz/:questionIndex"
                     element={
                       <Layout>
                         <QuizPage />

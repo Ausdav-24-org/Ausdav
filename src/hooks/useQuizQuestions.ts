@@ -10,6 +10,7 @@ export type QuizQuestion = {
   option_c: string;
   option_d: string;
   correct_answer: string | null;
+  image_path?: string | null;
   created_at: string;
 };
 
@@ -21,6 +22,7 @@ export type QuizQuestionFormatted = {
     text: string;
   }>;
   correctOptionId: string;
+  image_path?: string | null;
 };
 
 const formatQuestions = (
@@ -36,6 +38,7 @@ const formatQuestions = (
       { id: "d", text: q.option_d },
     ],
     correctOptionId: q.correct_answer || "", // Use correct_answer from database
+    image_path: q.image_path, // Include image path
   }));
 };
 
