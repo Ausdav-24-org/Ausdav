@@ -74,6 +74,7 @@ const permissionConfig: Record<string, { title: string; icon: React.ElementType;
   finance: { title: 'Finance Handling', icon: DollarSign, color: 'from-green-500 to-emerald-500' },
   announcement: { title: 'Announcement Handling', icon: Megaphone, color: 'from-indigo-500 to-violet-500' },
   feedback: { title: 'Feedback Handling', icon: Megaphone, color: 'from-emerald-500 to-green-500' },
+  quiz: { title: 'Quiz Handling', icon: GraduationCap, color: 'from-cyan-500 to-blue-500' },
 };
 
 const allPermissionKeys = Object.keys(permissionConfig);
