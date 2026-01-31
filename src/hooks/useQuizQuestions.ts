@@ -5,6 +5,7 @@ export type QuizQuestion = {
   id: number;
   question_text: string;
   language: string;
+  quiz_no?: number | null;
   option_a: string;
   option_b: string;
   option_c: string;
@@ -17,29 +18,45 @@ export type QuizQuestion = {
 export type QuizQuestionFormatted = {
   id: string;
   question: string;
+  quiz_no?: number | null;
   options: Array<{
     id: string;
     text: string;
   }>;
   correctOptionId: string;
   image_path?: string | null;
+  imageUrl?: string | null;
 };
 
 const formatQuestions = (
   questions: QuizQuestion[]
 ): QuizQuestionFormatted[] => {
-  return questions.map((q) => ({
-    id: q.id.toString(),
-    question: q.question_text,
-    options: [
-      { id: "a", text: q.option_a },
-      { id: "b", text: q.option_b },
-      { id: "c", text: q.option_c },
-      { id: "d", text: q.option_d },
-    ],
-    correctOptionId: q.correct_answer || "", // Use correct_answer from database
-    image_path: q.image_path, // Include image path
-  }));
+  return questions.map((q) => {
+    // Resolve image URL if image_path exists
+    let imageUrl: string | null = null;
+    if (q.image_path) {
+      const { data } = supabase.storage
+        .from("quiz-question-images")
+        .getPublicUrl(q.image_path);
+      imageUrl = data?.publicUrl || null;
+      console.log(`Image path: ${q.image_path}, Public URL: ${imageUrl}`);
+    }
+
+    return {
+      id: q.id.toString(),
+      question: q.question_text,
+      quiz_no: q.quiz_no ?? 1,
+      options: [
+        { id: "a", text: q.option_a },
+        { id: "b", text: q.option_b },
+        { id: "c", text: q.option_c },
+        { id: "d", text: q.option_d },
+      ],
+      correctOptionId: q.correct_answer || "",
+      image_path: q.image_path,
+      imageUrl: imageUrl, // Pre-resolved public URL
+    };
+  });
 };
 
 export const useQuizQuestions = (language: string = "ta") => {

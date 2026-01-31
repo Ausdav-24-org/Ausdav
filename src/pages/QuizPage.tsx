@@ -103,6 +103,7 @@ const QuizTamilMCQ: React.FC = () => {
   const [quizPassword, setQuizPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [incorrectPassword, setIncorrectPassword] = useState(false);
+  const [selectedQuizNo, setSelectedQuizNo] = useState<number | null>(null);
   const [quizStarted, setQuizStarted] = useState(false);
   const [checkingAttempt, setCheckingAttempt] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
@@ -129,6 +130,7 @@ const QuizTamilMCQ: React.FC = () => {
       currentIndex: currentIdx,
       answers: savedAnswers,
       startTime: startTime,
+      quizNo: selectedQuizNo,
       savedAt: Date.now(),
     };
     localStorage.setItem(`quiz_session_${schoolName}`, JSON.stringify(session));
@@ -178,10 +180,14 @@ const QuizTamilMCQ: React.FC = () => {
 
   // ---------- Shuffle questions by school ----------
   const activeQuestions = useMemo(() => {
-    if (!dbQuestions.length || !schoolName) return dbQuestions;
+    const filtered = selectedQuizNo
+      ? dbQuestions.filter((q: any) => (q?.quiz_no ?? 1) === selectedQuizNo)
+      : dbQuestions;
+
+    if (!filtered.length || !schoolName) return filtered;
 
     const seed = schoolName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const shuffled = [...dbQuestions];
+    const shuffled = [...filtered];
 
     let random = seed;
     const seededRandom = () => {
@@ -195,7 +201,7 @@ const QuizTamilMCQ: React.FC = () => {
     }
 
     return shuffled;
-  }, [dbQuestions, schoolName]);
+  }, [dbQuestions, schoolName, selectedQuizNo]);
 
   const totalQuestions = activeQuestions.length;
 
@@ -260,7 +266,14 @@ const QuizTamilMCQ: React.FC = () => {
 
     const savedSession = getQuizSession(schoolName);
     if (savedSession && savedSession.schoolName === schoolName) {
-      const targetIndex = clamp(savedSession.currentIndex ?? desiredIndexFromUrl, 0, totalQuestions - 1);
+      const restoredQuizNo = savedSession.quizNo ?? null;
+      if (restoredQuizNo) setSelectedQuizNo(restoredQuizNo);
+
+      const questionsForRestore = restoredQuizNo
+        ? dbQuestions.filter((q: any) => (q?.quiz_no ?? 1) === restoredQuizNo)
+        : dbQuestions;
+      const restoreTotal = questionsForRestore.length;
+      const targetIndex = clamp(savedSession.currentIndex ?? desiredIndexFromUrl, 0, restoreTotal - 1);
       // ensure URL matches saved index (covers cases where URL lacked qNo)
       setUrl(targetIndex + 1, schoolName, true);
 
@@ -277,7 +290,12 @@ const QuizTamilMCQ: React.FC = () => {
         setCanViewReview(elapsed >= 60);
 
         // restore answers
-        setAnswers(savedSession.answers || []);
+        const restoredAnswers = Array.isArray(savedSession.answers) ? savedSession.answers : [];
+        setAnswers(
+          restoredAnswers.length === restoreTotal
+            ? restoredAnswers
+            : Array.from({ length: restoreTotal }, () => ({ selectedOptionId: null }))
+        );
         // restore index from saved session fallback to URL-derived
         setCurrentIndex(targetIndex);
 
@@ -405,6 +423,7 @@ const QuizTamilMCQ: React.FC = () => {
     setQuizStartTime(null);
     setTimeRemaining(60);
     setCanViewReview(false);
+    setSelectedQuizNo(null);
 
     if (schoolToReset) clearQuizSession(schoolToReset);
 
@@ -414,6 +433,11 @@ const QuizTamilMCQ: React.FC = () => {
 
   // ---------- Start quiz ----------
   const handleStartQuiz = async () => {
+    // Prevent multiple clicks
+    if (checkingAttempt) {
+      return;
+    }
+
     if (!schoolName.trim()) {
       toast.error(language === "ta" ? "பள்ளியின் பெயரை உள்ளிடவும்" : "Please enter school name");
       return;
@@ -428,40 +452,62 @@ const QuizTamilMCQ: React.FC = () => {
     try {
       const { data: settingsData, error: settingsError } = await supabase
         .from("app_settings" as any)
-        .select("quiz_password")
+        .select("quiz_password_1, quiz_password_2, quiz_password")
         .single();
 
       if (settingsError) throw settingsError;
 
-      const storedPassword = (settingsData as { quiz_password?: string | null })?.quiz_password || "";
+      const inputPwd = quizPassword.trim();
+      const settings = settingsData as {
+        quiz_password_1?: string | null;
+        quiz_password_2?: string | null;
+        quiz_password?: string | null;
+      };
+      const pwd1 = settings?.quiz_password_1 || "";
+      const pwd2 = settings?.quiz_password_2 || "";
+      const legacyPwd = settings?.quiz_password || "";
 
-      if (quizPassword.trim() !== storedPassword.trim()) {
+      const match1 = pwd1 && inputPwd === pwd1.trim();
+      const match2 = pwd2 && inputPwd === pwd2.trim();
+
+      let matchedQuizNo: number | null = null;
+      if (match1) matchedQuizNo = 1;
+      else if (match2) matchedQuizNo = 2;
+      else if (!pwd1 && !pwd2 && legacyPwd && inputPwd === legacyPwd.trim()) matchedQuizNo = 1;
+
+      if (!matchedQuizNo) {
         setIncorrectPassword(true);
         toast.error(language === "ta" ? "தவறான கடவுச்சொல்" : "Incorrect password");
+        setCheckingAttempt(false);
         return;
       }
 
       setIncorrectPassword(false);
+      setSelectedQuizNo(matchedQuizNo);
 
-      const { data, error } = await supabase
-        .from("school_quiz_results")
+      // Check for duplicate attempt
+      const { data, error } = (await (supabase
+        .from("school_quiz_results" as any)
         .select("id")
-        .ilike("school_name", schoolName.trim())
+        .eq("school_name", schoolName.trim())
         .eq("language", language)
-        .limit(1);
+        .eq("quiz_no", matchedQuizNo))) as any;
 
       if (error) {
         console.error("Error checking attempts:", error);
         toast.error(language === "ta" ? "சோதனையில் பிழை" : "Error checking attempts");
+        setCheckingAttempt(false);
         return;
       }
 
+      // If any results found for this school, they've already attempted
       if (data && data.length > 0) {
         toast.error(
           language === "ta"
             ? "இந்த பள்ளி ஏற்கனவே வினாடிவினாவை முயற்சித்துள்ளது"
             : "This school has already attempted the quiz"
         );
+        setCheckingAttempt(false);
         return;
       }
 
@@ -478,10 +524,12 @@ const QuizTamilMCQ: React.FC = () => {
       setUrl(urlQNo, schoolName.trim(), true);
 
       toast.success(language === "ta" ? "வினாடிவினா தொடங்குகிறது!" : "Quiz starting!");
+      
+      // Reset checking flag after successful quiz start
+      setCheckingAttempt(false);
     } catch (err) {
       console.error("Error:", err);
       toast.error(language === "ta" ? "சோதனையில் பிழை" : "Error checking attempts");
-    } finally {
       setCheckingAttempt(false);
     }
   };
@@ -489,6 +537,7 @@ const QuizTamilMCQ: React.FC = () => {
   // ---------- Save results ----------
   const saveQuizResults = async () => {
     try {
+      // Save summary results
       const { error } = await supabase.from("school_quiz_results").insert({
         school_name: schoolName,
         total_questions: totalQuestions,
@@ -497,15 +546,56 @@ const QuizTamilMCQ: React.FC = () => {
         not_answered: result.notAnswered,
         final_score: result.score,
         language: language,
+        quiz_no: selectedQuizNo ?? 1,
       });
 
       if (error) {
-        console.error("Error saving quiz results:", error);
-        toast.error(language === "ta" ? "முடிவுகளை சேமிக்க முடியவில்லை" : "Failed to save results");
-      } else {
-        toast.success(language === "ta" ? "முடிவுகள் சேமிக்கப்பட்டன" : "Results saved successfully");
-        clearQuizSession(schoolName);
+        // Check if it's a unique constraint violation (duplicate attempt)
+        if (error.code === "23505") {
+          console.warn("Duplicate submission attempt:", error);
+          toast.error(
+            language === "ta"
+              ? "இந்த பள்ளி ஏற்கனவே வினாடிவினாவை முயற்சித்துள்ளது"
+              : "This school has already submitted the quiz"
+          );
+          clearQuizSession(schoolName);
+          return;
+        } else {
+          console.error("Error saving quiz results:", error);
+          toast.error(language === "ta" ? "முடிவுகளை சேமிக்க முடியவில்லை" : "Failed to save results");
+          return;
+        }
       }
+
+      // Save individual answers to school_quiz_answers table
+      // Map answers array to q1, q2, q3... columns
+      const answersData: any = {
+        school_name: schoolName,
+        quiz_no: selectedQuizNo ?? 1,
+        language: language,
+      };
+
+      // Map each answer to its corresponding question column (q1, q2, q3, etc.)
+      answers.forEach((ans, index) => {
+        const columnName = `q${index + 1}`;
+        answersData[columnName] = ans.selectedOptionId; // Will be 'a', 'b', 'c', 'd', or null
+      });
+
+      console.log("Saving answers data:", answersData);
+
+      const { error: answersError } = await supabase
+        .from("school_quiz_answers" as any)
+        .insert(answersData);
+
+      if (answersError) {
+        console.error("Error saving individual answers:", answersError);
+        // Don't show error to user since main results were saved
+      } else {
+        console.log("Individual answers saved successfully");
+      }
+
+      toast.success(language === "ta" ? "முடிவுகள் சேமிக்கப்பட்டன" : "Results saved successfully");
+      clearQuizSession(schoolName);
     } catch (error) {
       console.error("Error saving quiz results:", error);
       toast.error(language === "ta" ? "முடிவுகளை சேமிக்க முடியவில்லை" : "Failed to save results");
@@ -589,8 +679,13 @@ const QuizTamilMCQ: React.FC = () => {
 
   const Watermark = () => (
     <div className="pointer-events-none select-none absolute inset-0 overflow-hidden rounded-xl">
-      <div className="absolute inset-0 opacity-[0.06] rotate-[-20deg] flex items-center justify-center">
-        <div className="text-6xl md:text-7xl font-black whitespace-nowrap">PENTATHLON</div>
+      <div className="absolute inset-0 flex items-center justify-center opacity-[0.08]">
+        <img
+          src="/Watermark.png"
+          alt="Watermark"
+          className="w-full h-full object-contain"
+          draggable={false}
+        />
       </div>
     </div>
   );
@@ -843,10 +938,10 @@ const QuizTamilMCQ: React.FC = () => {
                             </p>
 
                             {/* Display question image in top right corner if exists */}
-                            {currentQuestion?.image_path && (
+                            {currentQuestion?.imageUrl && (
                               <div className="flex-shrink-0 mt-2 md:mt-0">
                                 <img
-                                  src={currentQuestion.image_path}
+                                  src={currentQuestion.imageUrl}
                                   alt="Question image"
                                   className="w-40 h-32 md:w-52 md:h-40 rounded-lg object-contain border border-primary/20 bg-card/60 shadow-sm"
                                 />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Plus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -16,6 +16,7 @@ type QuizQuestion = {
   id: number;
   question_text: string;
   language: string;
+  quiz_no?: number | null;
   option_a: string;
   option_b: string;
   option_c: string;
@@ -29,6 +30,7 @@ type QuizQuestion = {
 type QuestionFormData = {
   question_text: string;
   language: string;
+  quiz_no: number;
   option_a: string;
   option_b: string;
   option_c: string;
@@ -63,8 +65,10 @@ const AdminQuizPage: React.FC = () => {
   const [quizPassword, setQuizPassword] = useState("");
   const [loadingQuizPassword, setLoadingQuizPassword] = useState(false);
   const [savingQuizPassword, setSavingQuizPassword] = useState(false);
+  const [quizPasswordQuizNo, setQuizPasswordQuizNo] = useState<1 | 2>(1);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [quizFilter, setQuizFilter] = useState<"all" | "1" | "2">("all");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -72,6 +76,7 @@ const AdminQuizPage: React.FC = () => {
   const [formData, setFormData] = useState<QuestionFormData>({
     question_text: "",
     language: "ta",
+    quiz_no: 1,
     option_a: "",
     option_b: "",
     option_c: "",
@@ -86,6 +91,11 @@ const AdminQuizPage: React.FC = () => {
     checkQuizEnabled();
     fetchQuizPassword();
   }, []);
+
+  useEffect(() => {
+    fetchQuizPassword();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizPasswordQuizNo]);
 
   const checkQuizEnabled = async () => {
     try {
@@ -124,13 +134,14 @@ const AdminQuizPage: React.FC = () => {
       setLoadingQuizPassword(true);
       const { data, error } = await supabase
         .from("app_settings")
-        .select("quiz_password")
+        .select("quiz_password_1, quiz_password_2")
         .single();
 
       if (error) throw error;
 
-      const pwd = (data as { quiz_password?: string | null })?.quiz_password || "";
-      setQuizPassword(pwd);
+      const settings = data as { quiz_password_1?: string | null; quiz_password_2?: string | null };
+      const pwd = quizPasswordQuizNo === 1 ? settings?.quiz_password_1 : settings?.quiz_password_2;
+      setQuizPassword(pwd || "");
     } catch (error) {
       console.error("Error fetching quiz password:", error);
       toast.error("Failed to load password");
@@ -149,7 +160,11 @@ const AdminQuizPage: React.FC = () => {
       setSavingQuizPassword(true);
       const { error } = await supabase
         .from("app_settings" as any)
-        .update({ quiz_password: quizPassword.trim() } as any)
+        .update(
+          quizPasswordQuizNo === 1
+            ? ({ quiz_password_1: quizPassword.trim() } as any)
+            : ({ quiz_password_2: quizPassword.trim() } as any)
+        )
         .eq("id", 1);
 
       if (error) throw error;
@@ -178,6 +193,59 @@ const AdminQuizPage: React.FC = () => {
       toast.error("Failed to load results");
     } finally {
       setLoadingResults(false);
+    }
+  };
+
+  const handleDeleteAllResults = async () => {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete ALL school quiz results? This action cannot be undone."
+    );
+    
+    if (!confirmDelete) return;
+
+    try {
+      // Fetch all results first to ensure we're deleting the right records
+      const { data: allResults, error: fetchError } = await supabase
+        .from("school_quiz_results")
+        .select("id");
+
+      if (fetchError) {
+        console.error("Error fetching results:", fetchError);
+        throw fetchError;
+      }
+
+      if (allResults && allResults.length > 0) {
+        // Delete all records by ID from school_quiz_results
+        const ids = allResults.map((r) => r.id);
+        const { error: deleteError } = await supabase
+          .from("school_quiz_results")
+          .delete()
+          .in("id", ids);
+
+        if (deleteError) {
+          console.error("Delete error:", deleteError);
+          throw deleteError;
+        }
+      }
+
+      // Also delete all individual answers from school_quiz_answers table
+      const { error: deleteAnswersError } = await (supabase.rpc as any)('delete_all_quiz_answers');
+
+      if (deleteAnswersError) {
+        console.error("Delete answers error:", deleteAnswersError);
+        // Continue even if answers delete fails
+      }
+
+      // Immediately clear the UI
+      setSchoolResults([]);
+      
+      toast.success("All school results and answers deleted successfully");
+      
+      // Verify deletion by fetching fresh data
+      setTimeout(() => fetchSchoolResults(), 500);
+    } catch (error) {
+      console.error("Error deleting all results:", error);
+      toast.error("Failed to delete results. Check console for details.");
     }
   };
 
@@ -255,12 +323,9 @@ const AdminQuizPage: React.FC = () => {
 
       // Delete image from storage if exists
       if ((question as any)?.image_path) {
-        const fileName = (question as any).image_path.split("/").pop();
-        if (fileName) {
-          await supabase.storage
-            .from("quiz-question-images")
-            .remove([`questions/${fileName}`]);
-        }
+        await supabase.storage
+          .from("quiz-question-images")
+          .remove([(question as any).image_path]);
       }
 
       // Delete question
@@ -281,6 +346,7 @@ const AdminQuizPage: React.FC = () => {
     setFormData({
       question_text: question.question_text,
       language: question.language,
+      quiz_no: question.quiz_no ?? 1,
       option_a: question.option_a,
       option_b: question.option_b,
       option_c: question.option_c,
@@ -289,9 +355,12 @@ const AdminQuizPage: React.FC = () => {
       image_path: question.image_path || null,
     });
     
-    // Load image preview if exists
+    // Load image preview if exists - use inline getPublicUrl like EventsPage
     if (question.image_path) {
-      setImagePreview(question.image_path);
+      const { data: imageUrl } = supabase.storage
+        .from("quiz-question-images")
+        .getPublicUrl(question.image_path);
+      setImagePreview(imageUrl?.publicUrl || null);
     } else {
       setImagePreview(null);
     }
@@ -329,22 +398,30 @@ const AdminQuizPage: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data } = supabase.storage
-        .from("quiz-question-images")
-        .getPublicUrl(`questions/${fileName}`);
-
+      // Store only the relative path, not the full URL
+      const relativePath = `questions/${fileName}`;
+      
       setFormData({
         ...formData,
-        image_path: data?.publicUrl || `questions/${fileName}`,
+        image_path: relativePath,
       });
 
-      // Show preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Show preview using the public URL
+      const { data } = supabase.storage
+        .from("quiz-question-images")
+        .getPublicUrl(relativePath);
+      
+      const publicUrl = data?.publicUrl;
+      if (publicUrl) {
+        setImagePreview(publicUrl);
+      } else {
+        // Fallback to FileReader for preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setImagePreview(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
 
       toast.success("Image uploaded successfully");
     } catch (error) {
@@ -358,12 +435,9 @@ const AdminQuizPage: React.FC = () => {
   const handleDeleteImage = async () => {
     try {
       if (formData.image_path) {
-        const fileName = formData.image_path.split("/").pop();
-        if (fileName) {
-          await supabase.storage
-            .from("quiz-question-images")
-            .remove([`questions/${fileName}`]);
-        }
+        await supabase.storage
+          .from("quiz-question-images")
+          .remove([formData.image_path]);
       }
 
       setFormData({
@@ -382,6 +456,7 @@ const AdminQuizPage: React.FC = () => {
     setFormData({
       question_text: "",
       language: "ta",
+      quiz_no: 1,
       option_a: "",
       option_b: "",
       option_c: "",
@@ -393,6 +468,12 @@ const AdminQuizPage: React.FC = () => {
     setEditingId(null);
     setShowAddForm(false);
   };
+
+  const filteredQuestions = useMemo(() => {
+    if (quizFilter === "all") return questions;
+    const qNo = Number(quizFilter);
+    return questions.filter((q) => (q.quiz_no ?? 1) === qNo);
+  }, [questions, quizFilter]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-12 px-4">
@@ -433,37 +514,50 @@ const AdminQuizPage: React.FC = () => {
           {/* Quiz Password */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>
-                Quiz Password
-              </CardTitle>
+              <CardTitle>Quiz Password</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Set a password required to start the quiz
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Password</Label>
-                <Input
-                  type="text"
-                  value={quizPassword}
-                  onChange={(e) => setQuizPassword(e.target.value)}
-                  placeholder="Enter password"
-                  disabled={loadingQuizPassword || savingQuizPassword}
-                />
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="quiz-select">Quiz</Label>
+                  <Select
+                    value={String(quizPasswordQuizNo)}
+                    onValueChange={(value) => setQuizPasswordQuizNo(Number(value) as 1 | 2)}
+                  >
+                    <SelectTrigger id="quiz-select">
+                      <SelectValue placeholder="Select quiz" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Quiz 1</SelectItem>
+                      <SelectItem value="2">Quiz 2</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quiz-password">Password</Label>
+                  <Input
+                    id="quiz-password"
+                    type="text"
+                    value={quizPassword}
+                    onChange={(e) => setQuizPassword(e.target.value)}
+                    placeholder="Enter password"
+                    disabled={loadingQuizPassword || savingQuizPassword}
+                  />
+                </div>
               </div>
-              <div className="flex gap-2 justify-end">
+              <div className="flex gap-2 justify-end mt-4">
                 <Button
                   variant="outline"
                   onClick={fetchQuizPassword}
                   disabled={loadingQuizPassword || savingQuizPassword}
                 >
-                  {loadingQuizPassword
-                    ? "Loading..."
-                    : "Reload"}
+                  {loadingQuizPassword ? "Loading..." : "Reload"}
                 </Button>
                 <Button
                   onClick={saveQuizPassword}
-                  className="gap-2"
                   disabled={savingQuizPassword}
                 >
                   {savingQuizPassword ? "Saving..." : "Save"}
@@ -551,15 +645,42 @@ const AdminQuizPage: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Add Question Button */}
+          {/* Delete All School Results */}
+          <Card className="mb-6 border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20">
+            <CardHeader>
+              <CardTitle className="text-red-600 dark:text-red-400">
+                Danger Zone - Delete All Results
+              </CardTitle>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+                Permanently delete all school quiz results. This action cannot be undone.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={handleDeleteAllResults}
+                variant="destructive"
+                className="gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete All Results
+              </Button>
+            </CardContent>
+          </Card>
           <div className="flex justify-end mb-6">
             <Button
-              onClick={() => setShowAddForm(!showAddForm)}
+              onClick={() => {
+                if (showAddForm) {
+                  resetForm();
+                } else {
+                  setEditingId(null);
+                  setShowAddForm(true);
+                }
+              }}
               className="gap-2"
-              variant={showAddForm ? "outline" : "default"}
+              variant={showAddForm && !editingId ? "outline" : "default"}
             >
-              {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              {showAddForm
+              {showAddForm && !editingId ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              {showAddForm && !editingId
                 ? language === "ta"
                   ? "மூடு"
                   : "Cancel"
@@ -569,8 +690,8 @@ const AdminQuizPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Add/Edit Form */}
-          {showAddForm && (
+          {/* Add New Question Form - Only show when adding new, not editing */}
+          {showAddForm && !editingId && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
@@ -586,19 +707,19 @@ const AdminQuizPage: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Correct Answer</Label>
+                    <Label>Quiz</Label>
                     <Select
-                      value={formData.correct_answer}
-                      onValueChange={(value) => setFormData({ ...formData, correct_answer: value })}
+                      value={String(formData.quiz_no)}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, quiz_no: Number(value) })
+                      }
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select quiz" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="a">Option A</SelectItem>
-                        <SelectItem value="b">Option B</SelectItem>
-                        <SelectItem value="c">Option C</SelectItem>
-                        <SelectItem value="d">Option D</SelectItem>
+                        <SelectItem value="1">Quiz 1</SelectItem>
+                        <SelectItem value="2">Quiz 2</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -649,25 +770,72 @@ const AdminQuizPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-2">
+                    <Label>Correct Answer</Label>
+                    <Select
+                      value={formData.correct_answer}
+                      onValueChange={(value) => setFormData({ ...formData, correct_answer: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="a">Option A</SelectItem>
+                        <SelectItem value="b">Option B</SelectItem>
+                        <SelectItem value="c">Option C</SelectItem>
+                        <SelectItem value="d">Option D</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Question Image (Optional)</Label>
                     <div className="border-2 border-dashed border-primary/30 rounded-lg p-4">
                       {imagePreview ? (
-                        <div className="relative">
-                          <img 
-                            src={imagePreview} 
-                            alt="Preview" 
-                            className="max-h-48 rounded-lg mx-auto"
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            className="absolute top-2 right-2"
-                            onClick={handleDeleteImage}
-                            disabled={uploadingImage}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                        <div className="space-y-4">
+                          <div className="relative bg-muted/30 rounded-lg p-4 flex items-center justify-center">
+                            <img 
+                              src={imagePreview} 
+                              alt="Preview" 
+                              className="max-h-64 max-w-full rounded-lg object-contain"
+                            />
+                          </div>
+                          <div className="flex gap-2 justify-center">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleImageUpload(file);
+                              }}
+                              disabled={uploadingImage}
+                              className="hidden"
+                              id="image-change"
+                            />
+                            <label htmlFor="image-change">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={uploadingImage}
+                                asChild
+                              >
+                                <span className="cursor-pointer">
+                                  <Upload className="w-4 h-4 mr-2" />
+                                  {uploadingImage ? "Uploading..." : "Change Image"}
+                                </span>
+                              </Button>
+                            </label>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={handleDeleteImage}
+                              disabled={uploadingImage}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete Image
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div>
@@ -684,10 +852,10 @@ const AdminQuizPage: React.FC = () => {
                           />
                           <label
                             htmlFor="image-upload"
-                            className="flex flex-col items-center justify-center cursor-pointer"
+                            className="flex flex-col items-center justify-center cursor-pointer py-8"
                           >
-                            <Upload className="w-8 h-8 text-primary/60 mb-2" />
-                            <p className="text-sm text-muted-foreground">
+                            <Upload className="w-12 h-12 text-primary/60 mb-3" />
+                            <p className="text-sm font-medium text-muted-foreground">
                               {uploadingImage ? "Uploading..." : "Click to upload image"}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
@@ -721,10 +889,27 @@ const AdminQuizPage: React.FC = () => {
 
         {/* Questions List */}
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold mb-4">
-            Questions List
-            <span className="text-sm text-muted-foreground ml-2">({questions.length})</span>
-          </h2>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            <h2 className="text-2xl font-semibold">
+              Questions List
+              <span className="text-sm text-muted-foreground ml-2">({filteredQuestions.length})</span>
+            </h2>
+            <div className="w-full md:w-48">
+              <Select
+                value={quizFilter}
+                onValueChange={(value) => setQuizFilter(value as "all" | "1" | "2")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Quizzes</SelectItem>
+                  <SelectItem value="1">Quiz 1</SelectItem>
+                  <SelectItem value="2">Quiz 2</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
           {loading ? (
             <Card>
@@ -734,7 +919,7 @@ const AdminQuizPage: React.FC = () => {
                 </p>
               </CardContent>
             </Card>
-          ) : questions.length === 0 ? (
+          ) : filteredQuestions.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center">
                 <p className="text-muted-foreground">
@@ -743,7 +928,7 @@ const AdminQuizPage: React.FC = () => {
               </CardContent>
             </Card>
           ) : (
-            questions.map((question, index) => (
+            filteredQuestions.map((question, index) => (
               <motion.div
                 key={question.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -752,75 +937,272 @@ const AdminQuizPage: React.FC = () => {
               >
                 <Card>
                   <CardContent className="pt-6">
-                    <div className="flex justify-between items-start gap-4">
-                      {/* Image Section */}
-                      {question.image_path && (
-                        <div className="flex-shrink-0">
-                          <img 
-                            src={question.image_path} 
-                            alt="Question" 
-                            className="max-h-40 max-w-40 rounded-lg object-cover border border-primary/20"
+                    {/* Edit Form - shown when this question is being edited */}
+                    {editingId === question.id ? (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Edit Question</h3>
+
+                        <div className="space-y-2">
+                          <Label>Quiz</Label>
+                          <Select
+                            value={String(formData.quiz_no)}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, quiz_no: Number(value) })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select quiz" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">Quiz 1</SelectItem>
+                              <SelectItem value="2">Quiz 2</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Question</Label>
+                          <Textarea
+                            value={formData.question_text}
+                            onChange={(e) => setFormData({ ...formData, question_text: e.target.value })}
+                            placeholder="Enter question"
+                            rows={3}
                           />
                         </div>
-                      )}
-                      
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="font-bold text-lg">Q{index + 1}.</span>
-                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                            {question.language === "ta" ? "Tamil" : "English"}
-                          </span>
-                          {question.image_path && (
-                            <span className="text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2 py-1 rounded">
-                              📸 Has Image
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Option A</Label>
+                            <Input
+                              value={formData.option_a}
+                              onChange={(e) => setFormData({ ...formData, option_a: e.target.value })}
+                              placeholder="Option A"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Option B</Label>
+                            <Input
+                              value={formData.option_b}
+                              onChange={(e) => setFormData({ ...formData, option_b: e.target.value })}
+                              placeholder="Option B"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Option C</Label>
+                            <Input
+                              value={formData.option_c}
+                              onChange={(e) => setFormData({ ...formData, option_c: e.target.value })}
+                              placeholder="Option C"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Option D</Label>
+                            <Input
+                              value={formData.option_d}
+                              onChange={(e) => setFormData({ ...formData, option_d: e.target.value })}
+                              placeholder="Option D"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Correct Answer</Label>
+                          <Select
+                            value={formData.correct_answer}
+                            onValueChange={(value) => setFormData({ ...formData, correct_answer: value })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="a">Option A</SelectItem>
+                              <SelectItem value="b">Option B</SelectItem>
+                              <SelectItem value="c">Option C</SelectItem>
+                              <SelectItem value="d">Option D</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Question Image (Optional)</Label>
+                          <div className="border-2 border-dashed border-primary/30 rounded-lg p-4">
+                            {imagePreview ? (
+                              <div className="space-y-4">
+                                <div className="relative bg-muted/30 rounded-lg p-4 flex items-center justify-center">
+                                  <img 
+                                    src={imagePreview} 
+                                    alt="Preview" 
+                                    className="max-h-64 max-w-full rounded-lg object-contain"
+                                  />
+                                </div>
+                                <div className="flex gap-2 justify-center">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleImageUpload(file);
+                                    }}
+                                    disabled={uploadingImage}
+                                    className="hidden"
+                                    id="image-change"
+                                  />
+                                  <label htmlFor="image-change">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={uploadingImage}
+                                      asChild
+                                    >
+                                      <span className="cursor-pointer">
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        {uploadingImage ? "Uploading..." : "Change Image"}
+                                      </span>
+                                    </Button>
+                                  </label>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={handleDeleteImage}
+                                    disabled={uploadingImage}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete Image
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleImageUpload(file);
+                                  }}
+                                  disabled={uploadingImage}
+                                  className="hidden"
+                                  id="image-upload"
+                                />
+                                <label
+                                  htmlFor="image-upload"
+                                  className="flex flex-col items-center justify-center cursor-pointer py-8"
+                                >
+                                  <Upload className="w-12 h-12 text-primary/60 mb-3" />
+                                  <p className="text-sm font-medium text-muted-foreground">
+                                    {uploadingImage ? "Uploading..." : "Click to upload image"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    PNG, JPG up to 5MB
+                                  </p>
+                                </label>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 justify-end">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => {
+                              setEditingId(null);
+                              setImagePreview(null);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={handleUpdateQuestion}
+                            className="gap-2"
+                          >
+                            <Save className="w-4 h-4" />
+                            Update
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Question Display - shown when not editing */
+                      <div className="flex justify-between items-start gap-4">
+                        {/* Image Section */}
+                        {question.image_path && (() => {
+                          const { data: imageUrl } = supabase.storage
+                            .from("quiz-question-images")
+                            .getPublicUrl(question.image_path);
+                          
+                          return (
+                            <div className="flex-shrink-0">
+                              <img 
+                                src={imageUrl?.publicUrl} 
+                                alt="Question" 
+                                className="max-h-40 max-w-40 rounded-lg object-cover border border-primary/20"
+                              />
+                            </div>
+                          );
+                        })()}
+                        
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-bold text-lg">Q{index + 1}.</span>
+                            <span className="text-xs bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 px-2 py-1 rounded">
+                              Quiz {question.quiz_no ?? 1}
                             </span>
-                          )}
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                              {question.language === "ta" ? "Tamil" : "English"}
+                            </span>
+                            {question.image_path && (
+                              <span className="text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2 py-1 rounded">
+                                📸 Has Image
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-semibold mb-4">{question.question_text}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div className={`flex items-center gap-2 ${question.correct_answer === 'a' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
+                              <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">A</span>
+                              <span className="text-sm">{question.option_a}</span>
+                              {question.correct_answer === 'a' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
+                            </div>
+                            <div className={`flex items-center gap-2 ${question.correct_answer === 'b' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
+                              <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">B</span>
+                              <span className="text-sm">{question.option_b}</span>
+                              {question.correct_answer === 'b' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
+                            </div>
+                            <div className={`flex items-center gap-2 ${question.correct_answer === 'c' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
+                              <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">C</span>
+                              <span className="text-sm">{question.option_c}</span>
+                              {question.correct_answer === 'c' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
+                            </div>
+                            <div className={`flex items-center gap-2 ${question.correct_answer === 'd' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
+                              <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">D</span>
+                              <span className="text-sm">{question.option_d}</span>
+                              {question.correct_answer === 'd' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
+                            </div>
+                          </div>
                         </div>
-                        <p className="font-semibold mb-4">{question.question_text}</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          <div className={`flex items-center gap-2 ${question.correct_answer === 'a' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
-                            <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">A</span>
-                            <span className="text-sm">{question.option_a}</span>
-                            {question.correct_answer === 'a' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
-                          </div>
-                          <div className={`flex items-center gap-2 ${question.correct_answer === 'b' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
-                            <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">B</span>
-                            <span className="text-sm">{question.option_b}</span>
-                            {question.correct_answer === 'b' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
-                          </div>
-                          <div className={`flex items-center gap-2 ${question.correct_answer === 'c' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
-                            <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">C</span>
-                            <span className="text-sm">{question.option_c}</span>
-                            {question.correct_answer === 'c' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
-                          </div>
-                          <div className={`flex items-center gap-2 ${question.correct_answer === 'd' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
-                            <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">D</span>
-                            <span className="text-sm">{question.option_d}</span>
-                            {question.correct_answer === 'd' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
-                          </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => startEdit(question)}
+                            className="gap-2"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteQuestion(question.id)}
+                            className="gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => startEdit(question)}
-                          className="gap-2"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteQuestion(question.id)}
-                          className="gap-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
