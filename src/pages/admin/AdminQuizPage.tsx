@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
+import QuizAttemptDetailsModal from "@/components/QuizAttemptDetailsModal";
 
 type QuizQuestion = {
   id: number;
@@ -49,6 +50,7 @@ type SchoolQuizResult = {
   not_answered: number;
   final_score: number;
   language: string;
+  quiz_no?: number;
   completed_at: string;
   created_at: string;
   quiz_password?: string | null;
@@ -73,6 +75,8 @@ const AdminQuizPage: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedQuizResult, setSelectedQuizResult] = useState<SchoolQuizResult | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [formData, setFormData] = useState<QuestionFormData>({
     question_text: "",
     language: "ta",
@@ -591,12 +595,18 @@ const AdminQuizPage: React.FC = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
                     >
-                      <Card className={`relative overflow-hidden ${
-                        index === 0 ? 'border-yellow-500 border-2 shadow-lg' :
-                        index === 1 ? 'border-gray-400 border-2' :
-                        index === 2 ? 'border-orange-600 border-2' :
-                        'border-primary/20'
-                      }`}>
+                      <Card 
+                        className={`relative overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+                          index === 0 ? 'border-yellow-500 border-2 shadow-lg' :
+                          index === 1 ? 'border-gray-400 border-2' :
+                          index === 2 ? 'border-orange-600 border-2' :
+                          'border-primary/20'
+                        }`}
+                        onClick={() => {
+                          setSelectedQuizResult(result);
+                          setShowDetailsModal(true);
+                        }}
+                      >
                         <CardContent className="pt-6">
                           {index < 3 && (
                             <div className="absolute top-2 right-2">
@@ -634,6 +644,11 @@ const AdminQuizPage: React.FC = () => {
                               <div className="text-xs text-center mt-2 text-muted-foreground">
                                 {new Date(result.completed_at).toLocaleString()}
                               </div>
+                            </div>
+                            <div className="mt-4 pt-3 border-t">
+                              <p className="text-xs text-center text-primary font-semibold cursor-pointer hover:underline">
+                                Click to view details →
+                              </p>
                             </div>
                           </div>
                         </CardContent>
@@ -1210,8 +1225,22 @@ const AdminQuizPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Quiz Attempt Details Modal */}
+      {selectedQuizResult && (
+        <QuizAttemptDetailsModal
+          schoolName={selectedQuizResult.school_name}
+          quizNo={selectedQuizResult.quiz_no ?? 1}
+          isOpen={showDetailsModal}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedQuizResult(null);
+          }}
+        />
+      )}
     </div>
   );
 };
 
 export default AdminQuizPage;
+
