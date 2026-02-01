@@ -63,23 +63,21 @@ const fallbackAnnouncements: SeedAnnouncement[] = [
 ];
 
 
-// Sample events
+// Annual Activities from AUSDAV 2025 Proposal
 const annualEvents = [
   {
     id: 1,
-    en: "Practical Seminars",
-    ta: "நடைமுறை கருத்தரங்குகள்",
+    en: "Annual Pilot Examinations",
+    ta: "வருடாந்திர பைலட் தேர்வுகள்",
     icon: GraduationCap,
   },
-  { id: 2, en: "Monthly Exam", ta: "மாதாந்திர தேர்வு", icon: BookOpen },
-  { id: 3, en: "Kalvi Karam", ta: "கல்வி கரம்", icon: Heart },
-  { id: 4, en: "Annual Exam", ta: "வருடாந்திர தேர்வு", icon: BookOpen },
-  { id: 5, en: "Pentathlon", ta: "பெண்டாத்லான்", icon: Zap },
-  { id: 6, en: "Innovia", ta: "இனோவியா", icon: Sparkles },
-  { id: 7, en: "Anbuchangamam", ta: "அன்புசங்கமம்", icon: Heart },
+  { id: 2, en: "Monthly Examinations", ta: "மாதாந்திர தேர்வுகள்", icon: BookOpen },
+  { id: 3, en: "Practical Seminar", ta: "நடைமுறை கருத்தரங்கு", icon: GraduationCap },
+  { id: 4, en: "Kalvikaram Project", ta: "கல்விகரம் திட்டம்", icon: Heart },
+  { id: 5, en: "Pentathlon", ta: "பெண்டத்லான்", icon: Zap },
+  { id: 6, en: "INOVIA", ta: "இன்னோவியா", icon: Sparkles },
+  { id: 7, en: "Anpu Sangamam", ta: "அன்பு சங்கமம்", icon: Heart },
   { id: 8, en: "Blood Donation Camp", ta: "இரத்ததான முகாம்", icon: Heart },
-  { id: 9, en: "Medical Camp", ta: "மருத்துவ முகாம்", icon: Heart },
-  { id: 10, en: "Cricket", ta: "கிரிக்கெட்", icon: Zap },
 ];
 
 // Sample committee

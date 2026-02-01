@@ -165,10 +165,15 @@ const DonatePage: React.FC = () => {
             viewport={{ once: true }}
             className="text-center mt-12 max-w-2xl mx-auto"
           >
+            <p className="text-slate-300 text-lg mb-4">
+              {language === 'en'
+                ? 'Your generous contribution helps us conduct free Annual Pilot Examinations for A/L, O/L, and Grade 5 students, organize 3-day Practical Seminars, and run our Kalvikaram Project for rural schools.'
+                : 'உங்கள் தாராள பங்களிப்பு A/L, O/L மற்றும் 5ம் வகுப்பு மாணவர்களுக்கான இலவச வருடாந்திர பைலட் தேர்வுகளை நடத்தவும், 3 நாள் நடைமுறை கருத்தரங்குகளை ஏற்பாடு செய்யவும், கிராமப்புற பள்ளிகளுக்கான எங்கள் கல்விகரம் திட்டத்தை நடத்தவும் உதவுகிறது.'}
+            </p>
             <p className="text-slate-300 text-lg">
               {language === 'en'
-                ? 'Your generous contribution helps us provide educational resources, conduct seminars, and support students in need. Every donation makes a difference.'
-                : 'உங்கள் தாராள பங்களிப்பு கல்வி வளங்களை வழங்கவும், கருத்தரங்குகளை நடத்தவும், தேவைப்படும் மாணவர்களுக்கு ஆதரவளிக்கவும் உதவுகிறது. ஒவ்வொரு நன்கொடையும் ஒரு மாற்றத்தை ஏற்படுத்துகிறது.'}
+                ? 'Our annual budget is approximately Rs. 1,408,600 and every donation helps us reach more students in the Vavuniya district. AUSDAV has been serving students since 1993.'
+                : 'எங்கள் வருடாந்திர வரவு செலவு திட்டம் சுமார் ரூ. 1,408,600 மற்றும் ஒவ்வொரு நன்கொடையும் வவுனியா மாவட்டத்தில் அதிக மாணவர்களை அடைய உதவுகிறது. AUSDAV 1993 முதல் மாணவர்களுக்கு சேவை செய்து வருகிறது.'}
             </p>
           </motion.div>
         </div>

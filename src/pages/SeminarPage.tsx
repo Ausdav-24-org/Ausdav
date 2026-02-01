@@ -100,8 +100,8 @@ const SeminarPage: React.FC = () => {
           >
             ✦{" "}
             {language === "en"
-              ? "Empowering Future Leaders Since 2015"
-              : "2015 முதல் ஆற்றல் சேர்ப்பு"}
+              ? "Empowering Future Leaders Since 1993"
+              : "1993 முதல் ஆற்றல் சேர்ப்பு"}
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, scale: 0.9 }}

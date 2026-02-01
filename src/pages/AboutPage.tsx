@@ -257,20 +257,20 @@ const AboutPage: React.FC = () => {
 
               <p className="text-slate-300 text-lg leading-relaxed mb-6">
                 {language === "en"
-                  ? "We are a passionate community of leaders, innovators, and changemakers dedicated to creating positive impact in our society. Our diverse team brings together unique perspectives and expertise to drive meaningful change."
-                  : "எங்கள் சமூகத்தில் நேர்மறையான தாக்கத்தை உருவாக்க அர்ப்பணிப்புடன் செயல்படும் தலைவர்கள், புதுமைப்பித்தர்கள் மற்றும் மாற்றத்தை ஏற்படுத்துபவர்களைக் கொண்ட ஒரு தீவிர சமூகமாக நாங்கள் இருக்கிறோம். அர்த்தமுள்ள மாற்றத்தை ஏற்படுத்த எங்கள் பன்முகத்தன்மை கொண்ட குழு தனித்துவமான கண்ணோட்டங்களையும் நிபுணத்துவத்தையும் ஒன்றிணைக்கிறது."}
+                  ? "The All University Students' Development Association Vavuniya (AUSDAV) is a pioneering non-governmental organization registered under NP/DS/V/SS/153 in the Northern Province. Established in 1993, we have been committed to the comprehensive development of university students and A/L students in the Vavuniya district for over 32 years."
+                  : "ஆல் யுனிவர்சிட்டி ஸ்டூடென்ட்ஸ் டெவலப்மென்ட் அசோசியேஷன் வவுனியா (AUSDAV) என்பது வடக்கு மாகாணத்தில் NP/DS/V/SS/153 என்ற எண்ணில் பதிவுசெய்யப்பட்ட ஒரு முன்னோடி அரசு சாரா நிறுவனமாகும். 1993 இல் நிறுவப்பட்ட நாங்கள், 32 ஆண்டுகளுக்கும் மேலாக வவுனியா மாவட்டத்தில் பல்கலைக்கழக மாணவர்கள் மற்றும் உயர்தர மாணவர்களின் விரிவான வளர்ச்சிக்கு அர்ப்பணிப்புடன் செயல்படுகிறோம்."}
               </p>
 
               <p className="text-slate-300 text-lg leading-relaxed mb-6">
                 {language === "en"
-                  ? "Founded by students for students, we understand the challenges and opportunities that come with building a better future. Our organization serves as a platform for growth, learning, and collaboration."
-                  : "மாணவர்களுக்காக மாணவர்களால் நிறுவப்பட்ட நாங்கள், சிறந்த எதிர்காலத்தை உருவாக்குவதில் வரும் சவால்கள் மற்றும் வாய்ப்புகளைப் புரிந்துகொள்கிறோம். எங்கள் அமைப்பு வளர்ச்சி, கற்றல் மற்றும் ஒத்துழைப்புக்கான தளமாக செயல்படுகிறது."}
+                  ? "Our address is YMCA ROAD, VAVUNIYA, and we operate under the guidance of distinguished patrons including Dr.(Eng.).S.S.Sivakumar, Prof.Y.Nanthagopan, Mr.P.Anton Punethanayagam, and Mr.M.Rajmohan. We are a community of volunteer university students dedicated to serving our district."
+                  : "எங்கள் முகவரி YMCA ROAD, VAVUNIYA, மேலும் Dr.(Eng.).S.S.Sivakumar, Prof.Y.Nanthagopan, Mr.P.Anton Punethanayagam, மற்றும் Mr.M.Rajmohan உள்ளிட்ட சிறந்த ஆதரவாளர்களின் வழிகாட்டுதலின் கீழ் நாங்கள் செயல்படுகிறோம். எங்கள் மாவட்டத்திற்கு சேவை செய்ய அர்ப்பணிப்புள்ள தன்னார்வ பல்கலைக்கழக மாணவர்களின் சமூகமாக நாங்கள் இருக்கிறோம்."}
               </p>
 
               <p className="text-slate-300 text-lg leading-relaxed">
                 {language === "en"
-                  ? "Through dedication, innovation, and a commitment to excellence, we continue to expand our reach and deepen our impact in communities around the world."
-                  : "அர்ப்பணிப்பு, புதுமை மற்றும் சிறந்து விளங்குவதற்கான அர்ப்பணிப்பு மூலம், உலகெங்கிலும் உள்ள சமூகங்களில் எங்கள் வரம்பை விரிவுபடுத்தி எங்கள் தாக்கத்தை ஆழப்படுத்துகிறோம்."}
+                  ? "Since 1993, AUSDAV has grown from a small group of dedicated students to a vibrant organization that has helped thousands of students achieve academic excellence and personal growth. Our rich history spans over three decades of continuous service."
+                  : "1993 முதல், AUSDAV ஒரு சிறிய அர்ப்பணிப்புள்ள மாணவர் குழுவிலிருந்து ஆயிரக்கணக்கான மாணவர்களுக்கு கல்வி சிறப்பு மற்றும் தனிப்பட்ட வளர்ச்சியை அடைய உதவிய ஒரு உயிரோட்டமான அமைப்பாக வளர்ந்துள்ளது. எங்கள் வளமான வரலாறு மூன்று தசாப்தங்களுக்கும் மேலான தொடர்ச்சியான சேவையை உள்ளடக்கியது."}
               </p>
             </motion.div>
           </div>
@@ -308,20 +308,20 @@ const AboutPage: React.FC = () => {
 
               <p className="text-slate-300 text-lg leading-relaxed mb-6">
                 {language === "en"
-                  ? "We organize workshops, seminars, and networking events that equip participants with the skills and knowledge needed to excel in today's dynamic environment. Our programs focus on leadership development, professional skills, and personal growth."
-                  : "இன்றைய மாறும் சூழலில் சிறந்து விளங்கத் தேவையான திறன்கள் மற்றும் அறிவை பங்கேற்பாளர்களுக்கு வழங்கும் பட்டறைகள், கருத்தரங்குகள் மற்றும் நெட்வொர்க்கிங் நிகழ்வுகளை நாங்கள் ஏற்பாடு செய்கிறோம். எங்கள் திட்டங்கள் தலைமைத்துவ மேம்பாடு, தொழில்முறை திறன்கள் மற்றும் தனிப்பட்ட வளர்ச்சியில் கவனம் செலுத்துகின்றன."}
+                  ? "We conduct free Annual Pilot Examinations for A/L, O/L, and Grade 5 students, along with Monthly Examinations throughout the year. Our 3-day Practical Seminars provide hands-on Physics and Chemistry training for A/L students in the Vavuniya district."
+                  : "நாங்கள் A/L, O/L மற்றும் 5ம் வகுப்பு மாணவர்களுக்கு இலவச வருடாந்திர பைலட் தேர்வுகளை நடத்துகிறோம், ஆண்டு முழுவதும் மாதாந்திர தேர்வுகளையும் நடத்துகிறோம். எங்கள் 3 நாள் நடைமுறை கருத்தரங்குகள் வவுனியா மாவட்டத்தில் உள்ள A/L மாணவர்களுக்கு இயற்பியல் மற்றும் வேதியியலில் நடைமுறை பயிற்சியை வழங்குகின்றன."}
               </p>
 
               <p className="text-slate-300 text-lg leading-relaxed mb-6">
                 {language === "en"
-                  ? "Through membership programs, we connect aspiring leaders with experienced professionals who provide guidance, support, and valuable insights to help navigate career paths and overcome challenges."
-                  : "உறுப்பினர் திட்டங்கள் மூலம், ஆர்வமுள்ள தலைவர்களை அனுபவம் வாய்ந்த நிபுணர்களுடன் இணைக்கிறோம், அவர்கள் வாழ்க்கைப் பாதைகளில் செல்லவும் சவால்களை சமாளிக்கவும் வழிகாட்டுதல், ஆதரவு மற்றும் மதிப்புமிக்க நுண்ணறிவுகளை வழங்குகிறார்கள்."}
+                  ? "Through our Kalvikaram Project, we bring educational opportunities to rural and underprivileged schools. We organize Pentathlon (inter-school quiz competitions), INOVIA (science exhibitions), and Anpu Sangamam (celebrations for elders and children at orphanages and elder homes)."
+                  : "எங்கள் கல்விகரம் திட்டத்தின் மூலம், கிராமப்புற மற்றும் பின்தங்கிய பள்ளிகளுக்கு கல்வி வாய்ப்புகளைக் கொண்டு செல்கிறோம். பெண்டத்லான் (பள்ளிகளுக்கிடையேயான வினாடி வினா போட்டிகள்), இன்னோவியா (அறிவியல் கண்காட்சிகள்), மற்றும் அன்பு சங்கமம் (அனாதை இல்லங்கள் மற்றும் முதியோர் இல்லங்களில் முதியோர் மற்றும் குழந்தைகளுக்கான கொண்டாட்டங்கள்) ஆகியவற்றை நாங்கள் ஏற்பாடு செய்கிறோம்."}
               </p>
 
               <p className="text-slate-300 text-lg leading-relaxed">
                 {language === "en"
-                  ? "We also engage in community service initiatives, collaborating with local organizations to address pressing social issues and create lasting positive change in the communities we serve."
-                  : "சமூக சேவை முயற்சிகளிலும் நாங்கள் ஈடுபடுகிறோம், உள்ளூர் அமைப்புகளுடன் இணைந்து அழுத்தும் சமூகப் பிரச்சினைகளைத் தீர்க்கவும், நாங்கள் சேவை செய்யும் சமூகங்களில் நீடித்த நேர்மறையான மாற்றத்தை உருவாக்கவும் செய்கிறோம்."}
+                  ? "We also conduct Blood Donation Camps, and plan future projects including Chess Campaigns, Career Guidance Seminars, library facilities for rural schools, medical camps, and disaster relief through our 'Olirvum Vaalvum' initiative."
+                  : "நாங்கள் இரத்ததான முகாம்களையும் நடத்துகிறோம், மேலும் செஸ் பிரச்சாரங்கள், தொழில் வழிகாட்டுதல் கருத்தரங்குகள், கிராமப்புற பள்ளிகளுக்கு நூலக வசதிகள், மருத்துவ முகாம்கள், மற்றும் எங்கள் 'ஒளிர்வும் வாழ்வும்' முன்முயற்சி மூலம் பேரிடர் நிவாரணம் உள்ளிட்ட எதிர்கால திட்டங்களை திட்டமிட்டுள்ளோம்."}
               </p>
             </motion.div>
           </div>
@@ -358,20 +358,20 @@ const AboutPage: React.FC = () => {
 
               <p className="text-slate-300 text-lg leading-relaxed mb-6">
                 {language === "en"
-                  ? "Founded with a vision to transform the industry, our organization has grown from a small team of passionate individuals into a thriving company that serves clients worldwide."
-                  : "தொழில்துறையை மாற்றும் தொலைநோக்குப் பார்வையுடன் நிறுவப்பட்ட எங்கள் நிறுவனம், ஆர்வமுள்ள தனிநபர்களின் ஒரு சிறிய குழுவிலிருந்து உலகளாவிய வாடிக்கையாளர்களுக்கு சேவை செய்யும் ஒரு செழிப்பான நிறுவனமாக வளர்ந்துள்ளது."}
+                  ? "AUSDAV was established in 1993 with a vision to support and develop university students and A/L students in the Vavuniya district. What began as a small group of dedicated volunteers has grown into a recognized organization serving thousands of students each year."
+                  : "1993 இல் வவுனியா மாவட்டத்தில் பல்கலைக்கழக மாணவர்கள் மற்றும் உயர்தர மாணவர்களை ஆதரிக்கவும் வளர்க்கவும் ஒரு தொலைநோக்குடன் AUSDAV நிறுவப்பட்டது. ஒரு சிறிய அர்ப்பணிப்புள்ள தன்னார்வலர்கள் குழுவாகத் தொடங்கியது ஒவ்வொரு ஆண்டும் ஆயிரக்கணக்கான மாணவர்களுக்கு சேவை செய்யும் அங்கீகரிக்கப்பட்ட அமைப்பாக வளர்ந்துள்ளது."}
               </p>
 
               <p className="text-slate-300 text-lg leading-relaxed mb-6">
                 {language === "en"
-                  ? "Over the years, we've remained committed to our founding principles, putting our clients first and fostering innovation and building lasting relationships based on trust and mutual success."
-                  : "பல ஆண்டுகளாக, எங்கள் நிறுவனக் கொள்கைகளுக்கு நாங்கள் உறுதிபூண்டு வருகிறோம், எங்கள் வாடிக்கையாளர்களை முதன்மையாக வைத்து, புதுமைகளை வளர்த்து, நம்பிக்கை மற்றும் பரஸ்பர வெற்றியின் அடிப்படையில் நீடித்த உறவுகளை உருவாக்குகிறோம்."}
+                  ? "For over 32 years, we've remained committed to our founding principles - providing free educational support, conducting examinations, and creating opportunities for students to excel. Our journey has been marked by countless success stories of students who have benefited from our programs."
+                  : "32 ஆண்டுகளுக்கும் மேலாக, எங்கள் நிறுவனக் கொள்கைகளுக்கு நாங்கள் உறுதிபூண்டு வருகிறோம் - இலவச கல்வி ஆதரவை வழங்குதல், தேர்வுகளை நடத்துதல், மாணவர்கள் சிறந்து விளங்க வாய்ப்புகளை உருவாக்குதல். எங்கள் நிகழ்ச்சிகளிலிருந்து பயனடைந்த மாணவர்களின் எண்ணற்ற வெற்றிக் கதைகளால் எங்கள் பயணம் குறிக்கப்பட்டுள்ளது."}
               </p>
 
               <p className="text-slate-300 text-lg leading-relaxed">
                 {language === "en"
-                  ? "Today, we're proud to be at the forefront of our industry, continuously pushing boundaries and setting new standards for excellence."
-                  : "இன்று, எங்கள் தொழில்துறையின் முன்னணியில் இருப்பதில் நாங்கள் பெருமை கொள்கிறோம், தொடர்ந்து எல்லைகளைத் தாண்டி, சிறந்து விளங்குவதற்கான புதிய தரநிலைகளை அமைக்கிறோம்."}
+                  ? "Today, we're proud to be a leading student development organization in the Vavuniya district, continuously expanding our programs and reaching more students through initiatives like Kalvikaram, INOVIA, and our pilot examinations."
+                  : "இன்று, வவுனியா மாவட்டத்தில் முன்னணி மாணவர் மேம்பாட்டு அமைப்பாக இருப்பதில் நாங்கள் பெருமிதம் கொள்கிறோம், கல்விகரம், இன்னோவியா மற்றும் எங்கள் பைலட் தேர்வுகள் போன்ற முயற்சிகள் மூலம் எங்கள் நிகழ்ச்சிகளை தொடர்ந்து விரிவுபடுத்தி மேலும் மாணவர்களை அடைகிறோம்."}
               </p>
             </motion.div>
           </div>
