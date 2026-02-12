@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { RotateCcw, CheckCircle, XCircle, HelpCircle } from "lucide-react";
+import { RotateCcw, CheckCircle, XCircle, HelpCircle, Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -828,10 +828,15 @@ const QuizTamilMCQ: React.FC = () => {
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => setShowPassword(!showPassword)}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                  onClick={() => setShowPassword((v) => !v)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-none outline-none cursor-pointer p-0"
+                                  aria-label={showPassword ? "Hide password" : "Show password"}
                                 >
-                                  {showPassword ? "🙈" : "👁️"}
+                                  {showPassword ? (
+                                    <EyeOff className="w-5 h-5" />
+                                  ) : (
+                                    <Eye className="w-5 h-5" />
+                                  )}
                                 </button>
                               </div>
                             </div>

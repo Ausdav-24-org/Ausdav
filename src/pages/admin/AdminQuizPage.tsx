@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Plus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +18,7 @@ type QuizQuestion = {
   id: number;
   question_text: string;
   language: string;
-  quiz_no?: number | null;
+  quiz_password_id?: number | null;
   option_a: string;
   option_b: string;
   option_c: string;
@@ -31,7 +32,7 @@ type QuizQuestion = {
 type QuestionFormData = {
   question_text: string;
   language: string;
-  quiz_no: number;
+  quiz_password_id: number | null;
   option_a: string;
   option_b: string;
   option_c: string;
@@ -50,7 +51,7 @@ type SchoolQuizResult = {
   not_answered: number;
   final_score: number;
   language: string;
-  quiz_no?: number;
+  quiz_password_id?: number | null;
   completed_at: string;
   created_at: string;
   quiz_password?: string | null;
@@ -60,17 +61,53 @@ const AdminQuizPage: React.FC = () => {
   const { language } = useLanguage();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [schoolResults, setSchoolResults] = useState<SchoolQuizResult[]>([]);
+  const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
+  const [pendingScoreRange, setPendingScoreRange] = useState<[number, number]>([0, 100]);
+  const [sortBy, setSortBy] = useState<'score-desc' | 'score-asc' | 'name-asc' | 'name-desc' | 'time-asc' | 'time-desc'>("score-desc");
+    // Memoized filtered and sorted results
+    const filteredSortedResults = useMemo(() => {
+      let results = [...schoolResults];
+      // Filter by score range
+      results = results.filter(r => r.final_score >= scoreRange[0] && r.final_score <= scoreRange[1]);
+      // Sort
+      switch (sortBy) {
+        case 'score-asc':
+          results.sort((a, b) => a.final_score - b.final_score);
+          break;
+        case 'score-desc':
+          results.sort((a, b) => b.final_score - a.final_score);
+          break;
+        case 'name-asc':
+          results.sort((a, b) => a.school_name.localeCompare(b.school_name));
+          break;
+        case 'name-desc':
+          results.sort((a, b) => b.school_name.localeCompare(a.school_name));
+          break;
+        case 'time-asc':
+          results.sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
+          break;
+        case 'time-desc':
+          results.sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
+          break;
+      }
+      return results;
+    }, [schoolResults, scoreRange, sortBy]);
   const [loading, setLoading] = useState(true);
   const [loadingResults, setLoadingResults] = useState(true);
   const [isQuizEnabled, setIsQuizEnabled] = useState(false);
   const [isMemberUploadEnabled, setIsMemberUploadEnabled] = useState(false);
-  const [quizPassword, setQuizPassword] = useState("");
-  const [loadingQuizPassword, setLoadingQuizPassword] = useState(false);
+  const [quizPasswords, setQuizPasswords] = useState<{ id: number; quiz_name: string; password: string }[]>([]);
+  const [loadingQuizPasswords, setLoadingQuizPasswords] = useState(false);
+  const [showQuizPassword, setShowQuizPassword] = useState<{ [id: number]: boolean }>({});
+  const [newQuizName, setNewQuizName] = useState("");
+  const [newQuizPassword, setNewQuizPassword] = useState("");
   const [savingQuizPassword, setSavingQuizPassword] = useState(false);
-  const [quizPasswordQuizNo, setQuizPasswordQuizNo] = useState<1 | 2>(1);
+  const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
+  const [editingQuizName, setEditingQuizName] = useState("");
+  const [editingQuizPassword, setEditingQuizPassword] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [quizFilter, setQuizFilter] = useState<"all" | "1" | "2">("all");
+  const [quizFilter, setQuizFilter] = useState<string>("all");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -80,7 +117,7 @@ const AdminQuizPage: React.FC = () => {
   const [formData, setFormData] = useState<QuestionFormData>({
     question_text: "",
     language: "ta",
-    quiz_no: 1,
+    quiz_password_id: null,
     option_a: "",
     option_b: "",
     option_c: "",
@@ -93,13 +130,8 @@ const AdminQuizPage: React.FC = () => {
     fetchQuestions();
     fetchSchoolResults();
     checkQuizEnabled();
-    fetchQuizPassword();
+    fetchQuizPasswords();
   }, []);
-
-  useEffect(() => {
-    fetchQuizPassword();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizPasswordQuizNo]);
 
   const checkQuizEnabled = async () => {
     try {
@@ -133,52 +165,85 @@ const AdminQuizPage: React.FC = () => {
     }
   };
 
-  const fetchQuizPassword = async () => {
+  // Fetch all quiz passwords
+  const fetchQuizPasswords = async () => {
     try {
-      setLoadingQuizPassword(true);
+      setLoadingQuizPasswords(true);
       const { data, error } = await supabase
-        .from("app_settings")
-        .select("quiz_password_1, quiz_password_2")
-        .single();
-
+        .from("quiz_passwords" as any)
+        .select("id, quiz_name, password");
       if (error) throw error;
-
-      const settings = data as { quiz_password_1?: string | null; quiz_password_2?: string | null };
-      const pwd = quizPasswordQuizNo === 1 ? settings?.quiz_password_1 : settings?.quiz_password_2;
-      setQuizPassword(pwd || "");
+      setQuizPasswords((data || []) as unknown as { id: number; quiz_name: string; password: string }[]);
     } catch (error) {
-      console.error("Error fetching quiz password:", error);
-      toast.error("Failed to load password");
+      console.error("Error fetching quiz passwords:", error);
+      toast.error("Failed to load quiz passwords");
     } finally {
-      setLoadingQuizPassword(false);
+      setLoadingQuizPasswords(false);
     }
   };
 
+  // Add or update quiz password
   const saveQuizPassword = async () => {
-    if (!quizPassword.trim()) {
-      toast.error("Enter a password");
-      return;
+    if (editingQuizId) {
+      // Update existing
+      if (!editingQuizName.trim() || !editingQuizPassword.trim()) {
+        toast.error("Enter quiz name and password");
+        return;
+      }
+      try {
+        setSavingQuizPassword(true);
+        const { error } = await supabase
+          .from("quiz_passwords" as any)
+          .update({ quiz_name: editingQuizName.trim(), password: editingQuizPassword.trim() })
+          .eq("id", editingQuizId);
+        if (error) throw error;
+        toast.success("Quiz password updated");
+        setEditingQuizId(null);
+        setEditingQuizName("");
+        setEditingQuizPassword("");
+        fetchQuizPasswords();
+      } catch (error) {
+        console.error("Error updating quiz password:", error);
+        toast.error("Failed to update");
+      } finally {
+        setSavingQuizPassword(false);
+      }
+    } else {
+      // Add new
+      if (!newQuizName.trim() || !newQuizPassword.trim()) {
+        toast.error("Enter quiz name and password");
+        return;
+      }
+      try {
+        setSavingQuizPassword(true);
+        const { error } = await supabase
+          .from("quiz_passwords" as any)
+          .insert([{ quiz_name: newQuizName.trim(), password: newQuizPassword.trim() }]);
+        if (error) throw error;
+        toast.success("Quiz password added");
+        setNewQuizName("");
+        setNewQuizPassword("");
+        fetchQuizPasswords();
+      } catch (error) {
+        console.error("Error adding quiz password:", error);
+        toast.error("Failed to add");
+      } finally {
+        setSavingQuizPassword(false);
+      }
     }
+  };
 
+  // Delete quiz password
+  const deleteQuizPassword = async (id: number) => {
+    if (!window.confirm("Delete this quiz password?")) return;
     try {
-      setSavingQuizPassword(true);
-      const { error } = await supabase
-        .from("app_settings" as any)
-        .update(
-          quizPasswordQuizNo === 1
-            ? ({ quiz_password_1: quizPassword.trim() } as any)
-            : ({ quiz_password_2: quizPassword.trim() } as any)
-        )
-        .eq("id", 1);
-
+      const { error } = await supabase.from("quiz_passwords" as any).delete().eq("id", id);
       if (error) throw error;
-
-      toast.success("Password updated");
+      toast.success("Quiz password deleted");
+      fetchQuizPasswords();
     } catch (error) {
-      console.error("Error saving quiz password:", error);
-      toast.error("Failed to save");
-    } finally {
-      setSavingQuizPassword(false);
+      console.error("Error deleting quiz password:", error);
+      toast.error("Failed to delete");
     }
   };
 
@@ -350,7 +415,7 @@ const AdminQuizPage: React.FC = () => {
     setFormData({
       question_text: question.question_text,
       language: question.language,
-      quiz_no: question.quiz_no ?? 1,
+      quiz_password_id: question.quiz_password_id ?? null,
       option_a: question.option_a,
       option_b: question.option_b,
       option_c: question.option_c,
@@ -460,7 +525,7 @@ const AdminQuizPage: React.FC = () => {
     setFormData({
       question_text: "",
       language: "ta",
-      quiz_no: 1,
+      quiz_password_id: null,
       option_a: "",
       option_b: "",
       option_c: "",
@@ -475,13 +540,15 @@ const AdminQuizPage: React.FC = () => {
 
   const filteredQuestions = useMemo(() => {
     if (quizFilter === "all") return questions;
-    const qNo = Number(quizFilter);
-    return questions.filter((q) => (q.quiz_no ?? 1) === qNo);
+    const qId = Number(quizFilter);
+    return questions.filter((q) => (q.quiz_password_id ?? -1) === qId);
   }, [questions, quizFilter]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-12 px-4">
-      <div className="container mx-auto max-w-6xl">
+    <>
+      <AdminHeader title="Quiz Management" breadcrumb="Admin / Quiz" />
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-12 px-4">
+        <div className="container mx-auto max-w-6xl">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -515,80 +582,173 @@ const AdminQuizPage: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Quiz Password */}
+          {/* Quiz Passwords - Dynamic List */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Quiz Password</CardTitle>
+              <CardTitle>Quiz Passwords</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Set a password required to start the quiz
+                Add, edit, or delete quiz passwords for any quiz name
               </p>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="quiz-select">Quiz</Label>
-                  <Select
-                    value={String(quizPasswordQuizNo)}
-                    onValueChange={(value) => setQuizPasswordQuizNo(Number(value) as 1 | 2)}
-                  >
-                    <SelectTrigger id="quiz-select">
-                      <SelectValue placeholder="Select quiz" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Quiz 1</SelectItem>
-                      <SelectItem value="2">Quiz 2</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quiz-password">Password</Label>
-                  <Input
-                    id="quiz-password"
-                    type="text"
-                    value={quizPassword}
-                    onChange={(e) => setQuizPassword(e.target.value)}
-                    placeholder="Enter password"
-                    disabled={loadingQuizPassword || savingQuizPassword}
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end mt-4">
-                <Button
-                  variant="outline"
-                  onClick={fetchQuizPassword}
-                  disabled={loadingQuizPassword || savingQuizPassword}
-                >
-                  {loadingQuizPassword ? "Loading..." : "Reload"}
-                </Button>
-                <Button
-                  onClick={saveQuizPassword}
+              {/* Add new quiz password */}
+              <div className="flex flex-col md:flex-row gap-2 mb-4">
+                <Input
+                  placeholder="Quiz name (e.g. Science 2026)"
+                  value={newQuizName}
+                  onChange={e => setNewQuizName(e.target.value)}
+                  className="md:w-1/3"
                   disabled={savingQuizPassword}
-                >
-                  {savingQuizPassword ? "Saving..." : "Save"}
+                />
+                <div className="relative md:w-1/3">
+                  <Input
+                    placeholder="Password"
+                    type={showQuizPassword[0] ? "text" : "password"}
+                    value={newQuizPassword}
+                    onChange={e => setNewQuizPassword(e.target.value)}
+                    disabled={savingQuizPassword}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                    onClick={() => setShowQuizPassword(s => ({ ...s, 0: !s[0] }))}
+                    aria-label={showQuizPassword[0] ? "Hide password" : "Show password"}
+                  >
+                    {showQuizPassword[0] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                <Button onClick={saveQuizPassword} disabled={savingQuizPassword} className="md:w-1/6">
+                  {savingQuizPassword ? "Saving..." : "Add"}
                 </Button>
               </div>
+              {/* List all quiz passwords */}
+              {loadingQuizPasswords ? (
+                <div className="text-muted-foreground py-4">Loading...</div>
+              ) : quizPasswords.length === 0 ? (
+                <div className="text-muted-foreground py-4">No quiz passwords set</div>
+              ) : (
+                <div className="space-y-2">
+                  {quizPasswords.map(qp => (
+                    <div key={qp.id} className="flex items-center gap-2 border rounded px-3 py-2">
+                      {editingQuizId === qp.id ? (
+                        <>
+                          <Input
+                            value={editingQuizName}
+                            onChange={e => setEditingQuizName(e.target.value)}
+                            className="w-1/3"
+                          />
+                          <div className="relative w-1/3">
+                            <Input
+                              type={showQuizPassword[qp.id] ? "text" : "password"}
+                              value={editingQuizPassword}
+                              onChange={e => setEditingQuizPassword(e.target.value)}
+                              className="pr-10"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                              onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
+                              aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
+                            >
+                              {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                          <Button size="sm" onClick={saveQuizPassword} className="mr-2">Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); }}>Cancel</Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="w-1/3 font-semibold">{qp.quiz_name}</span>
+                          <div className="relative w-1/3">
+                            <Input
+                              type={showQuizPassword[qp.id] ? "text" : "password"}
+                              value={qp.password}
+                              readOnly
+                              className="pr-10 bg-muted"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                              onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
+                              aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
+                            >
+                              {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); }}>Edit</Button>
+                          <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)}>Delete</Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* School Quiz Results */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>
-                School Quiz Results
-              </CardTitle>
+              <CardTitle>School Quiz Results</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Filters and Sorting Controls */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 px-2 py-3 bg-muted/40 rounded-lg border border-muted-foreground/10 shadow-sm">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="font-semibold text-sm text-white mr-2">Score Range</label>
+                        <Input
+                          type="number"
+                          min={-100}
+                          max={100}
+                          value={pendingScoreRange[0]}
+                          onChange={e => setPendingScoreRange([Number(e.target.value), pendingScoreRange[1]])}
+                          className="w-16 h-9 text-sm px-2 bg-[#232b3b] border-none text-white focus:ring-2 focus:ring-primary"
+                        />
+                        <span className="mx-1 text-white">-</span>
+                        <Input
+                          type="number"
+                          min={-100}
+                          max={100}
+                          value={pendingScoreRange[1]}
+                          onChange={e => setPendingScoreRange([pendingScoreRange[0], Number(e.target.value)])}
+                          className="w-16 h-9 text-sm px-2 bg-[#232b3b] border-none text-white focus:ring-2 focus:ring-primary"
+                        />
+                        <Button
+                          size="sm"
+                          className="ml-2 h-9 px-5 bg-primary text-white font-semibold rounded-md shadow-none hover:bg-primary/90"
+                          onClick={() => setScoreRange(pendingScoreRange)}
+                        >
+                          Apply
+                        </Button>
+                      </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Select value={sortBy} onValueChange={v => setSortBy(v as any)}>
+                    <SelectTrigger className="min-w-[180px] h-9 text-sm px-2 bg-[#232b3b] border-none text-white focus:ring-2 focus:ring-primary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#232b3b] text-white">
+                      <SelectItem value="score-desc">Score (High to Low)</SelectItem>
+                      <SelectItem value="score-asc">Score (Low to High)</SelectItem>
+                      <SelectItem value="name-asc">School Name (A-Z)</SelectItem>
+                      <SelectItem value="name-desc">School Name (Z-A)</SelectItem>
+                      <SelectItem value="time-asc">Finished Time (First to Last)</SelectItem>
+                      <SelectItem value="time-desc">Finished Time (Last to First)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               {loadingResults ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Loading...
                 </div>
-              ) : schoolResults.length === 0 ? (
+              ) : filteredSortedResults.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No results yet
+                  No results found
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {schoolResults.map((result, index) => (
+                  {filteredSortedResults.map((result, index) => (
                     <motion.div
                       key={result.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -724,17 +884,22 @@ const AdminQuizPage: React.FC = () => {
                   <div className="space-y-2">
                     <Label>Quiz</Label>
                     <Select
-                      value={String(formData.quiz_no)}
+                      value={formData.quiz_password_id ? String(formData.quiz_password_id) : ""}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, quiz_no: Number(value) })
+                        setFormData({ ...formData, quiz_password_id: Number(value) })
                       }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select quiz" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Quiz 1</SelectItem>
-                        <SelectItem value="2">Quiz 2</SelectItem>
+                        {quizPasswords.length === 0 ? (
+                          <SelectItem value="" disabled>No quizzes available</SelectItem>
+                        ) : (
+                          quizPasswords.map(qp => (
+                            <SelectItem key={qp.id} value={String(qp.id)}>{qp.quiz_name}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -912,15 +1077,16 @@ const AdminQuizPage: React.FC = () => {
             <div className="w-full md:w-48">
               <Select
                 value={quizFilter}
-                onValueChange={(value) => setQuizFilter(value as "all" | "1" | "2")}
+                onValueChange={(value) => setQuizFilter(value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Filter" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Quizzes</SelectItem>
-                  <SelectItem value="1">Quiz 1</SelectItem>
-                  <SelectItem value="2">Quiz 2</SelectItem>
+                  {quizPasswords.map(qp => (
+                    <SelectItem key={qp.id} value={String(qp.id)}>{qp.quiz_name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -960,17 +1126,22 @@ const AdminQuizPage: React.FC = () => {
                         <div className="space-y-2">
                           <Label>Quiz</Label>
                           <Select
-                            value={String(formData.quiz_no)}
+                            value={formData.quiz_password_id ? String(formData.quiz_password_id) : ""}
                             onValueChange={(value) =>
-                              setFormData({ ...formData, quiz_no: Number(value) })
+                              setFormData({ ...formData, quiz_password_id: Number(value) })
                             }
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Select quiz" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">Quiz 1</SelectItem>
-                              <SelectItem value="2">Quiz 2</SelectItem>
+                              {quizPasswords.length === 0 ? (
+                                <SelectItem value="" disabled>No quizzes available</SelectItem>
+                              ) : (
+                                quizPasswords.map(qp => (
+                                  <SelectItem key={qp.id} value={String(qp.id)}>{qp.quiz_name}</SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
@@ -1161,7 +1332,7 @@ const AdminQuizPage: React.FC = () => {
                           <div className="flex items-center gap-2 mb-2">
                             <span className="font-bold text-lg">Q{index + 1}.</span>
                             <span className="text-xs bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 px-2 py-1 rounded">
-                              Quiz {question.quiz_no ?? 1}
+                              {quizPasswords.find(qp => qp.id === question.quiz_password_id)?.quiz_name || "Unknown Quiz"}
                             </span>
                             <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
                               {question.language === "ta" ? "Tamil" : "English"}
@@ -1230,7 +1401,7 @@ const AdminQuizPage: React.FC = () => {
       {selectedQuizResult && (
         <QuizAttemptDetailsModal
           schoolName={selectedQuizResult.school_name}
-          quizNo={selectedQuizResult.quiz_no ?? 1}
+          quizNo={selectedQuizResult.quiz_password_id ?? 0}
           isOpen={showDetailsModal}
           onClose={() => {
             setShowDetailsModal(false);
@@ -1238,7 +1409,8 @@ const AdminQuizPage: React.FC = () => {
           }}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
