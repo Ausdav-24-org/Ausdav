@@ -77,7 +77,7 @@ const App = () => {
     document.documentElement.classList.add("dark");
 
     // if (devStayOnSplash) {
-    if (false) {
+    if (devStayOnSplash) {
       setAppReady(true);
       setShowSplash(true);
       return;

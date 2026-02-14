@@ -881,22 +881,23 @@ const QuizTamilMCQ: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <div className="rounded-2xl">
-                  <Card
-                    className="overflow-hidden relative z-0 rounded-2xl running-conic-border"
+
+                  <Card className="overflow-hidden relative z-0 rounded-2xl gradient-border card-effect-neon card-glass"
                     style={{
-                      ["--edge-runner-color" as any]:
-                        "hsl(var(--electric-blue) / 1)",
-                      ["--edge-runner-thickness" as any]: "6px",
+                      ["--edge-runner-color" as any]: "hsl(var(--electric-blue) / 1)",
+                      ["--edge-runner-thickness" as any]: "1px",
                       ["--edge-runner-speed" as any]: "9s",
-                      ["--edge-runner-glow" as any]: "8px",
+                      ["--edge-runner-glow" as any]: "1px",
                       ["--edge-runner-opacity" as any]: "0.95",
+                      ["--border-glow" as any]: "18px",
                     }}
                   >
-                    <CardContent className="p-0">
-                      <div className="flex flex-col gap-4">
+                    <CardContent className="p-0 relative overflow-visible">
+                      {/* colored blurred accents behind content */}
+                      <div className="glass-accent-blobs pointer-events-none" aria-hidden />
+                      <div className="relative z-10 flex flex-col gap-2">
                         {/* Full-width image at top of the card */}
-                        <div className="w-full overflow-hidden rounded-2xl bg-card/50">
+                        <div className="w-full overflow-hidden rounded-t-2xl bg-black/10">
                           <img
                             src={BG1}
                             alt="Pentathlon banner"
@@ -904,15 +905,15 @@ const QuizTamilMCQ: React.FC = () => {
                           />
                         </div>
 
-                        <div className="p-6 md:p-8 flex flex-col justify-center gap-4">
+                        <div className="px-4 py-3 md:py-4 flex flex-col justify-center gap-3">
                           <div>
-                            <h2 className="text-2xl md:text-3xl font-serif font-bold text-foreground">
+                            <h2 className="text-2xl md:text-3xl font-sans font-bold text-foreground">
                               Pentathlon 2026
                             </h2>
                             <p className="text-muted-foreground mt-2">
                               {language === "ta"
                                 ? "விண்ணப்ப படிவத்தை நிரப்பி நுழைவு தேர்விற்கு பதிவு செய்யுங்கள்"
-                                : "Sign up for the entrance examination by filling out the application form"}
+                                : "Enter your school name and the provided password to join the competition."}
                             </p>
                           </div>
 
@@ -951,51 +952,55 @@ const QuizTamilMCQ: React.FC = () => {
                             </div>
                           ) : (
                             <div className="space-y-4">
-                              <div>
+                              <div className="flex flex-col md:flex-row md:items-center md:gap-4">
                                 <Label
                                   htmlFor="school-name"
-                                  className="block text-sm font-semibold text-foreground mb-2"
+                                  className="block text-sm font-semibold text-foreground mb-2 md:mb-0 md:w-40"
                                 >
                                   {language === "ta"
                                     ? "பள்ளியின் பெயர்"
                                     : "School Name"}
                                 </Label>
-                                <SchoolCombobox
-                                  value={schoolName}
-                                  onChange={setSchoolName}
-                                  options={[
-                                    "Vavuniya Tamil Madhya Maha Vidyalayam",
-                                    "V/Rambaikkulam Girls Maha Vidyalayam",
-                                    "Vipulanantha College Vavuniya",
-                                    "Vavuniya Nelukkulam Kalaimakal Maha Vidyalayam",
-                                    "Vavuniya Muslim Maha Vidyalayam",
-                                    "Saivapragasa Ladies College",
-                                    "Koomankulam Sithivinayakar Vidyalayam",
-                                    "Vavuniya Hindu College",
-                                    "Kanakarayankulam Maha Vidyalayam",
-                                    "V/Puliyankulam Hindu college",
-                                    "Nochchimoddai Junior Secondary Vidyalayam",
-                                    "Omanthai Central College",
-                                    "Panrikkeithakulam school in vavuniya",
-                                  ]}
-                                  placeholder={
-                                    language === "ta"
-                                      ? "பள்ளியைத் தேர்ந்தெடுக்கவும்"
-                                      : "Select your school"
-                                  }
-                                />
+
+                                <div className="flex-1">
+                                  <SchoolCombobox
+                                    value={schoolName}
+                                    onChange={setSchoolName}
+                                    options={[
+                                      "Vavuniya Tamil Madhya Maha Vidyalayam",
+                                      "V/Rambaikkulam Girls Maha Vidyalayam",
+                                      "Vipulanantha College Vavuniya",
+                                      "Vavuniya Nelukkulam Kalaimakal Maha Vidyalayam",
+                                      "Vavuniya Muslim Maha Vidyalayam",
+                                      "Saivapragasa Ladies College",
+                                      "Koomankulam Sithivinayakar Vidyalayam",
+                                      "Vavuniya Hindu College",
+                                      "Kanakarayankulam Maha Vidyalayam",
+                                      "V/Puliyankulam Hindu college",
+                                      "Nochchimoddai Junior Secondary Vidyalayam",
+                                      "Omanthai Central College",
+                                      "Panrikkeithakulam school in vavuniya",
+                                    ]}
+                                    placeholder={
+                                      language === "ta"
+                                        ? "பள்ளியைத் தேர்ந்தெடுக்கவும்"
+                                        : "Select your school"
+                                    }
+                                  />
+                                </div>
                               </div>
 
-                              <div>
+                              <div className="flex flex-col md:flex-row md:items-center md:gap-4">
                                 <Label
                                   htmlFor="quiz-password"
-                                  className="block text-sm font-semibold text-foreground mb-2"
+                                  className="block text-sm font-semibold text-foreground mb-2 md:mb-0 md:w-40"
                                 >
                                   {language === "ta"
                                     ? "கடவுச்சொல்"
                                     : "Password"}
                                 </Label>
-                                <div className="relative">
+
+                                <div className="flex-1 relative">
                                   <Input
                                     id="quiz-password"
                                     type={showPassword ? "text" : "password"}
@@ -1063,7 +1068,6 @@ const QuizTamilMCQ: React.FC = () => {
                       </div>
                     </CardContent>
                   </Card>
-                </div>
               </motion.div>
             )}
 
@@ -1390,6 +1394,17 @@ const QuizTamilMCQ: React.FC = () => {
                             </div>
                           </div>
                         )}
+
+                        <div className="mt-6 flex justify-center">
+                          <Button
+                            onClick={() => navigate('/', { replace: true })}
+                            variant="outline"
+                            className="px-6"
+                            aria-label={language === "ta" ? "முகப்புக்கு செல்ல" : "Go to home"}
+                          >
+                            {language === "ta" ? "முகப்புக்கு" : "Back to Home"}
+                          </Button>
+                        </div>
 
                         {/* Reset button removed per request */}
                       </CardContent>

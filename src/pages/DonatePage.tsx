@@ -44,10 +44,15 @@ const DonatePage: React.FC = () => {
       >
         <div className="container mx-auto px-4">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center max-w-3xl mx-auto"
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            className="relative w-full"
           >
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center max-w-3xl mx-auto"
+            >
             <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-cyan-500/20 flex items-center justify-center">
               <Heart className="w-10 h-10 text-cyan-400" />
             </div>
@@ -58,6 +63,7 @@ const DonatePage: React.FC = () => {
               {t('donate.subtitle')}
             </p>
           </motion.div>
+        </motion.div>
         </div>
       </section>
 

@@ -824,11 +824,16 @@ const CommitteePage: React.FC = () => {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center z-10 px-4"
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="relative w-full"
         >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-center z-10 px-4"
+          >
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -865,6 +870,7 @@ const CommitteePage: React.FC = () => {
               : "AUSDAV இல் உள்ளவர்களை அறிந்து கொள்ளுங்கள்"}
           </motion.p>
         </motion.div>
+      </motion.div>
 
         {/* Scroll indicator */}
         <motion.div

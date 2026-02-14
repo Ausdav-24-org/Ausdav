@@ -23,14 +23,14 @@ type QuizAnswersData = {
 
 interface QuizAttemptDetailsModalProps {
   schoolName: string;
-  quizNo?: number;
+  quizPasswordId?: number;
   isOpen: boolean;
   onClose: () => void;
 }
 
 const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
   schoolName,
-  quizNo = 1,
+  quizPasswordId = 0,
   isOpen,
   onClose,
 }) => {
@@ -39,30 +39,33 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
   const [answers, setAnswers] = useState<QuizAnswersData>({});
 
   useEffect(() => {
-    if (isOpen && schoolName) {
+    if (isOpen && schoolName && quizPasswordId) {
+      console.log('[QuizAttemptDetailsModal] Opening for school:', schoolName, 'quizPasswordId:', quizPasswordId);
       fetchQuizData();
     }
-  }, [isOpen, schoolName, quizNo]);
+  }, [isOpen, schoolName, quizPasswordId]);
 
   const fetchQuizData = async () => {
     try {
       setLoading(true);
 
-      // Fetch questions
+      // Fetch questions by quiz_password_id
       const { data: questionsData, error: questionsError } = await supabase
         .from("quiz_mcq" as any)
         .select("*")
-        .eq("quiz_no", quizNo)
+        .eq("quiz_password_id", quizPasswordId)
         .order("id", { ascending: true }) as any;
+
+      console.log('[QuizAttemptDetailsModal] Fetched questions:', questionsData, 'Error:', questionsError);
 
       if (questionsError) throw questionsError;
 
-      // Fetch answers for this school
+      // Fetch answers for this school and quiz_password_id
       const { data: answersData, error: answersError } = await supabase
         .from("school_quiz_answers" as any)
         .select("*")
         .eq("school_name", schoolName)
-        .eq("quiz_no", quizNo)
+        .eq("quiz_password_id", quizPasswordId)
         .order("created_at", { ascending: false })
         .limit(1) as any;
 
@@ -144,7 +147,7 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
             <div className="flex items-center justify-between p-6 border-b">
               <div>
                 <h2 className="text-2xl font-bold">{schoolName}</h2>
-                <p className="text-sm text-muted-foreground">Quiz {quizNo} - Detailed Answers</p>
+                <p className="text-sm text-muted-foreground">Quiz ID {quizPasswordId} - Detailed Answers</p>
               </div>
               <Button
                 variant="ghost"

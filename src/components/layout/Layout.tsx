@@ -11,8 +11,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 pb-24 lg:pb-0">{children}</main>
-      <MobileNavWidget />
+      {/* non-static container required by framer-motion for correct viewport/scroll offsets */}
+      <main className="relative flex-1 pb-24 lg:pb-0">{children}</main>
+      <div className="site-hidden-when-quiz"><MobileNavWidget /></div>
       <Footer />
     </div>
   );

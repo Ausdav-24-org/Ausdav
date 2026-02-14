@@ -150,13 +150,305 @@
     box-shadow: 0 0 30px hsl(var(--primary) / 0.5), 0 0 60px hsl(var(--primary) / 0.3);
   }
 
+  /* Reusable card effect: subtle lift + neon glow on hover */
+  .card-effect-neon {
+    transition: transform 260ms cubic-bezier(.2,.9,.2,1), box-shadow 260ms ease;
+    will-change: transform, box-shadow;
+    position: relative;
+  }
+
+  .card-effect-neon:hover,
+  .card-effect-neon:focus-within {
+    transform: translateY(-6px) scale(1.01);
+    box-shadow: 0 20px 40px rgba(18, 174, 222, 0.65), 0 0 10px hsl(var(--primary) / 0.20), 0 0 60px hsl(var(--primary) / 0.12);
+  }
+
+  /* keep visual content above decorative borders/pseudo elements */
+  .card-effect-neon > * {
+    position: relative;
+    z-index: 10;
+  }
+
+  /* subtle inner rim to add depth */
+  .card-effect-neon::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 1px 0 rgba(14, 150, 180, 0.786);
+    z-index: 2;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card-effect-neon,
+    .card-effect-neon:hover {
+      transition: none !important;
+      transform: none !important;
+      animation: none !important;
+    }
+  }
+
 
   
+  /* When quiz is active, hide global chrome (navbar, footer, mobile widget) */
+  body.quiz-open .site-hidden-when-quiz {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-10px);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  /* Prevent page scrolling while quiz is active and make quiz container fullscreen */
+  body.quiz-open {
+    overflow: hidden;
+  }
+
+  /* Remove extra bottom padding when footer is hidden so content fills viewport */
+  body.quiz-open main {
+    padding-bottom: 0 !important;
+  }
+
+  /* When quiz is shown, apply a fullscreen layout to the quiz section so the card fits the viewport */
+  .quiz-fullscreen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    overflow: hidden;
+  }
+
+  /* Ensure quiz card always fits inside the viewport. Keep header and actions visible; allow internal scrolling only inside the card. */
+  .quiz-card-immersive {
+    max-height: calc(100vh - 4rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    width: min(100%, 980px);
+    margin: 0 auto;
+  }
+
+  /* Content area inside the card that may scroll if necessary (prevents page scrollbar). */
+  .card-content-fit {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.75rem;
+  }
+
+  /* Sticky actions at the bottom of the card (keeps buttons visible) */
+  .card-actions-sticky {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.02));
+    backdrop-filter: blur(4px);
+  }
+
+  /* Responsive: scale down media and spacing so the card content fits on small screens */
+  @media (max-width: 768px) {
+    .quiz-card-immersive {
+      max-height: calc(100vh - 2.5rem);
+      margin-left: 0.5rem;
+      margin-right: 0.5rem;
+      border-radius: 0.75rem;
+    }
+
+    .quiz-card-immersive img {
+      max-height: 14vh;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .card-content-fit .space-y-4 > * {
+      padding: 0.6rem;
+    }
+  }
+
   /* Tamil Typography */
   .font-tamil {
     /* Keep English glyphs on the primary Latin font; fall back to Tamil font only when needed */
     font-family: 'Outfit', 'Kavivanar', sans-serif;
   }
+
+  /* Decorative running-edge border (clockwise runner). Does NOT cover content. */
+  .running-edge {
+    /* overridable tokens (HSL triple expected for color) */
+    --edge-runner-color: 187 92% 50%;
+    --edge-runner-thickness: 4px;
+    --edge-runner-speed: 8s;
+    --edge-runner-glow: 8px;
+    --edge-runner-opacity: 0.95;
+
+    position: relative;
+    border-radius: inherit;
+    isolation: isolate; /* keep pseudo elements beneath children */
+  }
+
+  /* rotating highlight (conic gradient) + soft glow */
+  .running-edge::before {
+    content: "";
+    position: absolute;
+    /* allow glow to extend outside the element */
+    inset: calc(var(--edge-runner-glow) * -1);
+    z-index: 0;
+    border-radius: inherit;
+
+    /* single bright wedge that rotates around the perimeter */
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      transparent 60deg,
+      hsl(var(--edge-runner-color) / 0.0) 61deg,
+      hsl(var(--edge-runner-color) / var(--edge-runner-opacity)) 68deg,
+      hsl(var(--edge-runner-color) / var(--edge-runner-opacity)) 76deg,
+      transparent 84deg,
+      transparent 360deg
+    );
+
+    filter: blur(calc(var(--edge-runner-glow) / 2));
+    transform-origin: center;
+    animation: edge-runner-rotate var(--edge-runner-speed) linear infinite;
+    pointer-events: none;
+  }
+
+  /* inner mask so only the outer ring shows (matches parent's background) */
+  .running-edge::after {
+    content: "";
+    position: absolute;
+    inset: var(--edge-runner-thickness);
+    z-index: 1;
+    border-radius: calc(var(--radius) - var(--edge-runner-thickness));
+    /* inherit background so visual content isn't obscured */
+    background: inherit;
+    pointer-events: none;
+  }
+
+  /* ensure card content renders above decorative layers */
+  .running-edge > * {
+    position: relative;
+    z-index: 10;
+    border-radius: inherit;
+  }
+
+  @keyframes edge-runner-rotate { to { transform: rotate(360deg); } }
+
+  /* Respect reduced motion users */
+  @media (prefers-reduced-motion: reduce) {
+    .running-edge::before { animation: none !important; }
+  }
+}
+
+/* Rotating gradient border (card) - added for QuizPage */
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.gradient-border {
+  --border-width: 2px;
+  /* stronger glow token (can be overridden per-card) */
+  --border-glow: 14px;
+  --border-color: hsl(var(--primary) / 0.95);
+  position: relative;
+  /* reduced padding to tighten gap between content and animated border */
+  padding: 1rem;
+  background: #13c9e9;
+  border-radius: 12px;
+  z-index: 0;
+  isolation: isolate;
+}
+
+/* Animated border layer with amplified glow */
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: var(--border-width);
+  border-radius: inherit;
+
+  background: conic-gradient(
+    from var(--angle),
+    transparent 70%,
+    hsl(var(--primary) / 0.0) 72%,
+    hsl(var(--primary) / 0.55) 78%,
+    hsl(var(--primary) / 0.95) 82%,
+    transparent 92%
+  );
+
+  /* blur + box-shadow produce a stronger neon halo */
+  filter: blur(calc(var(--border-glow) / 2));
+  box-shadow: 0 0 calc(var(--border-glow) / 1.2) hsl(var(--primary) / 0.22),
+              0 0 calc(var(--border-glow) * 1.1) hsl(var(--primary) / 0.12);
+
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: rotate 3s linear infinite;
+}
+
+@keyframes rotate {
+  to { --angle: 360deg; }
+}
+
+/* Glassmorphism — hero card visual (glass + colored blurred accents) */
+.card-glass {
+  /* subtle translucent surface to reveal background */
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.04);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  box-shadow: 0 18px 50px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ensure the animated gradient-border still shows but the card surface becomes glassy */
+.gradient-border.card-glass {
+  /* slightly transparent so the glass effect reads */
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+/* colored blurred blobs behind the card content */
+.card-glass .glass-accent-blobs {
+  position: absolute;
+  inset: 0;
+  z-index: 0; /* sits beneath content but above the animated border ring */
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.95;
+  background:
+    radial-gradient(30rem 18rem at 85% 15%, rgba(3,252,200,0.14) 0%, rgba(3,252,200,0.06) 10%, transparent 35%),
+    radial-gradient(28rem 18rem at 12% 80%, rgba(20,110,255,0.12) 0%, rgba(20,110,255,0.04) 10%, transparent 32%);
+  filter: blur(48px) contrast(115%);
+  transform: translateY(-6%);
+}
+
+/* thin glossy sheen across the surface */
+.card-glass .glass-sheen {
+  position: absolute;
+  z-index: 6;
+  top: -10%;
+  left: -10%;
+  width: 120%;
+  height: 60%;
+  background: linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02) 40%, transparent 60%);
+  transform: rotate(-12deg);
+  filter: blur(6px);
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-glass .glass-accent-blobs { animation: none !important; }
 }
 
 @layer utilities {
@@ -189,6 +481,57 @@
   
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--primary));
+  }
+
+  /* Dark, thin scrollbar variant (uses theme primary color) - use with `scrollbar-dark` */
+  .scrollbar-dark {
+    /* Firefox: thumb color, track color */
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.75) transparent;
+  }
+
+  /* Webkit browsers */
+  .scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.75);
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.95);
+  }
+
+  /* --------------------------------------------------------------------
+     Global scrollbar styling — apply theme primary color site-wide
+     - Uses Firefox `scrollbar-color` and WebKit pseudo-elements
+     - Keeps a thin, unobtrusive thumb matching the site's primary color
+     -------------------------------------------------------------------- */
+  * {
+    /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.75) transparent;
+  }
+
+  /* WebKit browsers (Chrome, Edge, Safari) */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.75);
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.95);
   }
 }
 

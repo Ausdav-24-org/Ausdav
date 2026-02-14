@@ -1,15 +1,21 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Wrench, Clock } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const UnderConstructionPage: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-800">
       <div className="container px-4 mx-auto">
-        <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900/60 backdrop-blur-md border border-border/50 rounded-2xl shadow-lg p-10 text-center">
-          <div className="flex items-center justify-center w-24 h-24 rounded-full bg-primary/10 dark:bg-primary/20 mx-auto mb-6">
-            <Wrench className="w-12 h-12 text-primary" />
-          </div>
+        <motion.div
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="max-w-3xl mx-auto"
+        >
+          <div className="bg-white dark:bg-slate-900/60 backdrop-blur-md border border-border/50 rounded-2xl shadow-lg p-10 text-center">
+            <div className="flex items-center justify-center w-24 h-24 rounded-full bg-primary/10 dark:bg-primary/20 mx-auto mb-6">
+              <Wrench className="w-12 h-12 text-primary" />
+            </div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold mb-3">Site Under Construction</h1>
           <p className="text-muted-foreground mb-6">We're making some improvements — thanks for your patience!</p>
@@ -38,6 +44,7 @@ const UnderConstructionPage: React.FC = () => {
 
           <div className="mt-8 text-xs text-muted-foreground">Check back soon — follow our social links for updates.</div>
         </div>
+      </motion.div>
       </div>
     </div>
   );

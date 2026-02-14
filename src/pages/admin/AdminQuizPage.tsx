@@ -61,8 +61,8 @@ const AdminQuizPage: React.FC = () => {
   const { language } = useLanguage();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [schoolResults, setSchoolResults] = useState<SchoolQuizResult[]>([]);
-  const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
-  const [pendingScoreRange, setPendingScoreRange] = useState<[number, number]>([0, 100]);
+  const [scoreRange, setScoreRange] = useState<[number, number]>([0, 4800]);
+  const [pendingScoreRange, setPendingScoreRange] = useState<[number, number]>([0, 4800]);
   const [sortBy, setSortBy] = useState<'score-desc' | 'score-asc' | 'name-asc' | 'name-desc' | 'time-asc' | 'time-desc'>("score-desc");
     // Memoized filtered and sorted results
     const filteredSortedResults = useMemo(() => {
@@ -255,6 +255,14 @@ const AdminQuizPage: React.FC = () => {
         .select("*")
         .order("final_score", { ascending: false });
 
+      console.log('[fetchSchoolResults] Data:', data);
+      if (data) {
+        const rifnazRow = data.find(r => r.school_name && r.school_name.toLowerCase().includes('rifnaz'));
+        if (rifnazRow) {
+          console.log('[fetchSchoolResults] Rifnaz row:', rifnazRow);
+        }
+      }
+
       if (error) throw error;
       setSchoolResults(data || []);
     } catch (error) {
@@ -297,8 +305,11 @@ const AdminQuizPage: React.FC = () => {
         }
       }
 
-      // Also delete all individual answers from school_quiz_answers table
-      const { error: deleteAnswersError } = await (supabase.rpc as any)('delete_all_quiz_answers');
+      // Delete all records from school_quiz_answers
+      const { error: deleteAnswersError } = await supabase
+        .from("school_quiz_answers" as any)
+        .delete()
+        .gt("id", 0); // Delete all rows
 
       if (deleteAnswersError) {
         console.error("Delete answers error:", deleteAnswersError);
@@ -762,8 +773,23 @@ const AdminQuizPage: React.FC = () => {
                           index === 2 ? 'border-orange-600 border-2' :
                           'border-primary/20'
                         }`}
-                        onClick={() => {
-                          setSelectedQuizResult(result);
+                        onClick={async () => {
+                          // Fetch quiz_password_id from school_quiz_answers for this school
+                          let quizPasswordId = 0;
+                          try {
+                            const { data, error } = await (supabase as any)
+                              .from("school_quiz_answers" as any)
+                              .select("quiz_password_id")
+                              .eq("school_name", result.school_name)
+                              .order("created_at", { ascending: false })
+                              .limit(1);
+                            if (data && data.length > 0) {
+                              quizPasswordId = data[0].quiz_password_id;
+                            }
+                          } catch (e) {
+                            // fallback: leave as 0
+                          }
+                          setSelectedQuizResult({ ...result, quiz_password_id: quizPasswordId });
                           setShowDetailsModal(true);
                         }}
                       >
@@ -1401,7 +1427,7 @@ const AdminQuizPage: React.FC = () => {
       {selectedQuizResult && (
         <QuizAttemptDetailsModal
           schoolName={selectedQuizResult.school_name}
-          quizNo={selectedQuizResult.quiz_password_id ?? 0}
+          quizPasswordId={selectedQuizResult.quiz_password_id ?? 0}
           isOpen={showDetailsModal}
           onClose={() => {
             setShowDetailsModal(false);

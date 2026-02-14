@@ -185,13 +185,21 @@ const Navbar: React.FC = () => {
         .toUpperCase()
     : 'U';
 
+  // Hide navbar when the quiz UI is active. This is a defensive fallback in case
+  // the global `body.quiz-open` class or URL-based signal isn't propagated.
+  const hideNav = (typeof window !== 'undefined') && (
+    document.body.classList.contains('quiz-open') ||
+    (location.pathname.startsWith('/quiz') && new URLSearchParams(location.search).has('school'))
+  );
+
   return (
     <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-500",
+        hideNav ? "hidden" : "",
+        "fixed top-0 left-0 right-0 z-50 transition-all duration-500 site-hidden-when-quiz",
         scrolled ? "glass-card shadow-lg" : "bg-transparent"
       )}
     >

@@ -550,17 +550,22 @@ const HomePage: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-transparent to-black/70"></div>
         {/* Content */}
         <motion.div
-          style={{ opacity }}
-          className="container mx-auto px-4 relative z-30 py-32"
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="relative w-full"
         >
-          <div className="max-w-5xl mx-auto text-center">
-            {/* Main heading */}
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-white"
-            >
+          <motion.div
+            style={{ opacity }}
+            className="container mx-auto px-4 relative z-30 py-32"
+          >
+            <div className="max-w-5xl mx-auto text-center">
+              {/* Main heading */}
+              <motion.h1
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-white"
+              >
               <span className="text-lg md:text-xl lg:text-2xl block mb-2 text-cyan-400 italic">
                 {language === "en" ? "Welcome to" : "வரவேற்கிறோம்"}
               </span>
@@ -602,6 +607,7 @@ const HomePage: React.FC = () => {
             </motion.div>
           </div>
         </motion.div>
+      </motion.div>
 
         {/* Scroll indicator */}
         <motion.div
@@ -876,7 +882,7 @@ const HomePage: React.FC = () => {
                   viewport={{ once: true }}
                   transition={{ duration: 0.6, delay: idx * 0.15 }}
                   whileHover={{ y: -10, scale: 1.01 }}
-                  className="glass-card rounded-2xl p-8 text-center neon-glow-hover relative min-w-[240px] flex-shrink-0"
+                  className="glass-card rounded-2xl p-6 text-center neon-glow-hover relative w-[260px] md:w-[280px] flex-shrink-0"
                   role="listitem"
                   aria-label={`${member.role} - ${member.name}`}
                   title={`${member.role} — ${member.name}`}
@@ -901,10 +907,10 @@ const HomePage: React.FC = () => {
                     )}
                   </div>
 
-                  <h3 className="font-bold text-xl mb-1 text-white">{member.name}</h3>
-                  <p className="font-medium mb-2 text-cyan-200/90">{language === "en" ? member.role : member.roleTA}</p>
+                  <h3 className="font-bold text-xl mb-1 text-white break-words whitespace-normal">{member.name}</h3>
+                  <p className="font-medium mb-2 text-cyan-200/90 break-words whitespace-normal">{language === "en" ? member.role : member.roleTA}</p>
 
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground break-words whitespace-normal">
                     {(member.Work && member.Work.trim()) ? (
                       member.Work
                     ) : (
@@ -923,7 +929,7 @@ const HomePage: React.FC = () => {
                   viewport={{ once: true }}
                   transition={{ duration: 0.6, delay: idx * 0.02 }}
                   whileHover={{ y: -10, scale: 1.01 }}
-                  className="glass-card rounded-2xl p-8 text-center neon-glow-hover relative min-w-[240px] flex-shrink-0"
+                  className="glass-card rounded-2xl p-6 text-center neon-glow-hover relative w-[260px] md:w-[280px] flex-shrink-0"
                   role="listitem"
                   aria-hidden="true"
                 >
@@ -947,10 +953,10 @@ const HomePage: React.FC = () => {
                     )}
                   </div>
 
-                  <h3 className="font-bold text-xl mb-1 text-white">{member.name}</h3>
-                  <p className="font-medium mb-2 text-cyan-200/90">{language === "en" ? member.role : member.roleTA}</p>
+                  <h3 className="font-bold text-xl mb-1 text-white break-words whitespace-normal">{member.name}</h3>
+                  <p className="font-medium mb-2 text-cyan-200/90 break-words whitespace-normal">{language === "en" ? member.role : member.roleTA}</p>
 
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground break-words whitespace-normal">
                     {(member.Work && member.Work.trim()) ? (
                       member.Work
                     ) : (
