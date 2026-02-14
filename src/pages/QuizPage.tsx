@@ -1,11 +1,19 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { RotateCcw, CheckCircle, XCircle, HelpCircle, Eye, EyeOff } from "lucide-react";
+import {
+  RotateCcw,
+  CheckCircle,
+  XCircle,
+  HelpCircle,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { SchoolCombobox } from "@/components/ui/SchoolCombobox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useQuizQuestions } from "@/hooks/useQuizQuestions";
@@ -32,9 +40,11 @@ type Question = {
 
 type AnswerState = {
   selectedOptionId: string | null; // null = not answered
+  secondsTaken?: number;
 };
 
-const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+const clamp = (n: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, n));
 
 const getOptionText = (question: Question, optId: string | null) => {
   if (!optId) return null;
@@ -101,6 +111,7 @@ const QuizTamilMCQ: React.FC = () => {
   const [showSchoolInput, setShowSchoolInput] = useState(false);
   const [schoolName, setSchoolName] = useState(urlSchool || "");
   const [quizPassword, setQuizPassword] = useState("");
+  const [quizPasswordId, setQuizPasswordId] = useState<number | null>(null); // Store quizPasswordId
   const [showPassword, setShowPassword] = useState(false);
   const [incorrectPassword, setIncorrectPassword] = useState(false);
   const [selectedQuizNo, setSelectedQuizNo] = useState<number | null>(null);
@@ -120,11 +131,18 @@ const QuizTamilMCQ: React.FC = () => {
   const [compromised, setCompromised] = useState(false);
   const [privacyBlur, setPrivacyBlur] = useState(false);
 
-  const { questions: dbQuestions, loading: questionsLoading, error: questionsError } =
-    useQuizQuestions(language);
+  const {
+    questions: dbQuestions,
+    loading: questionsLoading,
+    error: questionsError,
+  } = useQuizQuestions(language);
 
   // ---------- Session storage ----------
-  const saveQuizSession = (currentIdx: number, savedAnswers: AnswerState[], startTime: number) => {
+  const saveQuizSession = (
+    currentIdx: number,
+    savedAnswers: AnswerState[],
+    startTime: number,
+  ) => {
     const session = {
       schoolName,
       currentIndex: currentIdx,
@@ -179,14 +197,22 @@ const QuizTamilMCQ: React.FC = () => {
   }, []);
 
   // ---------- Shuffle questions by school ----------
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
+  const questionsToRender =
+    quizStarted && quizQuestions.length > 0 ? quizQuestions : dbQuestions;
+
   const activeQuestions = useMemo(() => {
     const filtered = selectedQuizNo
-      ? dbQuestions.filter((q: any) => (q?.quiz_no ?? 1) === selectedQuizNo)
-      : dbQuestions;
+      ? questionsToRender.filter(
+          (q: any) => (q?.quiz_no ?? 1) === selectedQuizNo,
+        )
+      : questionsToRender;
 
     if (!filtered.length || !schoolName) return filtered;
 
-    const seed = schoolName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const seed = schoolName
+      .split("")
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const shuffled = [...filtered];
 
     let random = seed;
@@ -201,7 +227,7 @@ const QuizTamilMCQ: React.FC = () => {
     }
 
     return shuffled;
-  }, [dbQuestions, schoolName, selectedQuizNo]);
+  }, [questionsToRender, schoolName, selectedQuizNo]);
 
   const totalQuestions = activeQuestions.length;
 
@@ -215,7 +241,7 @@ const QuizTamilMCQ: React.FC = () => {
 
   // Answers array sized to question count
   const [answers, setAnswers] = useState<AnswerState[]>(() =>
-    Array.from({ length: totalQuestions }, () => ({ selectedOptionId: null }))
+    Array.from({ length: totalQuestions }, () => ({ selectedOptionId: null })),
   );
 
   const [isFinished, setIsFinished] = useState(false);
@@ -223,7 +249,11 @@ const QuizTamilMCQ: React.FC = () => {
   // Resize answers when question count changes
   useEffect(() => {
     if (restoringSession) return;
-    setAnswers(Array.from({ length: totalQuestions }, () => ({ selectedOptionId: null })));
+    setAnswers(
+      Array.from({ length: totalQuestions }, () => ({
+        selectedOptionId: null,
+      })),
+    );
     setCurrentIndex(desiredIndexFromUrl);
     setIsFinished(false);
     setCompromised(false);
@@ -239,7 +269,7 @@ const QuizTamilMCQ: React.FC = () => {
 
   const hasCorrectAnswers = useMemo(
     () => activeQuestions.every((q) => Boolean(q.correctOptionId)),
-    [activeQuestions]
+    [activeQuestions],
   );
 
   const progressValue = totalQuestions
@@ -273,7 +303,11 @@ const QuizTamilMCQ: React.FC = () => {
         ? dbQuestions.filter((q: any) => (q?.quiz_no ?? 1) === restoredQuizNo)
         : dbQuestions;
       const restoreTotal = questionsForRestore.length;
-      const targetIndex = clamp(savedSession.currentIndex ?? desiredIndexFromUrl, 0, restoreTotal - 1);
+      const targetIndex = clamp(
+        savedSession.currentIndex ?? desiredIndexFromUrl,
+        0,
+        restoreTotal - 1,
+      );
       // ensure URL matches saved index (covers cases where URL lacked qNo)
       setUrl(targetIndex + 1, schoolName, true);
 
@@ -290,11 +324,15 @@ const QuizTamilMCQ: React.FC = () => {
         setCanViewReview(elapsed >= 60);
 
         // restore answers
-        const restoredAnswers = Array.isArray(savedSession.answers) ? savedSession.answers : [];
+        const restoredAnswers = Array.isArray(savedSession.answers)
+          ? savedSession.answers
+          : [];
         setAnswers(
           restoredAnswers.length === restoreTotal
             ? restoredAnswers
-            : Array.from({ length: restoreTotal }, () => ({ selectedOptionId: null }))
+            : Array.from({ length: restoreTotal }, () => ({
+                selectedOptionId: null,
+              })),
         );
         // restore index from saved session fallback to URL-derived
         setCurrentIndex(targetIndex);
@@ -304,7 +342,11 @@ const QuizTamilMCQ: React.FC = () => {
           setCanViewReview(true);
         }
 
-        toast.info(language === "ta" ? "வினாடிவினா மீட்டெடுக்கப்பட்டது" : "Quiz session restored");
+        toast.info(
+          language === "ta"
+            ? "வினாடிவினா மீட்டெடுக்கப்பட்டது"
+            : "Quiz session restored",
+        );
       } else {
         clearQuizSession(schoolName);
       }
@@ -338,7 +380,15 @@ const QuizTamilMCQ: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timerInterval);
-  }, [quizStarted, quizStartTime, isFinished, language, currentIndex, answers, schoolName]);
+  }, [
+    quizStarted,
+    quizStartTime,
+    isFinished,
+    language,
+    currentIndex,
+    answers,
+    schoolName,
+  ]);
 
   // Persist current position immediately when it changes so refresh stays on the same question
   useEffect(() => {
@@ -367,21 +417,44 @@ const QuizTamilMCQ: React.FC = () => {
 
   // ---------- Result ----------
   const computeResult = () => {
-    if (!hasCorrectAnswers) return { correct: 0, wrong: 0, notAnswered: 0, score: 0 };
+    if (!hasCorrectAnswers)
+      return { correct: 0, wrong: 0, notAnswered: 0, score: 0 };
 
     let correct = 0;
     let wrong = 0;
     let notAnswered = 0;
+    let score = 0;
 
     activeQuestions.forEach((q, idx) => {
       const picked = answers[idx]?.selectedOptionId ?? null;
-      if (picked === null) notAnswered += 1;
-      else if (picked === q.correctOptionId) correct += 1;
-      else wrong += 1;
+      // Assume each question has a startTime and answerTime in answers[idx] (if not, fallback to quizStartTime)
+      // For now, use quizStartTime and timeRemaining for bonus calculation
+      if (picked === null) {
+        notAnswered += 1;
+        // No points for not answered
+      } else if (picked === q.correctOptionId) {
+        correct += 1;
+        // 100 points for correct
+        score += 100;
+        // Bonus: if answered within 60s, add (60 - seconds taken)
+        // For now, estimate seconds taken as (60 - timeRemaining) if available
+        // If you track answer time per question, use that instead
+        let secondsTaken = 60;
+        if (answers[idx]?.secondsTaken != null) {
+          secondsTaken = answers[idx].secondsTaken;
+        } else if (typeof timeRemaining === "number") {
+          secondsTaken = 60 - timeRemaining;
+        }
+        let bonus = 60 - secondsTaken;
+        if (bonus < 0) bonus = 0;
+        score += bonus;
+      } else {
+        wrong += 1;
+        // -50 points for wrong
+        score -= 50;
+      }
     });
 
-    // Scoring: +2 for correct, -1 for wrong, 0 for not answered
-    const score = correct * 2 + wrong * -1 + notAnswered * 0;
     return { correct, wrong, notAnswered, score };
   };
 
@@ -408,7 +481,11 @@ const QuizTamilMCQ: React.FC = () => {
     const schoolToReset = schoolName;
 
     setCurrentIndex(0);
-    setAnswers(Array.from({ length: totalQuestions }, () => ({ selectedOptionId: null })));
+    setAnswers(
+      Array.from({ length: totalQuestions }, () => ({
+        selectedOptionId: null,
+      })),
+    );
     setIsFinished(false);
     setCompromised(false);
     setCopyAttempts(0);
@@ -433,121 +510,130 @@ const QuizTamilMCQ: React.FC = () => {
 
   // ---------- Start quiz ----------
   const handleStartQuiz = async () => {
-    // Prevent multiple clicks
-    if (checkingAttempt) {
-      return;
-    }
-
-    if (!schoolName.trim()) {
-      toast.error(language === "ta" ? "பள்ளியின் பெயரை உள்ளிடவும்" : "Please enter school name");
-      return;
-    }
-
     if (!quizPassword.trim()) {
-      toast.error(language === "ta" ? "கடவுச்சொல்லை உள்ளிடவும்" : "Please enter password");
+      toast.error(
+        language === "ta" ? "கடவுச்சொல்லை உள்ளிடவும்" : "Please enter password",
+      );
       return;
     }
-
-    setCheckingAttempt(true);
-    try {
-      const { data: settingsData, error: settingsError } = await supabase
-        .from("app_settings" as any)
-        .select("quiz_password_1, quiz_password_2, quiz_password")
-        .single();
-
-      if (settingsError) throw settingsError;
-
-      const inputPwd = quizPassword.trim();
-      const settings = settingsData as {
-        quiz_password_1?: string | null;
-        quiz_password_2?: string | null;
-        quiz_password?: string | null;
-      };
-      const pwd1 = settings?.quiz_password_1 || "";
-      const pwd2 = settings?.quiz_password_2 || "";
-      const legacyPwd = settings?.quiz_password || "";
-
-      const match1 = pwd1 && inputPwd === pwd1.trim();
-      const match2 = pwd2 && inputPwd === pwd2.trim();
-
-      let matchedQuizNo: number | null = null;
-      if (match1) matchedQuizNo = 1;
-      else if (match2) matchedQuizNo = 2;
-      else if (!pwd1 && !pwd2 && legacyPwd && inputPwd === legacyPwd.trim()) matchedQuizNo = 1;
-
-      if (!matchedQuizNo) {
-        setIncorrectPassword(true);
-        toast.error(language === "ta" ? "தவறான கடவுச்சொல்" : "Incorrect password");
-        setCheckingAttempt(false);
-        return;
-      }
-
-      setIncorrectPassword(false);
-      setSelectedQuizNo(matchedQuizNo);
-
-      // Check for duplicate attempt
-      const { data, error } = (await (supabase
-        .from("school_quiz_results" as any)
-        .select("id")
-        .eq("school_name", schoolName.trim())
-        .eq("language", language)
-        .eq("quiz_no", matchedQuizNo))) as any;
-
-      if (error) {
-        console.error("Error checking attempts:", error);
-        toast.error(language === "ta" ? "சோதனையில் பிழை" : "Error checking attempts");
-        setCheckingAttempt(false);
-        return;
-      }
-
-      // If any results found for this school, they've already attempted
-      if (data && data.length > 0) {
-        toast.error(
-          language === "ta"
-            ? "இந்த பள்ளி ஏற்கனவே வினாடிவினாவை முயற்சித்துள்ளது"
-            : "This school has already attempted the quiz"
-        );
-        setCheckingAttempt(false);
-        return;
-      }
-
-      setShowSchoolDialog(false);
-      setQuizStarted(true);
-
-      const start = Date.now();
-      setQuizStartTime(start);
-      setTimeRemaining(60);
-      setCanViewReview(false);
-
-      // ✅ UPDATED: start on the current URL question (default 1)
-      // So if user opens /quiz/3?school=ABC and then starts, it stays on 3.
-      setUrl(urlQNo, schoolName.trim(), true);
-
-      toast.success(language === "ta" ? "வினாடிவினா தொடங்குகிறது!" : "Quiz starting!");
-      
-      // Reset checking flag after successful quiz start
-      setCheckingAttempt(false);
-    } catch (err) {
-      console.error("Error:", err);
-      toast.error(language === "ta" ? "சோதனையில் பிழை" : "Error checking attempts");
-      setCheckingAttempt(false);
+    // Check password in quiz_passwords table
+    const { data: passwordData, error: passwordError } = await supabase
+      .from("quiz_passwords" as any)
+      .select("id, quiz_name, password")
+      .eq("password", quizPassword.trim())
+      .maybeSingle();
+    if (
+      passwordError ||
+      !passwordData ||
+      typeof passwordData !== "object" ||
+      passwordData === null ||
+      typeof (passwordData as any).id !== "number"
+    ) {
+      toast.error(
+        language === "ta" ? "தவறான கடவுச்சொல்" : "Incorrect password",
+      );
+      return;
     }
+    // Fetch questions for quiz_password_id (matching AdminQuizPage logic)
+    const passwordId = (passwordData as any).id;
+    setQuizPasswordId(passwordId); // Store in state
+    const { data: questionsData, error: questionsError } = await supabase
+      .from("quiz_mcq" as any)
+      .select("*")
+      .eq("quiz_password_id", passwordId);
+    if (questionsError || !questionsData || questionsData.length === 0) {
+      toast.error(
+        language === "ta"
+          ? "இந்த வினாடிவினாவிற்கான கேள்விகள் இல்லை"
+          : "No questions found for this quiz",
+      );
+      return;
+    }
+    // Format questions to match Question type
+    const formattedQuestions = questionsData.map((q: any) => ({
+      id: q.id.toString(),
+      question: q.question_text,
+      options: [
+        { id: "a", text: q.option_a },
+        { id: "b", text: q.option_b },
+        { id: "c", text: q.option_c },
+        { id: "d", text: q.option_d },
+      ],
+      correctOptionId: q.correct_answer,
+      image_path: q.image_path ?? null,
+      imageUrl: q.image_path
+        ? supabase.storage
+            .from("quiz-question-images")
+            .getPublicUrl(q.image_path).data.publicUrl
+        : null,
+    }));
+    setQuizQuestions(formattedQuestions);
+    setQuizStarted(true);
+    setShowSchoolDialog(false);
+    setShowSchoolInput(false);
+    setQuizStartTime(Date.now());
+    setTimeRemaining(60);
+    setCanViewReview(false);
+    setCurrentIndex(0);
+    setAnswers(
+      Array.from({ length: formattedQuestions.length }, () => ({
+        selectedOptionId: null,
+      })),
+    );
+    setSelectedQuizNo(null); // Not needed for this logic
+    toast.success(
+      language === "ta" ? "வினாடிவினா தொடங்குகிறது!" : "Quiz starting!",
+    );
   };
 
   // ---------- Save results ----------
   const saveQuizResults = async () => {
+    // Type and null checks for all required fields
+    if (!schoolName || typeof schoolName !== "string") {
+      toast.error("School name missing or invalid.");
+      return;
+    }
+    if (
+      typeof totalQuestions !== "number" ||
+      typeof result.correct !== "number" ||
+      typeof result.wrong !== "number" ||
+      typeof result.notAnswered !== "number" ||
+      typeof result.score !== "number"
+    ) {
+      toast.error("Quiz result numbers missing or invalid.");
+      return;
+    }
+    if (!language || typeof language !== "string") {
+      toast.error("Language missing or invalid.");
+      return;
+    }
+    if (!quizPasswordId || typeof quizPasswordId !== "number") {
+      toast.error("Quiz password ID missing. Please restart the quiz.");
+      return;
+    }
+
+    const insertObj: any = {
+      school_name: schoolName,
+      total_questions: totalQuestions,
+      correct_answers: result.correct,
+      wrong_answers: result.wrong,
+      not_answered: result.notAnswered,
+      final_score: result.score,
+      language: language,
+      quiz_password_id: quizPasswordId,
+    };
+    // Remove quiz_no if present (defensive)
+    if ("quiz_no" in insertObj) delete insertObj.quiz_no;
+    console.log("Inserting school_quiz_results:", insertObj);
+    if (!quizPasswordId || typeof quizPasswordId !== "number") {
+      toast.error("Quiz password ID missing. Please restart the quiz.");
+      return;
+    }
     try {
       // Save summary results
-      const { error } = await supabase.from("school_quiz_results").insert({
-        school_name: schoolName,
-        total_questions: totalQuestions,
-        correct_answers: result.correct,
-        wrong_answers: result.wrong,
-        not_answered: result.notAnswered,
-        final_score: result.score,
-        language: language,
-        quiz_no: selectedQuizNo ?? 1,
-      });
+      const { error } = await supabase
+        .from("school_quiz_results")
+        .insert(insertObj);
 
       if (error) {
         // Check if it's a unique constraint violation (duplicate attempt)
@@ -556,13 +642,17 @@ const QuizTamilMCQ: React.FC = () => {
           toast.error(
             language === "ta"
               ? "இந்த பள்ளி ஏற்கனவே வினாடிவினாவை முயற்சித்துள்ளது"
-              : "This school has already submitted the quiz"
+              : "This school has already submitted the quiz",
           );
           clearQuizSession(schoolName);
           return;
         } else {
           console.error("Error saving quiz results:", error);
-          toast.error(language === "ta" ? "முடிவுகளை சேமிக்க முடியவில்லை" : "Failed to save results");
+          toast.error(
+            language === "ta"
+              ? "முடிவுகளை சேமிக்க முடியவில்லை"
+              : "Failed to save results",
+          );
           return;
         }
       }
@@ -571,8 +661,8 @@ const QuizTamilMCQ: React.FC = () => {
       // Map answers array to q1, q2, q3... columns
       const answersData: any = {
         school_name: schoolName,
-        quiz_no: selectedQuizNo ?? 1,
         language: language,
+        quiz_password_id: quizPasswordId, // Add quiz_password_id to answers
       };
 
       // Map each answer to its corresponding question column (q1, q2, q3, etc.)
@@ -594,11 +684,19 @@ const QuizTamilMCQ: React.FC = () => {
         console.log("Individual answers saved successfully");
       }
 
-      toast.success(language === "ta" ? "முடிவுகள் சேமிக்கப்பட்டன" : "Results saved successfully");
+      toast.success(
+        language === "ta"
+          ? "முடிவுகள் சேமிக்கப்பட்டன"
+          : "Results saved successfully",
+      );
       clearQuizSession(schoolName);
     } catch (error) {
       console.error("Error saving quiz results:", error);
-      toast.error(language === "ta" ? "முடிவுகளை சேமிக்க முடியவில்லை" : "Failed to save results");
+      toast.error(
+        language === "ta"
+          ? "முடிவுகளை சேமிக்க முடியவில்லை"
+          : "Failed to save results",
+      );
     }
   };
 
@@ -625,19 +723,21 @@ const QuizTamilMCQ: React.FC = () => {
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
+      const key = typeof e.key === "string" ? e.key.toLowerCase() : "";
       const ctrlOrCmd = e.ctrlKey || e.metaKey;
-
-      if (ctrlOrCmd && (key === "c" || key === "x" || key === "a" || key === "p" || key === "s")) {
+      if (ctrlOrCmd && ["c", "x", "a", "p", "s"].includes(key)) {
         e.preventDefault();
         punishCopyAttempt();
       }
-
-      if (e.key === "PrintScreen" || (e as any).keyCode === 44) {
+      if (key === "printscreen" || (e as any).keyCode === 44) {
         e.preventDefault();
         setPrivacyBlur(true);
         punishCopyAttempt();
-        toast.error(language === "ta" ? "ஸ்க்ரீன்ஷாட் அனுமதிக்கப்படவில்லை!" : "Screenshots are not allowed!");
+        toast.error(
+          language === "ta"
+            ? "ஸ்க்ரீன்ஷாட் அனுமதிக்கப்படவில்லை!"
+            : "Screenshots are not allowed!",
+        );
         setTimeout(() => setPrivacyBlur(false), 1000);
       }
     };
@@ -702,43 +802,70 @@ const QuizTamilMCQ: React.FC = () => {
           }}
         >
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-center z-10 px-4"
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            className="relative w-full"
           >
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="text-cyan-400 text-sm font-semibold mb-4 uppercase tracking-widest"
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              className="text-center z-10 px-4"
             >
-              ✦ {language === "ta" ? "1993 முதல் ஆற்றல் சேர்ப்பு" : "Empowering Future Leaders Since 1993"}
-            </motion.p>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-cyan-400 text-sm font-semibold mb-4 uppercase tracking-widest"
+              >
+                ✦{" "}
+                {language === "ta"
+                  ? "1993 முதல் ஆற்றல் சேர்ப்பு"
+                  : "Empowering Future Leaders Since 1993"}
+              </motion.p>
 
-            <motion.h1
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3 }}
-              className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
-            >
-              {language === "ta" ? (
-                renderCyanTail("வினாடிவினா போட்டி")
-              ) : (
-                <>
-                  Quiz <span className="text-cyan-400">Competition</span>
-                </>
-              )}
-            </motion.h1>
+              <motion.h1
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3 }}
+                className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
+              >
+                {language === "ta" ? (
+                  renderCyanTail("வினாடிவினா போட்டி")
+                ) : (
+                  <>
+                    Quiz <span className="text-cyan-400">Competition</span>
+                  </>
+                )}
+              </motion.h1>
 
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto"
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto"
+              >
+                {language === "ta"
+                  ? "உங்கள் அறிவை சோதித்து வெற்றி பெறுங்கள்"
+                  : "Test your knowledge and win prizes"}
+              </motion.p>
+            </motion.div>
+          </motion.div>
+
+          {/* Scroll indicator */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5 }}
+            className="absolute bottom-8 left-1/2 -translate-x-1/2"
+          >
+            <motion.div
+              animate={{ y: [0, 10, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1"
             >
-              {language === "ta" ? "உங்கள் அறிவை சோதித்து வெற்றி பெறுங்கள்" : "Test your knowledge and win prizes"}
-            </motion.p>
+              <motion.div className="w-1.5 h-3 bg-primary rounded-full" />
+            </motion.div>
           </motion.div>
         </section>
       )}
@@ -746,125 +873,208 @@ const QuizTamilMCQ: React.FC = () => {
       {/* Quiz section */}
       <section className="relative py-16 md:py-24">
         <div className="relative z-10 container mx-auto px-4">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             {/* Landing */}
             {showSchoolDialog && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <Card className="overflow-hidden border border-border">
-                  <CardContent className="p-0">
-                    <div className="grid grid-cols-1 md:grid-cols-[320px_1fr]">
-                      <div className="bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent p-6 flex items-center justify-center">
-                        <div className="h-40 w-full rounded-2xl overflow-hidden border border-border bg-white/60 flex items-center justify-center">
-                          <div className="text-center">
-                            <div className="flex items-center justify-center mb-4">
-                              <div className="bg-cyan-500/20 rounded-2xl p-4">
-                                <div className="w-20 h-20 text-cyan-600" />
-                              </div>
-                            </div>
-                          </div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="rounded-2xl">
+                  <Card
+                    className="overflow-hidden relative z-0 rounded-2xl running-conic-border"
+                    style={{
+                      ["--edge-runner-color" as any]:
+                        "hsl(var(--electric-blue) / 1)",
+                      ["--edge-runner-thickness" as any]: "6px",
+                      ["--edge-runner-speed" as any]: "9s",
+                      ["--edge-runner-glow" as any]: "8px",
+                      ["--edge-runner-opacity" as any]: "0.95",
+                    }}
+                  >
+                    <CardContent className="p-0">
+                      <div className="flex flex-col gap-4">
+                        {/* Full-width image at top of the card */}
+                        <div className="w-full overflow-hidden rounded-2xl bg-card/50">
+                          <img
+                            src={BG1}
+                            alt="Pentathlon banner"
+                            className="w-full h-44 md:h-56 object-cover rounded-t-2xl"
+                          />
                         </div>
-                      </div>
 
-                      <div className="p-6 md:p-8 flex flex-col justify-center gap-4">
-                        <div>
-                          <h2 className="text-2xl md:text-3xl font-serif font-bold text-foreground">Pentathlon 2026</h2>
-                          <p className="text-muted-foreground mt-2">
-                            {language === "ta"
-                              ? "விண்ணப்ப படிவத்தை நிரப்பி நுழைவு தேர்விற்கு பதிவு செய்யுங்கள்"
-                              : "Sign up for the entrance examination by filling out the application form"}
-                          </p>
-                        </div>
-
-                        {!showSchoolInput ? (
+                        <div className="p-6 md:p-8 flex flex-col justify-center gap-4">
                           <div>
-                            {loadingQuizStatus ? (
-                              <Button variant="donate" className="px-10" disabled>
-                                {language === "ta" ? "ஏற்றுகிறது..." : "Loading..."}
-                              </Button>
-                            ) : !isQuizEnabled ? (
-                              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
-                                <p className="text-destructive font-semibold text-center">
-                                  {language === "ta" ? "வினாடிவினா போட்டி தற்போது மூடப்பட்டுள்ளது" : "Quiz Competition is Currently Closed"}
-                                </p>
-                              </div>
-                            ) : (
-                              <Button onClick={() => setShowSchoolInput(true)} variant="donate" className="px-10">
-                                {language === "ta" ? "வினாடிவினாவைத் தொடங்கு" : "Start Quiz"}
-                              </Button>
-                            )}
+                            <h2 className="text-2xl md:text-3xl font-serif font-bold text-foreground">
+                              Pentathlon 2026
+                            </h2>
+                            <p className="text-muted-foreground mt-2">
+                              {language === "ta"
+                                ? "விண்ணப்ப படிவத்தை நிரப்பி நுழைவு தேர்விற்கு பதிவு செய்யுங்கள்"
+                                : "Sign up for the entrance examination by filling out the application form"}
+                            </p>
                           </div>
-                        ) : (
-                          <div className="space-y-4">
-                            <div>
-                              <Label htmlFor="school-name" className="block text-sm font-semibold text-foreground mb-2">
-                                {language === "ta" ? "பள்ளியின் பெயர்" : "School Name"}
-                              </Label>
-                              <Input
-                                id="school-name"
-                                value={schoolName}
-                                onChange={(e) => setSchoolName(e.target.value)}
-                                placeholder={language === "ta" ? "உங்கள் பள்ளியின் பெயரை உள்ளீடு செய்யவும்" : "Enter your school name"}
-                              />
-                            </div>
 
-                            <div>
-                              <Label htmlFor="quiz-password" className="block text-sm font-semibold text-foreground mb-2">
-                                {language === "ta" ? "கடவுச்சொல்" : "Password"}
-                              </Label>
-                              <div className="relative">
-                                <Input
-                                  id="quiz-password"
-                                  type={showPassword ? "text" : "password"}
-                                  value={quizPassword}
-                                  onChange={(e) => {
-                                    setQuizPassword(e.target.value);
-                                    setIncorrectPassword(false);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleStartQuiz();
-                                  }}
-                                  placeholder={language === "ta" ? "வினாடிவினா கடவுச்சொல்லை உள்ளீடு செய்யவும்" : "Enter quiz password"}
-                                  className="pr-10"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setShowPassword((v) => !v)}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-none outline-none cursor-pointer p-0"
-                                  aria-label={showPassword ? "Hide password" : "Show password"}
+                          {/* Start Quiz button (visible by default below image) */}
+                          {!showSchoolInput ? (
+                            <div className="flex justify-center">
+                              {loadingQuizStatus ? (
+                                <Button
+                                  variant="donate"
+                                  className="px-10"
+                                  disabled
                                 >
-                                  {showPassword ? (
-                                    <EyeOff className="w-5 h-5" />
-                                  ) : (
-                                    <Eye className="w-5 h-5" />
-                                  )}
-                                </button>
-                              </div>
+                                  {language === "ta"
+                                    ? "ஏற்றுகிறது..."
+                                    : "Loading..."}
+                                </Button>
+                              ) : !isQuizEnabled ? (
+                                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 w-full text-center">
+                                  <p className="text-destructive font-semibold">
+                                    {language === "ta"
+                                      ? "வினாடிவினா போட்டி தற்போது மூடப்பட்டுள்ளது"
+                                      : "Quiz Competition is Currently Closed"}
+                                  </p>
+                                </div>
+                              ) : (
+                                <Button
+                                  onClick={() => setShowSchoolInput(true)}
+                                  variant="donate"
+                                  className="px-10"
+                                >
+                                  {language === "ta"
+                                    ? "Start Quiz"
+                                    : "Start Quiz"}
+                                </Button>
+                              )}
                             </div>
-
-                            {incorrectPassword && (
-                              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
-                                <p className="text-destructive text-sm font-semibold">
-                                  {language === "ta" ? "தவறான கடவுச்சொல்" : "Incorrect password"}
-                                </p>
+                          ) : (
+                            <div className="space-y-4">
+                              <div>
+                                <Label
+                                  htmlFor="school-name"
+                                  className="block text-sm font-semibold text-foreground mb-2"
+                                >
+                                  {language === "ta"
+                                    ? "பள்ளியின் பெயர்"
+                                    : "School Name"}
+                                </Label>
+                                <SchoolCombobox
+                                  value={schoolName}
+                                  onChange={setSchoolName}
+                                  options={[
+                                    "Vavuniya Tamil Madhya Maha Vidyalayam",
+                                    "V/Rambaikkulam Girls Maha Vidyalayam",
+                                    "Vipulanantha College Vavuniya",
+                                    "Vavuniya Nelukkulam Kalaimakal Maha Vidyalayam",
+                                    "Vavuniya Muslim Maha Vidyalayam",
+                                    "Saivapragasa Ladies College",
+                                    "Koomankulam Sithivinayakar Vidyalayam",
+                                    "Vavuniya Hindu College",
+                                    "Kanakarayankulam Maha Vidyalayam",
+                                    "V/Puliyankulam Hindu college",
+                                    "Nochchimoddai Junior Secondary Vidyalayam",
+                                    "Omanthai Central College",
+                                    "Panrikkeithakulam school in vavuniya",
+                                  ]}
+                                  placeholder={
+                                    language === "ta"
+                                      ? "பள்ளியைத் தேர்ந்தெடுக்கவும்"
+                                      : "Select your school"
+                                  }
+                                />
                               </div>
-                            )}
 
-                            <Button onClick={handleStartQuiz} variant="donate" className="px-10 w-full" disabled={checkingAttempt}>
-                              {checkingAttempt ? (language === "ta" ? "சரிபார்க்கிறது..." : "Checking...") : language === "ta" ? "தொடரவும்" : "Continue"}
-                            </Button>
-                          </div>
-                        )}
+                              <div>
+                                <Label
+                                  htmlFor="quiz-password"
+                                  className="block text-sm font-semibold text-foreground mb-2"
+                                >
+                                  {language === "ta"
+                                    ? "கடவுச்சொல்"
+                                    : "Password"}
+                                </Label>
+                                <div className="relative">
+                                  <Input
+                                    id="quiz-password"
+                                    type={showPassword ? "text" : "password"}
+                                    value={quizPassword}
+                                    onChange={(e) => {
+                                      setQuizPassword(e.target.value);
+                                      setIncorrectPassword(false);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") handleStartQuiz();
+                                    }}
+                                    placeholder={
+                                      language === "ta"
+                                        ? "வினாடிவினா கடவுச்சொல்லை உள்ளீடு செய்யவும்"
+                                        : "Enter quiz password"
+                                    }
+                                    className="pr-10"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground bg-transparent border-none outline-none cursor-pointer p-0"
+                                    aria-label={
+                                      showPassword
+                                        ? "Hide password"
+                                        : "Show password"
+                                    }
+                                  >
+                                    {showPassword ? (
+                                      <EyeOff className="w-5 h-5" />
+                                    ) : (
+                                      <Eye className="w-5 h-5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {incorrectPassword && (
+                                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+                                  <p className="text-destructive text-sm font-semibold">
+                                    {language === "ta"
+                                      ? "தவறான கடவுச்சொல்"
+                                      : "Incorrect password"}
+                                  </p>
+                                </div>
+                              )}
+
+                              <Button
+                                onClick={handleStartQuiz}
+                                variant="donate"
+                                className="px-10 w-full"
+                                disabled={checkingAttempt}
+                              >
+                                {checkingAttempt
+                                  ? language === "ta"
+                                    ? "சரிபார்க்கிறது..."
+                                    : "Checking..."
+                                  : language === "ta"
+                                    ? "தொடரவும்"
+                                    : "Continue"}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
               </motion.div>
             )}
 
             {/* Quiz */}
             {quizStarted && (
               <div>
-                <div className={privacyBlur ? "blur-xl select-none pointer-events-none" : ""}>
+                <div
+                  className={
+                    privacyBlur ? "blur-xl select-none pointer-events-none" : ""
+                  }
+                >
                   <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -872,15 +1082,20 @@ const QuizTamilMCQ: React.FC = () => {
                     className="mb-8 text-center"
                   >
                     <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent mb-2">
-                      {language === "ta" ? "ஆன்லைன் MCQ வினாடிவினா" : "Online MCQ Quiz"}
+                      {language === "ta"
+                        ? "ஆன்லைன் MCQ வினாடிவினா"
+                        : "Online MCQ Quiz"}
                     </h1>
                   </motion.div>
 
                   <div className="mb-8">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-sm font-medium text-foreground/70">{language === "ta" ? "முன்னேற்றம்" : "Progress"}</span>
+                      <span className="text-sm font-medium text-foreground/70">
+                        {language === "ta" ? "முன்னேற்றம்" : "Progress"}
+                      </span>
                       <span className="text-sm font-bold text-primary">
-                        {Math.min(currentIndex + 1, totalQuestions)}/{totalQuestions}
+                        {Math.min(currentIndex + 1, totalQuestions)}/
+                        {totalQuestions}
                       </span>
                     </div>
                     <Progress value={progressValue} className="h-2" />
@@ -889,19 +1104,25 @@ const QuizTamilMCQ: React.FC = () => {
                   {questionsLoading ? (
                     <Card className="border-primary/20 shadow-lg mb-8">
                       <CardContent className="py-10 text-center">
-                        <div className="text-sm text-foreground/70">Loading questions...</div>
+                        <div className="text-sm text-foreground/70">
+                          Loading questions...
+                        </div>
                       </CardContent>
                     </Card>
                   ) : questionsError ? (
                     <Card className="border-primary/20 shadow-lg mb-8">
                       <CardContent className="py-10 text-center">
-                        <div className="text-sm text-red-500">{questionsError}</div>
+                        <div className="text-sm text-red-500">
+                          {questionsError}
+                        </div>
                       </CardContent>
                     </Card>
                   ) : !hasQuestions || !currentQuestion ? (
                     <Card className="border-primary/20 shadow-lg mb-8">
                       <CardContent className="py-10 text-center">
-                        <div className="text-sm text-foreground/70">No quiz questions available.</div>
+                        <div className="text-sm text-foreground/70">
+                          No quiz questions available.
+                        </div>
                       </CardContent>
                     </Card>
                   ) : !isFinished ? (
@@ -920,11 +1141,12 @@ const QuizTamilMCQ: React.FC = () => {
                               timeRemaining <= 10
                                 ? "bg-red-500/20 text-red-500 animate-pulse"
                                 : timeRemaining <= 30
-                                ? "bg-yellow-500/20 text-yellow-600"
-                                : "bg-primary/20 text-primary"
+                                  ? "bg-yellow-500/20 text-yellow-600"
+                                  : "bg-primary/20 text-primary"
                             }`}
                           >
-                            {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, "0")}
+                            {Math.floor(timeRemaining / 60)}:
+                            {(timeRemaining % 60).toString().padStart(2, "0")}
                           </div>
                         </div>
 
@@ -932,13 +1154,18 @@ const QuizTamilMCQ: React.FC = () => {
                           <div className="flex gap-4">
                             <p
                               className="flex-1 text-lg font-medium text-foreground mt-4 leading-relaxed select-none"
-                              style={{ userSelect: "none", WebkitUserSelect: "none" }}
+                              style={{
+                                userSelect: "none",
+                                WebkitUserSelect: "none",
+                              }}
                               onCopy={(e) => {
                                 e.preventDefault();
                                 punishCopyAttempt();
                               }}
                             >
-                              <span className="font-bold">{currentIndex + 1}. </span>
+                              <span className="font-bold">
+                                {currentIndex + 1}.{" "}
+                              </span>
                               {displayedQuestion}
                             </p>
 
@@ -980,24 +1207,48 @@ const QuizTamilMCQ: React.FC = () => {
                                   >
                                     {String.fromCharCode(65 + idx)}
                                   </div>
-                                  <span className="text-foreground font-medium">{opt.text}</span>
+                                  <span className="text-foreground font-medium">
+                                    {opt.text}
+                                  </span>
                                 </motion.button>
                               );
                             })}
                           </div>
 
                           <div className="flex justify-between items-center gap-4">
-                            <Button variant="outline" onClick={clearSelection} disabled={currentAnswer === null} className="gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={clearSelection}
+                              disabled={currentAnswer === null}
+                              className="gap-2"
+                            >
                               <RotateCcw className="w-4 h-4" />
                               {language === "ta" ? "நீக்கு" : "Clear"}
                             </Button>
 
                             <div className="flex-1 text-center">
-                              <p className="text-sm text-foreground/70">{isLast ? (language === "ta" ? "கடைசி கேள்வி" : "Last") : language === "ta" ? "தொடர்க" : "Continue"}</p>
+                              <p className="text-sm text-foreground/70">
+                                {isLast
+                                  ? language === "ta"
+                                    ? "கடைசி கேள்வி"
+                                    : "Last"
+                                  : language === "ta"
+                                    ? "தொடர்க"
+                                    : "Continue"}
+                              </p>
                             </div>
 
-                            <Button onClick={goNext} className="gap-2 bg-primary hover:bg-primary/90">
-                              {isLast ? (language === "ta" ? "முடிக்கவும்" : "Finish") : language === "ta" ? "அடுத்தது →" : "Next →"}
+                            <Button
+                              onClick={goNext}
+                              className="gap-2 bg-primary hover:bg-primary/90"
+                            >
+                              {isLast
+                                ? language === "ta"
+                                  ? "முடிக்கவும்"
+                                  : "Finish"
+                                : language === "ta"
+                                  ? "அடுத்தது →"
+                                  : "Next →"}
                             </Button>
                           </div>
                         </CardContent>
@@ -1015,16 +1266,43 @@ const QuizTamilMCQ: React.FC = () => {
                       <CardContent className="pt-8">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                           {[
-                            { label: language === "ta" ? "சரி" : "Correct", value: result.correct, icon: CheckCircle, cls: "text-green-500" },
-                            { label: language === "ta" ? "தவறு" : "Wrong", value: result.wrong, icon: XCircle, cls: "text-red-500" },
-                            { label: language === "ta" ? "பதில் இல்லை" : "Not Answered", value: result.notAnswered, icon: HelpCircle, cls: "text-yellow-500" },
+                            {
+                              label: language === "ta" ? "சரி" : "Correct",
+                              value: result.correct,
+                              icon: CheckCircle,
+                              cls: "text-green-500",
+                            },
+                            {
+                              label: language === "ta" ? "தவறு" : "Wrong",
+                              value: result.wrong,
+                              icon: XCircle,
+                              cls: "text-red-500",
+                            },
+                            {
+                              label:
+                                language === "ta"
+                                  ? "பதில் இல்லை"
+                                  : "Not Answered",
+                              value: result.notAnswered,
+                              icon: HelpCircle,
+                              cls: "text-yellow-500",
+                            },
                           ].map((s, i) => {
                             const Icon = s.icon;
                             return (
-                              <div key={i} className="rounded-xl p-4 border border-primary/20 bg-card">
-                                <Icon className={`w-6 h-6 ${s.cls} mx-auto mb-2`} />
-                                <p className="text-2xl font-bold text-foreground text-center">{s.value}</p>
-                                <p className="text-xs text-foreground/60 text-center mt-1">{s.label}</p>
+                              <div
+                                key={i}
+                                className="rounded-xl p-4 border border-primary/20 bg-card"
+                              >
+                                <Icon
+                                  className={`w-6 h-6 ${s.cls} mx-auto mb-2`}
+                                />
+                                <p className="text-2xl font-bold text-foreground text-center">
+                                  {s.value}
+                                </p>
+                                <p className="text-xs text-foreground/60 text-center mt-1">
+                                  {s.label}
+                                </p>
                               </div>
                             );
                           })}
@@ -1032,13 +1310,20 @@ const QuizTamilMCQ: React.FC = () => {
 
                         {canViewReview && hasCorrectAnswers && (
                           <div className="border-t border-primary/10 pt-6">
-                            <h3 className="text-lg font-bold mb-4">{language === "ta" ? "விவரம்" : "Review"}</h3>
+                            <h3 className="text-lg font-bold mb-4">
+                              {language === "ta" ? "விவரம்" : "Review"}
+                            </h3>
                             <div className="space-y-3">
                               {activeQuestions.map((q, idx) => {
-                                const picked = answers[idx]?.selectedOptionId ?? null;
-                                const isCorrect = picked && picked === q.correctOptionId;
+                                const picked =
+                                  answers[idx]?.selectedOptionId ?? null;
+                                const isCorrect =
+                                  picked && picked === q.correctOptionId;
                                 const pickedText = getOptionText(q, picked);
-                                const correctText = getOptionText(q, q.correctOptionId);
+                                const correctText = getOptionText(
+                                  q,
+                                  q.correctOptionId,
+                                );
 
                                 return (
                                   <div
@@ -1047,8 +1332,8 @@ const QuizTamilMCQ: React.FC = () => {
                                       picked === null
                                         ? "border-yellow-500/30 bg-yellow-500/5"
                                         : isCorrect
-                                        ? "border-green-500/30 bg-green-500/5"
-                                        : "border-red-500/30 bg-red-500/5"
+                                          ? "border-green-500/30 bg-green-500/5"
+                                          : "border-red-500/30 bg-red-500/5"
                                     }`}
                                   >
                                     <div className="font-semibold">
@@ -1058,21 +1343,31 @@ const QuizTamilMCQ: React.FC = () => {
                                     <div className="mt-2 space-y-1 text-sm text-foreground/80">
                                       {picked === null ? (
                                         <div className="text-yellow-600 font-medium">
-                                          {language === "ta" ? "பதில் அளிக்கப்படவில்லை" : "Not answered"}
+                                          {language === "ta"
+                                            ? "பதில் அளிக்கப்படவில்லை"
+                                            : "Not answered"}
                                         </div>
                                       ) : isCorrect ? (
                                         <div className="text-green-600 font-medium">
-                                          {language === "ta" ? "சரியான பதில்" : "Correct"}
+                                          {language === "ta"
+                                            ? "சரியான பதில்"
+                                            : "Correct"}
                                         </div>
                                       ) : (
                                         <>
                                           <div className="text-red-600 font-medium">
-                                            {language === "ta" ? "தவறான பதில்" : "Wrong answer"}
+                                            {language === "ta"
+                                              ? "தவறான பதில்"
+                                              : "Wrong answer"}
                                           </div>
                                           {pickedText && (
                                             <div>
-                                              {language === "ta" ? "நீங்கள் தேர்ந்தெடுத்தது: " : "Your answer: "}
-                                              <span className="font-semibold text-foreground">{pickedText}</span>
+                                              {language === "ta"
+                                                ? "நீங்கள் தேர்ந்தெடுத்தது: "
+                                                : "Your answer: "}
+                                              <span className="font-semibold text-foreground">
+                                                {pickedText}
+                                              </span>
                                             </div>
                                           )}
                                         </>
@@ -1080,8 +1375,12 @@ const QuizTamilMCQ: React.FC = () => {
 
                                       {correctText && (
                                         <div>
-                                          {language === "ta" ? "சரியான பதில்: " : "Correct answer: "}
-                                          <span className="font-semibold text-foreground">{correctText}</span>
+                                          {language === "ta"
+                                            ? "சரியான பதில்: "
+                                            : "Correct answer: "}
+                                          <span className="font-semibold text-foreground">
+                                            {correctText}
+                                          </span>
                                         </div>
                                       )}
                                     </div>
