@@ -264,7 +264,17 @@ const QuizTamilMCQ: React.FC = () => {
   const currentQuestion = activeQuestions[currentIndex] as any;
   const currentAnswer = answers[currentIndex]?.selectedOptionId ?? null;
 
-  const isLast = currentIndex === totalQuestions - 1;
+  // Per-question bonus calculation used by progress and color logic
+  const _takenForBonus =
+    answers[currentIndex]?.secondsTaken ??
+    (quizStartTime ? Math.floor((Date.now() - quizStartTime) / 1000) : 60 - timeRemaining);
+  const _bonusRemaining = clamp(60 - (_takenForBonus ?? 0), 0, 60);
+  const bonusProgressPct = Math.round((_bonusRemaining / 60) * 100);
+  const bonusTextColorClass = _bonusRemaining <= 10 ? "text-red-500" : _bonusRemaining <= 30 ? "text-yellow-600" : "text-green-600";
+  // Battery-style: filled portion = colored (green/yellow/red), empty track = white
+  const bonusIndicatorClassName = _bonusRemaining <= 10 ? "bg-red-500" : _bonusRemaining <= 30 ? "bg-yellow-400" : "bg-green-500";
+
+  const isLast = currentIndex === totalQuestions - 1; 
   const hasQuestions = totalQuestions > 0;
 
   const hasCorrectAnswers = useMemo(
@@ -399,9 +409,13 @@ const QuizTamilMCQ: React.FC = () => {
   // ---------- Select / clear option ----------
   const selectOption = (optionId: string) => {
     if (isFinished) return;
+    const elapsed = quizStartTime
+      ? Math.floor((Date.now() - quizStartTime) / 1000)
+      : Math.max(0, 60 - (timeRemaining ?? 0));
+
     setAnswers((prev) => {
       const next = [...prev];
-      next[currentIndex] = { selectedOptionId: optionId };
+      next[currentIndex] = { selectedOptionId: optionId, secondsTaken: elapsed };
       return next;
     });
   };
@@ -410,7 +424,7 @@ const QuizTamilMCQ: React.FC = () => {
     if (isFinished) return;
     setAnswers((prev) => {
       const next = [...prev];
-      next[currentIndex] = { selectedOptionId: null };
+      next[currentIndex] = { selectedOptionId: null, secondsTaken: undefined };
       return next;
     });
   };
@@ -1136,7 +1150,12 @@ const QuizTamilMCQ: React.FC = () => {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3 }}
                     >
-                      <Card className="border-primary/20 shadow-lg mb-8 relative overflow-hidden">
+                      <Card
+                        className="border-primary/20 shadow-lg mb-8 relative overflow-hidden select-none"
+                        onCopy={(e) => { e.preventDefault(); punishCopyAttempt(); }}
+                        onContextMenu={(e) => { e.preventDefault(); punishCopyAttempt(); }}
+                        style={{ userSelect: "none", WebkitUserSelect: "none" }}
+                      >
                         <Watermark />
 
                         <div className="absolute top-4 right-4 z-10">
@@ -1211,12 +1230,29 @@ const QuizTamilMCQ: React.FC = () => {
                                   >
                                     {String.fromCharCode(65 + idx)}
                                   </div>
-                                  <span className="text-foreground font-medium">
+                                  <span className="text-foreground font-medium select-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
                                     {opt.text}
                                   </span>
                                 </motion.button>
                               );
                             })}
+                          </div>
+
+                          {/* Per-question time-bonus progress (below all answers) */}
+                          <div className="mb-4 mt-2" aria-live="polite">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-sm text-foreground/70">Time bonus</div>
+                              <div className={`text-sm font-semibold ${bonusTextColorClass}`}>
+                                +{_bonusRemaining} pts
+                              </div>
+                            </div>
+
+                            {/* progress value: percentage of remaining bonus */}
+                            <Progress
+                              value={bonusProgressPct}
+                              className="h-2 rounded-full bg-white/10 border border-white/10"
+                              indicatorClassName={bonusIndicatorClassName}
+                            />
                           </div>
 
                           <div className="flex justify-between items-center gap-4">

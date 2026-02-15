@@ -125,6 +125,12 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
+
+  /* Ensure the app root is a non-static container so framer-motion can
+     correctly calculate viewport/scroll offsets for in-view animations. */
+  #root {
+    position: relative;
+  }
   
   html {
     scroll-behavior: smooth;
