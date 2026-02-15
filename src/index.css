@@ -126,10 +126,17 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 
-  /* Ensure the app root is a non-static container so framer-motion can
-     correctly calculate viewport/scroll offsets for in-view animations. */
+  /* Ensure the app root and document containers are non-static so
+     framer-motion can correctly calculate viewport/scroll offsets
+     when using useScroll({ target }) or in-view animations. */
+  html, body {
+    position: relative;
+    height: 100%;
+  }
+
   #root {
     position: relative;
+    min-height: 100%;
   }
   
   html {
