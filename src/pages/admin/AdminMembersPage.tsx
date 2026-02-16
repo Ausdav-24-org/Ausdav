@@ -100,6 +100,10 @@ export default function AdminMembersPage() {
   const [importing, setImporting] = useState(false);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
   const [previewErrorsCount, setPreviewErrorsCount] = useState(0);
+  // Loading flags for role changes / deletions
+  const [changingRoleLoading, setChangingRoleLoading] = useState(false);
+  const [deletingMembersLoading, setDeletingMembersLoading] = useState(false);
+  const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchMembers();
@@ -177,10 +181,13 @@ export default function AdminMembersPage() {
   };
 
   const changeRole = async (member: Member, newRole: string) => {
+    if (changingRoleLoading) return;
+    setChangingRoleLoading(true);
     // Only super admins may change roles
     if (!isSuperAdmin) {
       console.error('changeRole blocked: isSuperAdmin=', isSuperAdmin, 'role=', role);
       toast.error('Only super admins can change roles');
+      setChangingRoleLoading(false);
       return;
     }
 
@@ -259,18 +266,30 @@ export default function AdminMembersPage() {
 
   const deleteMember = async (member: Member) => {
     const targetIds = selectedIds && selectedIds.length > 0 ? selectedIds : [member.mem_id];
+
+    // UI guards: mark loading state for single vs bulk
+    const singleDelete = !selectedIds || selectedIds.length === 0;
+    if (singleDelete) setDeletingMemberId(member.mem_id);
+    else setDeletingMembersLoading(true);
+
     // Check permissions: admins may only delete members (role === 'member')
     const targets = members.filter((m) => targetIds.includes(m.mem_id));
     if (!isSuperAdmin) {
       const invalid = targets.find((t) => t.role !== 'member');
       if (invalid) {
         toast.error('Insufficient permissions: admins can only remove members');
+        setDeletingMemberId(null);
+        setDeletingMembersLoading(false);
         return;
       }
     }
 
     const ok = window.confirm(`Delete ${targetIds.length} member(s)? This cannot be undone.`);
-    if (!ok) return;
+    if (!ok) {
+      setDeletingMemberId(null);
+      setDeletingMembersLoading(false);
+      return;
+    }
     try {
       const { data, error } = await invokeFunction('delete-members', { mem_ids: targetIds });
       if (error) throw error;
@@ -286,8 +305,11 @@ export default function AdminMembersPage() {
     } catch (err: any) {
       console.error('Delete member failed', err);
       toast.error(err?.message || 'Failed to delete member');
+    } finally {
+      setDeletingMemberId(null);
+      setDeletingMembersLoading(false);
     }
-  };
+  }; 
 
   const handleInvite = async () => {
     if (!inviteEmail || !inviteName) {
@@ -627,9 +649,9 @@ export default function AdminMembersPage() {
 
                     return (
                       <>
-                        <DropdownMenuItem onClick={() => changeRoleBulk('member')} disabled={hasHonourableSelected} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer disabled:cursor-not-allowed">Set as Member</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => changeRoleBulk('member')} disabled={changingRoleLoading || hasHonourableSelected} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer disabled:cursor-not-allowed">{changingRoleLoading ? 'Working...' : 'Set as Member'}</DropdownMenuItem>
                         {committeeChangingPhase !== false && (
-                          <DropdownMenuItem onClick={() => changeRoleBulk('honourable')} disabled={!allAdminSelected} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer disabled:cursor-not-allowed">Set as Honourable</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => changeRoleBulk('honourable')} disabled={changingRoleLoading || !allAdminSelected} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer disabled:cursor-not-allowed">{changingRoleLoading ? 'Working...' : 'Set as Honourable'}</DropdownMenuItem>
                         )}
                         {isSuperAdmin && (
                           <>
@@ -638,7 +660,7 @@ export default function AdminMembersPage() {
                           </>
                         )}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600 hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer" onClick={async () => { await deleteMember({} as Member); }}>Remove selected</DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600 hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer" onClick={async () => { if (!deletingMembersLoading) await deleteMember({} as Member); }} disabled={deletingMembersLoading}>{deletingMembersLoading ? 'Removing...' : 'Remove selected'}</DropdownMenuItem>
                       </>
                     );
                   })()}
@@ -734,24 +756,24 @@ export default function AdminMembersPage() {
                                         </>
                                       ) : (
                                         <>
-                                          <DropdownMenuItem onClick={() => changeRole(member, 'member')} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">Set as Member</DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => changeRole(member, 'member')} disabled={changingRoleLoading} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">{changingRoleLoading ? 'Working...' : 'Set as Member'}</DropdownMenuItem>
                                           {committeeChangingPhase !== false && (
                                             member.role === 'admin' ? (
-                                              <DropdownMenuItem onClick={() => changeRole(member, 'honourable')} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">Set as Honourable</DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => changeRole(member, 'honourable')} disabled={changingRoleLoading} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">{changingRoleLoading ? 'Working...' : 'Set as Honourable'}</DropdownMenuItem>
                                             ) : (
                                               <DropdownMenuItem disabled className="cursor-not-allowed">Set as Honourable (admins only)</DropdownMenuItem>
                                             )
                                           )}
                                           <DropdownMenuSeparator />
-                                          <DropdownMenuItem onClick={() => changeRole(member, 'admin')} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">Set as Admin</DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => changeRole(member, 'super_admin')} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">Set as Super Admin</DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => changeRole(member, 'admin')} disabled={changingRoleLoading} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">{changingRoleLoading ? 'Working...' : 'Set as Admin'}</DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => changeRole(member, 'super_admin')} disabled={changingRoleLoading} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">{changingRoleLoading ? 'Working...' : 'Set as Super Admin'}</DropdownMenuItem>
                                           <DropdownMenuSeparator />
                                         </>
                                       )}
                                 </>
                               )}
                               {isSuperAdmin || (isAdmin && member.role === 'member') ? (
-                                <DropdownMenuItem onClick={() => deleteMember(member)} className="text-red-600 hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">
+                                <DropdownMenuItem onClick={() => { if (!deletingMembersLoading) deleteMember(member); }} className="text-red-600 hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer" disabled={deletingMemberId === member.mem_id || deletingMembersLoading}>
                                   Remove
                                 </DropdownMenuItem>
                               ) : null}

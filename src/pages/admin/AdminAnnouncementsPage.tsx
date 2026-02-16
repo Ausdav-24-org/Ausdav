@@ -249,7 +249,12 @@ export default function AdminAnnouncementsPage() {
     }
   };
 
+  const [togglingAnnouncementId, setTogglingAnnouncementId] = useState<string | null>(null);
+  const [deletingAnnouncementId, setDeletingAnnouncementId] = useState<string | null>(null);
+
   const toggleActive = async (announcement: Announcement) => {
+    if (togglingAnnouncementId === announcement.id) return;
+    setTogglingAnnouncementId(announcement.id);
     try {
       const { error } = await supabase
         .from('announcements')
@@ -265,6 +270,28 @@ export default function AdminAnnouncementsPage() {
       toast.success(announcement.is_active ? 'Announcement hidden' : 'Announcement visible');
     } catch (error: any) {
       toast.error(error.message || 'Failed to update');
+    } finally {
+      setTogglingAnnouncementId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this announcement?')) return;
+    if (deletingAnnouncementId === id) return;
+    setDeletingAnnouncementId(id);
+
+    try {
+      const { error } = await supabase
+        .from('announcements')
+        .delete()
+        .eq(announcementPk, id);
+      if (error) throw error;
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      toast.success('Announcement deleted');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete');
+    } finally {
+      setDeletingAnnouncementId(null);
     }
   };
 
@@ -377,12 +404,24 @@ export default function AdminAnnouncementsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => toggleActive(announcement)}
+                          disabled={togglingAnnouncementId === announcement.id}
                         >
-                          {announcement.is_active ? (
+                          {togglingAnnouncementId === announcement.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : announcement.is_active ? (
                             <Eye className="h-4 w-4" />
                           ) : (
                             <EyeOff className="h-4 w-4" />
                           )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-400 hover:text-red-300"
+                          onClick={() => handleDelete(announcement.id)}
+                          disabled={deletingAnnouncementId === announcement.id}
+                        >
+                          {deletingAnnouncementId === announcement.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         </Button>
                         <Button
                           variant="ghost"

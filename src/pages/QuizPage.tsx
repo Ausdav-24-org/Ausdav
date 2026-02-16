@@ -530,74 +530,91 @@ const QuizTamilMCQ: React.FC = () => {
       );
       return;
     }
-    // Check password in quiz_passwords table
-    const { data: passwordData, error: passwordError } = await supabase
-      .from("quiz_passwords" as any)
-      .select("id, quiz_name, password")
-      .eq("password", quizPassword.trim())
-      .maybeSingle();
-    if (
-      passwordError ||
-      !passwordData ||
-      typeof passwordData !== "object" ||
-      passwordData === null ||
-      typeof (passwordData as any).id !== "number"
-    ) {
-      toast.error(
-        language === "ta" ? "தவறான கடவுச்சொல்" : "Incorrect password",
+
+    // show loading state while we check password / fetch questions
+    setCheckingAttempt(true);
+    try {
+      // Check password in quiz_passwords table
+      const { data: passwordData, error: passwordError } = await supabase
+        .from("quiz_passwords" as any)
+        .select("id, quiz_name, password")
+        .eq("password", quizPassword.trim())
+        .maybeSingle();
+      if (
+        passwordError ||
+        !passwordData ||
+        typeof passwordData !== "object" ||
+        passwordData === null ||
+        typeof (passwordData as any).id !== "number"
+      ) {
+        toast.error(
+          language === "ta" ? "தவறான கடவுச்சொல்" : "Incorrect password",
+        );
+        return;
+      }
+
+      // Fetch questions for quiz_password_id (matching AdminQuizPage logic)
+      const passwordId = (passwordData as any).id;
+      setQuizPasswordId(passwordId); // Store in state
+      const { data: questionsData, error: questionsError } = await supabase
+        .from("quiz_mcq" as any)
+        .select("*")
+        .eq("quiz_password_id", passwordId);
+      if (questionsError || !questionsData || questionsData.length === 0) {
+        toast.error(
+          language === "ta"
+            ? "இந்த வினாடிவினாவிற்கான கேள்விகள் இல்லை"
+            : "No questions found for this quiz",
+        );
+        return;
+      }
+
+      // Format questions to match Question type
+      const formattedQuestions = questionsData.map((q: any) => ({
+        id: q.id.toString(),
+        question: q.question_text,
+        options: [
+          { id: "a", text: q.option_a },
+          { id: "b", text: q.option_b },
+          { id: "c", text: q.option_c },
+          { id: "d", text: q.option_d },
+        ],
+        correctOptionId: q.correct_answer,
+        image_path: q.image_path ?? null,
+        imageUrl: q.image_path
+          ? supabase.storage
+              .from("quiz-question-images")
+              .getPublicUrl(q.image_path).data.publicUrl
+          : null,
+      }));
+
+      setQuizQuestions(formattedQuestions);
+      setQuizStarted(true);
+      setShowSchoolDialog(false);
+      setShowSchoolInput(false);
+      setQuizStartTime(Date.now());
+      setTimeRemaining(60);
+      setCanViewReview(false);
+      setCurrentIndex(0);
+      setAnswers(
+        Array.from({ length: formattedQuestions.length }, () => ({
+          selectedOptionId: null,
+        })),
       );
-      return;
-    }
-    // Fetch questions for quiz_password_id (matching AdminQuizPage logic)
-    const passwordId = (passwordData as any).id;
-    setQuizPasswordId(passwordId); // Store in state
-    const { data: questionsData, error: questionsError } = await supabase
-      .from("quiz_mcq" as any)
-      .select("*")
-      .eq("quiz_password_id", passwordId);
-    if (questionsError || !questionsData || questionsData.length === 0) {
+      setSelectedQuizNo(null); // Not needed for this logic
+      toast.success(
+        language === "ta" ? "வினாடிவினா தொடங்குகிறது!" : "Quiz starting!",
+      );
+    } catch (err) {
+      console.error("Error starting quiz:", err);
       toast.error(
         language === "ta"
-          ? "இந்த வினாடிவினாவிற்கான கேள்விகள் இல்லை"
-          : "No questions found for this quiz",
+          ? "வினாடிவினாவைத் தொடங்க முடியவில்லை"
+          : "Failed to start quiz",
       );
-      return;
+    } finally {
+      setCheckingAttempt(false);
     }
-    // Format questions to match Question type
-    const formattedQuestions = questionsData.map((q: any) => ({
-      id: q.id.toString(),
-      question: q.question_text,
-      options: [
-        { id: "a", text: q.option_a },
-        { id: "b", text: q.option_b },
-        { id: "c", text: q.option_c },
-        { id: "d", text: q.option_d },
-      ],
-      correctOptionId: q.correct_answer,
-      image_path: q.image_path ?? null,
-      imageUrl: q.image_path
-        ? supabase.storage
-            .from("quiz-question-images")
-            .getPublicUrl(q.image_path).data.publicUrl
-        : null,
-    }));
-    setQuizQuestions(formattedQuestions);
-    setQuizStarted(true);
-    setShowSchoolDialog(false);
-    setShowSchoolInput(false);
-    setQuizStartTime(Date.now());
-    setTimeRemaining(60);
-    setCanViewReview(false);
-    setCurrentIndex(0);
-    setAnswers(
-      Array.from({ length: formattedQuestions.length }, () => ({
-        selectedOptionId: null,
-      })),
-    );
-    setSelectedQuizNo(null); // Not needed for this logic
-    toast.success(
-      language === "ta" ? "வினாடிவினா தொடங்குகிறது!" : "Quiz starting!",
-    );
   };
 
   // ---------- Save results ----------

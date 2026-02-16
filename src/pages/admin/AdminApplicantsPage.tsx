@@ -535,6 +535,8 @@ export default function AdminApplicantsPage() {
     toast.success(`Downloaded ${filteredApplicants.length} applicants`);
   };
 
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const handleBulkDeleteByYear = async () => {
     if (selectedYear === null) {
       toast.error('Please select a year');
@@ -546,6 +548,9 @@ export default function AdminApplicantsPage() {
       toast.error('No applicants to delete for this year');
       return;
     }
+
+    if (bulkDeleting) return;
+    setBulkDeleting(true);
 
     try {
       // ✅ Delete from FIRST database
@@ -592,6 +597,8 @@ export default function AdminApplicantsPage() {
     } catch (error) {
       console.error('Error deleting applicants:', error);
       toast.error('Failed to delete applicants');
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -1092,8 +1099,16 @@ export default function AdminApplicantsPage() {
                         <AlertDialogAction
                           onClick={handleBulkDeleteByYear}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          disabled={bulkDeleting}
                         >
-                          Delete All
+                          {bulkDeleting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            'Delete All'
+                          )}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

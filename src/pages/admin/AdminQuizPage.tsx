@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Plus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload } from "lucide-react";
+import { Plus, Minus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload, Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -92,9 +92,21 @@ const AdminQuizPage: React.FC = () => {
       }
       return results;
     }, [schoolResults, scoreRange, sortBy]);
+
+  // Auto-apply pending score inputs to the active filter and clamp to 0..5000
+  useEffect(() => {
+    const minVal = Math.max(0, Math.min(5000, pendingScoreRange[0]));
+    const maxVal = Math.max(0, Math.min(5000, pendingScoreRange[1]));
+    setScoreRange([Math.min(minVal, maxVal), Math.max(minVal, maxVal)]);
+  }, [pendingScoreRange]);
+
   const [loading, setLoading] = useState(true);
   const [loadingResults, setLoadingResults] = useState(true);
   const [isQuizEnabled, setIsQuizEnabled] = useState(false);
+  // UX: prevent duplicate toggles/deletes by tracking in-progress actions
+  const [togglingQuiz, setTogglingQuiz] = useState(false);
+  const [deletingQuizPasswordId, setDeletingQuizPasswordId] = useState<number | null>(null);
+  const [deletingAllResults, setDeletingAllResults] = useState(false);
   const [isMemberUploadEnabled, setIsMemberUploadEnabled] = useState(false);
   const [quizPasswords, setQuizPasswords] = useState<{ id: number; quiz_name: string; password: string }[]>([]);
   const [loadingQuizPasswords, setLoadingQuizPasswords] = useState(false);
@@ -112,6 +124,9 @@ const AdminQuizPage: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  // UX: per-action loaders for question operations
+  const [savingQuestion, setSavingQuestion] = useState(false);
+  const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
   const [selectedQuizResult, setSelectedQuizResult] = useState<SchoolQuizResult | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [formData, setFormData] = useState<QuestionFormData>({
@@ -131,6 +146,19 @@ const AdminQuizPage: React.FC = () => {
     fetchSchoolResults();
     checkQuizEnabled();
     fetchQuizPasswords();
+
+    // Realtime listener so admin UI updates when questions change elsewhere
+    const channel = supabase
+      .channel('admin-quiz-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_mcq' }, (payload) => {
+        console.log('[AdminQuizPage] realtime quiz_mcq payload:', payload);
+        fetchQuestions();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const checkQuizEnabled = async () => {
@@ -148,6 +176,8 @@ const AdminQuizPage: React.FC = () => {
   };
 
   const toggleQuizAvailability = async () => {
+    if (togglingQuiz) return;
+    setTogglingQuiz(true);
     try {
       const newStatus = !isQuizEnabled;
       const { error } = await supabase
@@ -162,8 +192,10 @@ const AdminQuizPage: React.FC = () => {
     } catch (error) {
       console.error("Error toggling quiz:", error);
       toast.error("Error occurred");
+    } finally {
+      setTogglingQuiz(false);
     }
-  };
+  }; 
 
   // Fetch all quiz passwords
   const fetchQuizPasswords = async () => {
@@ -236,6 +268,8 @@ const AdminQuizPage: React.FC = () => {
   // Delete quiz password
   const deleteQuizPassword = async (id: number) => {
     if (!window.confirm("Delete this quiz password?")) return;
+    if (deletingQuizPasswordId === id) return;
+    setDeletingQuizPasswordId(id);
     try {
       const { error } = await supabase.from("quiz_passwords" as any).delete().eq("id", id);
       if (error) throw error;
@@ -244,8 +278,10 @@ const AdminQuizPage: React.FC = () => {
     } catch (error) {
       console.error("Error deleting quiz password:", error);
       toast.error("Failed to delete");
+    } finally {
+      setDeletingQuizPasswordId(null);
     }
-  };
+  }; 
 
   const fetchSchoolResults = async () => {
     try {
@@ -274,12 +310,13 @@ const AdminQuizPage: React.FC = () => {
   };
 
   const handleDeleteAllResults = async () => {
+    if (deletingAllResults) return;
     const confirmDelete = window.confirm(
       "Are you sure you want to delete ALL school quiz results? This action cannot be undone."
     );
-    
     if (!confirmDelete) return;
 
+    setDeletingAllResults(true);
     try {
       // Fetch all results first to ensure we're deleting the right records
       const { data: allResults, error: fetchError } = await supabase
@@ -318,14 +355,16 @@ const AdminQuizPage: React.FC = () => {
 
       // Immediately clear the UI
       setSchoolResults([]);
-      
+
       toast.success("All school results and answers deleted successfully");
-      
+
       // Verify deletion by fetching fresh data
       setTimeout(() => fetchSchoolResults(), 500);
     } catch (error) {
       console.error("Error deleting all results:", error);
       toast.error("Failed to delete results. Check console for details.");
+    } finally {
+      setDeletingAllResults(false);
     }
   };
 
@@ -353,6 +392,8 @@ const AdminQuizPage: React.FC = () => {
       return;
     }
 
+    if (savingQuestion) return;
+    setSavingQuestion(true);
     try {
       // Always set language to "ta" since questions are language-agnostic
       const { error } = await supabase.from("quiz_mcq").insert([{ ...formData, language: "ta" }]);
@@ -365,11 +406,15 @@ const AdminQuizPage: React.FC = () => {
     } catch (error) {
       console.error("Error adding question:", error);
       toast.error("Failed to add");
+    } finally {
+      setSavingQuestion(false);
     }
-  };
+  }; 
 
   const handleUpdateQuestion = async () => {
     if (!editingId) return;
+    if (savingQuestion) return;
+    setSavingQuestion(true);
 
     try {
       const { error } = await supabase
@@ -385,13 +430,17 @@ const AdminQuizPage: React.FC = () => {
     } catch (error) {
       console.error("Error updating question:", error);
       toast.error("Failed to update");
+    } finally {
+      setSavingQuestion(false);
     }
-  };
+  }; 
 
   const handleDeleteQuestion = async (id: number) => {
     if (!confirm("Are you sure you want to delete?")) {
       return;
     }
+    if (deletingQuestionId === id) return;
+    setDeletingQuestionId(id);
 
     try {
       // Get question to check for image
@@ -418,8 +467,10 @@ const AdminQuizPage: React.FC = () => {
     } catch (error) {
       console.error("Error deleting question:", error);
       toast.error("Failed to delete");
+    } finally {
+      setDeletingQuestionId(null);
     }
-  };
+  }; 
 
   const startEdit = (question: QuizQuestion) => {
     setEditingId(question.id);
@@ -585,9 +636,16 @@ const AdminQuizPage: React.FC = () => {
                   onClick={toggleQuizAvailability}
                   variant={isQuizEnabled ? "default" : "outline"}
                   className="gap-2"
+                  disabled={togglingQuiz}
                 >
-                  {isQuizEnabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  {isQuizEnabled ? "Enabled" : "Disabled"}
+                  {togglingQuiz ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : isQuizEnabled ? (
+                    <Eye className="w-4 h-4" />
+                  ) : (
+                    <EyeOff className="w-4 h-4" />
+                  )}
+                  {togglingQuiz ? (isQuizEnabled ? 'Disabling...' : 'Enabling...') : isQuizEnabled ? "Enabled" : "Disabled"}
                 </Button>
               </div>
             </CardContent>
@@ -688,7 +746,10 @@ const AdminQuizPage: React.FC = () => {
                             </button>
                           </div>
                           <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); }}>Edit</Button>
-                          <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)}>Delete</Button>
+                          <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)} disabled={deletingQuizPasswordId === qp.id}>
+                            {deletingQuizPasswordId === qp.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                            Delete
+                          </Button>
                         </>
                       )}
                     </div>
@@ -708,30 +769,59 @@ const AdminQuizPage: React.FC = () => {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 px-2 py-3 bg-muted/40 rounded-lg border border-muted-foreground/10 shadow-sm">
                       <div className="flex items-center gap-2 flex-wrap">
                         <label className="font-semibold text-sm text-white mr-2">Score Range</label>
-                        <Input
-                          type="number"
-                          min={-100}
-                          max={100}
-                          value={pendingScoreRange[0]}
-                          onChange={e => setPendingScoreRange([Number(e.target.value), pendingScoreRange[1]])}
-                          className="w-16 h-9 text-sm px-2 bg-[#232b3b] border-none text-white focus:ring-2 focus:ring-primary"
-                        />
+                        <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
+                          <button
+                            type="button"
+                            aria-label="Decrease min score"
+                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                            onClick={() => setPendingScoreRange([Math.max(0, pendingScoreRange[0] - 1), pendingScoreRange[1]])}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={5000}
+                            value={pendingScoreRange[0]}
+                            onChange={e => setPendingScoreRange([Number(e.target.value), pendingScoreRange[1]])}
+                            className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Increase min score"
+                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                            onClick={() => setPendingScoreRange([Math.min(5000, pendingScoreRange[0] + 1), pendingScoreRange[1]])}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
                         <span className="mx-1 text-white">-</span>
-                        <Input
-                          type="number"
-                          min={-100}
-                          max={100}
-                          value={pendingScoreRange[1]}
-                          onChange={e => setPendingScoreRange([pendingScoreRange[0], Number(e.target.value)])}
-                          className="w-16 h-9 text-sm px-2 bg-[#232b3b] border-none text-white focus:ring-2 focus:ring-primary"
-                        />
-                        <Button
-                          size="sm"
-                          className="ml-2 h-9 px-5 bg-primary text-white font-semibold rounded-md shadow-none hover:bg-primary/90"
-                          onClick={() => setScoreRange(pendingScoreRange)}
-                        >
-                          Apply
-                        </Button>
+                        <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
+                          <button
+                            type="button"
+                            aria-label="Decrease max score"
+                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                            onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.max(0, pendingScoreRange[1] - 1)])}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={5000}
+                            value={pendingScoreRange[1]}
+                            onChange={e => setPendingScoreRange([pendingScoreRange[0], Number(e.target.value)])}
+                            className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Increase max score"
+                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                            onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.min(5000, pendingScoreRange[1] + 1)])}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Select value={sortBy} onValueChange={v => setSortBy(v as any)}>
@@ -861,9 +951,10 @@ const AdminQuizPage: React.FC = () => {
                 onClick={handleDeleteAllResults}
                 variant="destructive"
                 className="gap-2"
+                disabled={deletingAllResults}
               >
-                <Trash2 className="w-4 h-4" />
-                Delete All Results
+                {deletingAllResults ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {deletingAllResults ? 'Deleting...' : 'Delete All Results'}
               </Button>
             </CardContent>
           </Card>
@@ -1074,18 +1165,21 @@ const AdminQuizPage: React.FC = () => {
                   </div>
 
                   <div className="flex gap-2 justify-end">
-                    <Button variant="outline" onClick={resetForm}>
+                    <Button variant="outline" onClick={resetForm} disabled={savingQuestion}>
                       Cancel
                     </Button>
                     <Button
                       onClick={editingId ? handleUpdateQuestion : handleAddQuestion}
                       className="gap-2"
+                      disabled={savingQuestion}
                     >
-                      <Save className="w-4 h-4" />
-                      {editingId
-                        ? "Update"
-                        : "Add"}
-                    </Button>
+                      {savingQuestion ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      {savingQuestion ? (editingId ? 'Updating...' : 'Adding...') : (editingId ? 'Update' : 'Add')}
+                    </Button> 
                   </div>
                 </CardContent>
               </Card>

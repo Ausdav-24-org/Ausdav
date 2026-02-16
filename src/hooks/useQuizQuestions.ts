@@ -65,12 +65,16 @@ export const useQuizQuestions = (language: string = "ta") => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchQuestions = async () => {
       try {
-        setLoading(true);
-        setError(null);
+        if (isMounted) {
+          setLoading(true);
+          setError(null);
+        }
         console.log(`Fetching quiz questions`);
-        
+
         // Fetch all questions regardless of language - questions are the same for all language users
         const { data, error: supabaseError } = await supabase
           .from("quiz_mcq")
@@ -83,7 +87,9 @@ export const useQuizQuestions = (language: string = "ta") => {
         }
 
         console.log(`Fetched ${data?.length || 0} questions`);
-        
+
+        if (!isMounted) return;
+
         if (data && data.length > 0) {
           const formatted = formatQuestions(data as QuizQuestion[]);
           console.log(`Formatted ${formatted.length} questions`);
@@ -94,17 +100,40 @@ export const useQuizQuestions = (language: string = "ta") => {
           setError(`No questions available`);
         }
       } catch (err) {
+        if (!isMounted) return;
         const errorMessage =
           err instanceof Error ? err.message : "Failed to fetch questions";
         setError(errorMessage);
         console.error("Error fetching quiz questions:", err);
         setQuestions([]);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
+    // initial fetch
     fetchQuestions();
+
+    // Subscribe to realtime changes on quiz_mcq so all clients auto-refresh
+    const channel = supabase
+      .channel('quiz_mcq_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_mcq' }, (payload) => {
+        console.log('[useQuizQuestions] realtime payload:', payload);
+        // Re-fetch to keep logic simple and ensure formatting + image URL resolution
+        fetchQuestions();
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      try {
+        supabase.removeChannel(channel);
+      } catch (err) {
+        // fallback: attempt unsubscribe
+        // @ts-ignore
+        channel.unsubscribe?.();
+      }
+    };
   }, [language]);
 
   return { questions, loading, error };

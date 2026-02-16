@@ -4,7 +4,7 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Trash2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
 import { toast } from '@/hooks/use-toast';
@@ -18,6 +18,8 @@ export default function AdminFeedbackPage() {
   const [loading, setLoading] = useState(true);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [toDeleteId, setToDeleteId] = useState<string | null>(null);
+  const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null);
+  const [classifyingFeedbackId, setClassifyingFeedbackId] = useState<string | null>(null);
 
   const fetchFeedback = useCallback(async () => {
     setLoading(true);
@@ -48,6 +50,8 @@ export default function AdminFeedbackPage() {
       toast({ title: 'Permission denied', description: 'Only Super Admins can classify feedback' });
       return;
     }
+    if (classifyingFeedbackId === id) return;
+    setClassifyingFeedbackId(id);
 
     try {
       const { error } = await db
@@ -60,14 +64,18 @@ export default function AdminFeedbackPage() {
     } catch (err) {
       console.error('Error classifying feedback:', err);
       toast({ title: 'Error', description: 'Classification failed' });
+    } finally {
+      setClassifyingFeedbackId(null);
     }
-  };
+  }; 
 
   const deleteFeedback = async (id: string) => {
     if (!canClassify) {
       toast({ title: 'Permission denied', description: 'You are not allowed to delete feedback' });
       return;
     }
+    if (deletingFeedbackId === id) return;
+    setDeletingFeedbackId(id);
 
     try {
       const { error } = await db.from('feedback').delete().eq('id', id);
@@ -78,10 +86,11 @@ export default function AdminFeedbackPage() {
       console.error('Error deleting feedback:', err);
       toast({ title: 'Error', description: 'Could not delete feedback' });
     } finally {
+      setDeletingFeedbackId(null);
       setToDeleteId(null);
       setDeleteConfirmOpen(false);
     }
-  };
+  }; 
 
   const requestDelete = (id: string) => {
     setToDeleteId(id);
@@ -117,8 +126,8 @@ export default function AdminFeedbackPage() {
                         <div className="flex items-start justify-between">
                           <p className="text-sm text-muted-foreground">{new Date(f.created_at).toLocaleString()}</p>
                           {canClassify && (
-                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => requestDelete(f.id)}>
-                              <Trash2 className="w-4 h-4" />
+                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => requestDelete(f.id)} disabled={!!deletingFeedbackId}>
+                              {deletingFeedbackId === f.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                             </Button>
                           )}
                         </div>
@@ -126,11 +135,11 @@ export default function AdminFeedbackPage() {
                       </div>
                       {canClassify && (
                         <div className="flex flex-col gap-2 ml-4">
-                          <Button size="sm" variant="ghost" className="text-green-500/90" onClick={() => classify(f.id, 'positive')}>
-                            <ThumbsUp className="w-4 h-4" />
+                          <Button size="sm" variant="ghost" className="text-green-500/90" onClick={() => classify(f.id, 'positive')} disabled={!!classifyingFeedbackId}>
+                            {classifyingFeedbackId === f.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
                           </Button>
-                          <Button size="sm" variant="ghost" className="text-red-500/90" onClick={() => classify(f.id, 'negative')}>
-                            <ThumbsDown className="w-4 h-4" />
+                          <Button size="sm" variant="ghost" className="text-red-500/90" onClick={() => classify(f.id, 'negative')} disabled={!!classifyingFeedbackId}>
+                            {classifyingFeedbackId === f.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsDown className="w-4 h-4" />}
                           </Button>
                         </div>
                       )}
@@ -199,8 +208,11 @@ export default function AdminFeedbackPage() {
           </DialogHeader>
           <p>Are you sure you want to permanently delete this feedback?</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDeleteConfirmOpen(false); setToDeleteId(null); }}>Cancel</Button>
-            <Button className="ml-2" onClick={() => toDeleteId && deleteFeedback(toDeleteId)}>Delete</Button>
+            <Button variant="outline" onClick={() => { setDeleteConfirmOpen(false); setToDeleteId(null); }} disabled={!!deletingFeedbackId}>Cancel</Button>
+            <Button className="ml-2" onClick={() => toDeleteId && deleteFeedback(toDeleteId)} disabled={!!deletingFeedbackId}>
+              {deletingFeedbackId ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Delete
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
