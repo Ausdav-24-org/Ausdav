@@ -563,8 +563,29 @@ const QuizTamilMCQ: React.FC = () => {
       // Fetch questions for quiz_password_id (matching AdminQuizPage logic)
       const passwordId = (passwordData as any).id;
       setQuizPasswordId(passwordId); // Store in state
-      setPasswordIsTest(!!(passwordData as any).is_test);
-      setPasswordIsQuiz(!!(passwordData as any).is_quiz);
+      const isQuizMode = !!(passwordData as any).is_quiz;
+      const isTestMode = !!(passwordData as any).is_test;
+      setPasswordIsTest(isTestMode);
+      setPasswordIsQuiz(isQuizMode);
+
+      // In quiz mode, block duplicate school entries
+      if (isQuizMode && !isTestMode && schoolName) {
+        const { data: existingAttempt } = await supabase
+          .from("school_quiz_results" as any)
+          .select("id")
+          .eq("school_name", schoolName.trim())
+          .eq("quiz_password_id", passwordId)
+          .maybeSingle();
+        if (existingAttempt) {
+          toast.error(
+            language === "ta"
+              ? "இந்த பள்ளி ஏற்கனவே இந்த வினாடிவினாவை முயற்சித்துள்ளது"
+              : "This school has already attempted this quiz",
+          );
+          return;
+        }
+      }
+
       const { data: questionsData, error: questionsError } = await supabase
         .from("quiz_mcq" as any)
         .select("*")
