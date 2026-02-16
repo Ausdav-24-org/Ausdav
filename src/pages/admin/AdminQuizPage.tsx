@@ -137,11 +137,14 @@ const AdminQuizPage: React.FC = () => {
   // per-password mode toggling (Test / Quiz)
   const [togglingQuizModeId, setTogglingQuizModeId] = useState<number | null>(null);
   const [togglingQuizModeField, setTogglingQuizModeField] = useState<'is_test' | 'is_quiz' | null>(null);
-  const [quizPasswords, setQuizPasswords] = useState<{ id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean }[]>([]);
+  const [togglingDurationId, setTogglingDurationId] = useState<number | null>(null);
+  const [durationInputs, setDurationInputs] = useState<Record<number, string>>({});
+  const [quizPasswords, setQuizPasswords] = useState<{ id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean; duration_minutes?: number | null }[]>([]);
   const [loadingQuizPasswords, setLoadingQuizPasswords] = useState(false);
   const [showQuizPassword, setShowQuizPassword] = useState<{ [id: number]: boolean }>({});
   const [newQuizName, setNewQuizName] = useState("");
   const [newQuizPassword, setNewQuizPassword] = useState("");
+  const [newQuizDuration, setNewQuizDuration] = useState("");
   const [savingQuizPassword, setSavingQuizPassword] = useState(false);
   const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
   const [editingQuizName, setEditingQuizName] = useState("");
@@ -210,7 +213,8 @@ const AdminQuizPage: React.FC = () => {
     const loadDurations = async () => {
       setLoadingDurations(true);
       try {
-        const names = Array.from(new Set(filteredSortedResults.map(r => r.school_name).filter(Boolean)));
+        // normalize (trim) school names so keys match between results and answers rows
+        const names = Array.from(new Set(filteredSortedResults.map(r => (r.school_name || '').trim()).filter(Boolean)));
         if (names.length === 0) {
           if (mounted) setSchoolDurations({});
           return;
@@ -235,8 +239,8 @@ const AdminQuizPage: React.FC = () => {
 
         const seen = new Set<string>();
         (data || []).forEach((row: any) => {
-          const name = row.school_name;
-          if (seen.has(name)) return; // only take the latest per school (data ordered desc)
+          const name = (row.school_name || '').trim();
+          if (!name || seen.has(name)) return; // only take the latest per school (data ordered desc)
           seen.add(name);
           const meta = row.answers_meta || {};
           let totalSec = 0;
@@ -304,9 +308,16 @@ const AdminQuizPage: React.FC = () => {
       setLoadingQuizPasswords(true);
       const { data, error } = await supabase
         .from("quiz_passwords" as any)
-        .select("id, quiz_name, password, is_test, is_quiz");
+        .select("id, quiz_name, password, is_test, is_quiz, duration_minutes");
       if (error) throw error;
-      setQuizPasswords((data || []) as unknown as { id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean }[]);
+      const rows = (data || []) as unknown as { id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean; duration_minutes?: number | null }[];
+      setQuizPasswords(rows);
+      // initialize per-row duration input values
+      const map: Record<number, string> = {};
+      rows.forEach(r => {
+        map[r.id] = r.duration_minutes != null ? String(r.duration_minutes) : "";
+      });
+      setDurationInputs(map);
     } catch (error) {
       console.error("Error fetching quiz passwords:", error);
       toast.error("Failed to load quiz passwords");
@@ -318,7 +329,7 @@ const AdminQuizPage: React.FC = () => {
   // Add or update quiz password
   const saveQuizPassword = async () => {
     if (editingQuizId) {
-      // Update existing
+      // Update existing (name/password only — duration is set via per-row Set)
       if (!editingQuizName.trim() || !editingQuizPassword.trim()) {
         toast.error("Enter quiz name and password");
         return;
@@ -349,13 +360,15 @@ const AdminQuizPage: React.FC = () => {
       }
       try {
         setSavingQuizPassword(true);
+        const durationVal = newQuizDuration.trim() === "" ? null : Number(newQuizDuration);
         const { error } = await supabase
           .from("quiz_passwords" as any)
-          .insert([{ quiz_name: newQuizName.trim(), password: newQuizPassword.trim(), is_test: false, is_quiz: false }]);
+          .insert([{ quiz_name: newQuizName.trim(), password: newQuizPassword.trim(), is_test: false, is_quiz: false, duration_minutes: durationVal }]);
         if (error) throw error;
         toast.success("Quiz password added");
         setNewQuizName("");
         setNewQuizPassword("");
+        setNewQuizDuration("");
         fetchQuizPasswords();
       } catch (error) {
         console.error("Error adding quiz password:", error);
@@ -406,6 +419,46 @@ const AdminQuizPage: React.FC = () => {
     } finally {
       setTogglingQuizModeId(null);
       setTogglingQuizModeField(null);
+    }
+  };
+
+  // Set duration (minutes) for a specific quiz password
+  const setQuizDuration = async (id: number) => {
+    const raw = durationInputs[id] ?? "";
+    if (raw.trim() === "") {
+      // allow clearing duration (set to null)
+      try {
+        setTogglingDurationId(id);
+        const { error } = await supabase.from('quiz_passwords' as any).update({ duration_minutes: null }).eq('id', id);
+        if (error) throw error;
+        toast.success('Duration cleared');
+        fetchQuizPasswords();
+      } catch (err) {
+        console.error('Error clearing duration:', err);
+        toast.error('Failed to update duration');
+      } finally {
+        setTogglingDurationId(null);
+      }
+      return;
+    }
+
+    const val = Number(raw);
+    if (!Number.isFinite(val) || val <= 0) {
+      toast.error('Enter a valid positive number for minutes');
+      return;
+    }
+
+    try {
+      setTogglingDurationId(id);
+      const { error } = await supabase.from('quiz_passwords' as any).update({ duration_minutes: Math.floor(val) }).eq('id', id);
+      if (error) throw error;
+      toast.success('Duration saved');
+      fetchQuizPasswords();
+    } catch (err) {
+      console.error('Error saving duration:', err);
+      toast.error('Failed to update duration');
+    } finally {
+      setTogglingDurationId(null);
     }
   }; 
 
@@ -777,8 +830,9 @@ const AdminQuizPage: React.FC = () => {
 
   const chartDataDuration = useMemo(() => {
     return filteredSortedResults.map(r => {
-      const secs = schoolDurations[r.school_name] ?? null;
-      return { name: r.school_name, duration: secs ?? 0, durationLabel: secs == null ? '—' : formatSeconds(secs), id: r.id };
+      const secs = schoolDurations[(r.school_name || '').trim()] ?? null;
+      const durationMin = secs == null ? null : Number((secs / 60).toFixed(2));
+      return { name: (r.school_name || '').trim(), durationMin, durationLabel: secs == null ? '—' : `${(secs/60).toFixed(2)} min`, id: r.id };
     });
   }, [filteredSortedResults, schoolDurations]);
 
@@ -829,115 +883,139 @@ const AdminQuizPage: React.FC = () => {
             </Card>
           )}
 
-          {/* Quiz Passwords - Dynamic List (admin only) */}
-          {isAdminView && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Quiz Passwords</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Add, edit, or delete quiz passwords for any quiz name
-                </p>
-              </CardHeader>
-              <CardContent>
-                {/* Add new quiz password */}
-                <div className="flex flex-col md:flex-row gap-2 mb-4">
+          {/* Quiz Passwords - Dynamic List */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Quiz Passwords</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Add, edit, or delete quiz passwords for any quiz name
+              </p>
+            </CardHeader>
+            <CardContent>
+              {/* Add new quiz password */}
+              <div className="flex flex-col md:flex-row gap-2 mb-4">
+                <Input
+                  placeholder="Quiz name (e.g. Science 2026)"
+                  value={newQuizName}
+                  onChange={e => setNewQuizName(e.target.value)}
+                  className="md:w-1/3"
+                  disabled={savingQuizPassword}
+                />
+                <div className="relative md:w-1/3">
                   <Input
-                    placeholder="Quiz name (e.g. Science 2026)"
-                    value={newQuizName}
-                    onChange={e => setNewQuizName(e.target.value)}
-                    className="md:w-1/3"
+                    placeholder="Password"
+                    type={showQuizPassword[0] ? "text" : "password"}
+                    value={newQuizPassword}
+                    onChange={e => setNewQuizPassword(e.target.value)}
                     disabled={savingQuizPassword}
+                    className="pr-10"
                   />
-                  <div className="relative md:w-1/3">
-                    <Input
-                      placeholder="Password"
-                      type={showQuizPassword[0] ? "text" : "password"}
-                      value={newQuizPassword}
-                      onChange={e => setNewQuizPassword(e.target.value)}
-                      disabled={savingQuizPassword}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
-                      onClick={() => setShowQuizPassword(s => ({ ...s, 0: !s[0] }))}
-                      aria-label={showQuizPassword[0] ? "Hide password" : "Show password"}
-                    >
-                      {showQuizPassword[0] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  <Button onClick={saveQuizPassword} disabled={savingQuizPassword} className="md:w-1/6">
-                    {savingQuizPassword ? "Saving..." : "Add"}
-                  </Button>
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                    onClick={() => setShowQuizPassword(s => ({ ...s, 0: !s[0] }))}
+                    aria-label={showQuizPassword[0] ? "Hide password" : "Show password"}
+                  >
+                    {showQuizPassword[0] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
-                {/* List all quiz passwords */}
-                {loadingQuizPasswords ? (
-                  <div className="text-muted-foreground py-4">Loading...</div>
-                ) : quizPasswords.length === 0 ? (
-                  <div className="text-muted-foreground py-4">No quiz passwords set</div>
-                ) : (
-                  <div className="space-y-2">
-                    {quizPasswords.map(qp => (
-                      <div key={qp.id} className="flex items-center gap-2 border rounded px-3 py-2">
-                        {editingQuizId === qp.id ? (
-                          <>
+                <Button onClick={saveQuizPassword} disabled={savingQuizPassword} className="md:w-1/6">
+                  {savingQuizPassword ? "Saving..." : "Add"}
+                </Button>
+              </div>
+              {/* List all quiz passwords */}
+              {loadingQuizPasswords ? (
+                <div className="text-muted-foreground py-4">Loading...</div>
+              ) : quizPasswords.length === 0 ? (
+                <div className="text-muted-foreground py-4">No quiz passwords set</div>
+              ) : (
+                <div className="space-y-2">
+                  {quizPasswords.map(qp => (
+                    <div key={qp.id} className="flex items-center gap-2 border rounded px-3 py-2">
+                      {editingQuizId === qp.id ? (
+                        <>
+                          <Input
+                            value={editingQuizName}
+                            onChange={e => setEditingQuizName(e.target.value)}
+                            className="w-1/3"
+                          />
+                          <div className="relative w-1/3">
                             <Input
-                              value={editingQuizName}
-                              onChange={e => setEditingQuizName(e.target.value)}
-                              className="w-1/3"
+                              type={showQuizPassword[qp.id] ? "text" : "password"}
+                              value={editingQuizPassword}
+                              onChange={e => setEditingQuizPassword(e.target.value)}
+                              className="pr-10"
                             />
-                            <div className="relative w-1/3">
-                              <Input
-                                type={showQuizPassword[qp.id] ? "text" : "password"}
-                                value={editingQuizPassword}
-                                onChange={e => setEditingQuizPassword(e.target.value)}
-                                className="pr-10"
-                              />
-                              <button
-                                type="button"
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
-                                onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
-                                aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
-                              >
-                                {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                              </button>
-                            </div>
-                            <Button size="sm" onClick={saveQuizPassword} className="mr-2">Save</Button>
-                            <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); }}>Cancel</Button>
-                          </>
-                        ) : (
-                          <>
-                            <span className="w-1/3 font-semibold">{qp.quiz_name}</span>
-                            <div className="relative w-1/3">
-                              <Input
-                                type={showQuizPassword[qp.id] ? "text" : "password"}
-                                value={qp.password}
-                                readOnly
-                                className="pr-10 bg-muted"
-                              />
-                              <button
-                                type="button"
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
-                                onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
-                                aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
-                              >
-                                {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                              </button>
-                            </div>
-                            <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); }}>Edit</Button>
-                            <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)} disabled={deletingQuizPasswordId === qp.id}>
-                              {deletingQuizPasswordId === qp.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                              Delete
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                              onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
+                              aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
+                            >
+                              {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                          <Button size="sm" onClick={saveQuizPassword} className="mr-2">Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); }}>Cancel</Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="w-1/3 font-semibold">{qp.quiz_name}</span>
+
+                          {/* per-quiz mode toggles */}
+                          <div className="flex items-center gap-2 w-1/6">
+                            <Button
+                              size="sm"
+                              variant={qp.is_test ? "default" : "outline"}
+                              onClick={() => toggleQuizMode(qp.id, 'is_test', !qp.is_test)}
+                              disabled={togglingQuizModeId === qp.id && togglingQuizModeField === 'is_test'}
+                              aria-pressed={!!qp.is_test}
+                            >
+                              {togglingQuizModeId === qp.id && togglingQuizModeField === 'is_test' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                              Test
                             </Button>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+
+                            <Button
+                              size="sm"
+                              variant={qp.is_quiz ? "default" : "outline"}
+                              onClick={() => toggleQuizMode(qp.id, 'is_quiz', !qp.is_quiz)}
+                              disabled={togglingQuizModeId === qp.id && togglingQuizModeField === 'is_quiz'}
+                              aria-pressed={!!qp.is_quiz}
+                            >
+                              {togglingQuizModeId === qp.id && togglingQuizModeField === 'is_quiz' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                              Quiz
+                            </Button>
+                          </div>
+
+                          <div className="relative w-1/3">
+                            <Input
+                              type={showQuizPassword[qp.id] ? "text" : "password"}
+                              value={qp.password}
+                              readOnly
+                              className="pr-10 bg-muted"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                              onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
+                              aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
+                            >
+                              {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); }}>Edit</Button>
+                          <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)} disabled={deletingQuizPasswordId === qp.id}>
+                            {deletingQuizPasswordId === qp.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                            Delete
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {isAdminView && (
           <>
@@ -1190,7 +1268,7 @@ const AdminQuizPage: React.FC = () => {
 
                       {/* School vs Duration Chart */}
                       <div className="bg-muted/40 rounded-lg p-4 border border-muted-foreground/10">
-                        <h3 className="text-sm font-semibold mb-4 text-foreground">School vs Duration (seconds)</h3>
+                        <h3 className="text-sm font-semibold mb-4 text-foreground">School vs Duration (minutes)</h3>
                         {loadingDurations ? (
                           <div className="h-80 flex items-center justify-center text-sm text-muted-foreground">
                             Loading durations...
@@ -1206,9 +1284,9 @@ const AdminQuizPage: React.FC = () => {
                                 height={80}
                                 tick={{ fontSize: 12, fill: '#888' }}
                               />
-                              <YAxis tick={{ fontSize: 12, fill: '#888' }} />
-                              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} />
-                              <Bar dataKey="duration" fill="#10b981" radius={[8, 8, 0, 0]}>
+                              <YAxis tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(v) => `${v}`} />
+                              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} formatter={(value: any) => (value == null ? '—' : `${value} min`)} />
+                              <Bar dataKey="durationMin" fill="#10b981" radius={[8, 8, 0, 0]}>
                                 <LabelList dataKey="durationLabel" position="top" fill="#fff" fontSize={12} />
                               </Bar>
                             </BarChart>
@@ -1244,7 +1322,7 @@ const AdminQuizPage: React.FC = () => {
                               <td className="px-4 py-3 font-medium">{result.school_name}</td>
                               <td className="px-4 py-3 text-right font-semibold text-primary">{result.final_score.toFixed(1)}</td>
                               <td className="px-4 py-3 text-center text-muted-foreground">
-                                {formatSeconds(schoolDurations[result.school_name])}
+                                {formatSeconds(schoolDurations[(result.school_name || '').trim()])}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <Button

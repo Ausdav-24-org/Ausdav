@@ -119,6 +119,7 @@ const QuizTamilMCQ: React.FC = () => {
   const [checkingAttempt, setCheckingAttempt] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(60);
+  const [quizDurationSeconds, setQuizDurationSeconds] = useState(60); // dynamic quiz duration (seconds)
   const [canViewReview, setCanViewReview] = useState(false);
   const [restoringSession, setRestoringSession] = useState(false);
 
@@ -267,12 +268,12 @@ const QuizTamilMCQ: React.FC = () => {
   // Per-question bonus calculation used by progress and color logic
   const _takenForBonus =
     answers[currentIndex]?.secondsTaken ??
-    (quizStartTime ? Math.floor((Date.now() - quizStartTime) / 1000) : 60 - timeRemaining);
-  const _bonusRemaining = clamp(60 - (_takenForBonus ?? 0), 0, 60);
-  const bonusProgressPct = Math.round((_bonusRemaining / 60) * 100);
-  const bonusTextColorClass = _bonusRemaining <= 10 ? "text-red-500" : _bonusRemaining <= 30 ? "text-yellow-600" : "text-green-600";
+    (quizStartTime ? Math.floor((Date.now() - quizStartTime) / 1000) : quizDurationSeconds - timeRemaining);
+  const _bonusRemaining = clamp(quizDurationSeconds - (_takenForBonus ?? 0), 0, quizDurationSeconds);
+  const bonusProgressPct = Math.round((_bonusRemaining / Math.max(1, quizDurationSeconds)) * 100);
+  const bonusTextColorClass = _bonusRemaining <= 10 ? "text-red-500" : _bonusRemaining <= Math.max(10, Math.floor(quizDurationSeconds / 3)) ? "text-yellow-600" : "text-green-600";
   // Battery-style: filled portion = colored (green/yellow/red), empty track = white
-  const bonusIndicatorClassName = _bonusRemaining <= 10 ? "bg-red-500" : _bonusRemaining <= 30 ? "bg-yellow-400" : "bg-green-500";
+  const bonusIndicatorClassName = _bonusRemaining <= 10 ? "bg-red-500" : _bonusRemaining <= Math.max(10, Math.floor(quizDurationSeconds / 3)) ? "bg-yellow-400" : "bg-green-500";
 
   const isLast = currentIndex === totalQuestions - 1; 
   const hasQuestions = totalQuestions > 0;
@@ -322,7 +323,7 @@ const QuizTamilMCQ: React.FC = () => {
       setUrl(targetIndex + 1, schoolName, true);
 
       const elapsed = Math.floor((Date.now() - savedSession.startTime) / 1000);
-      const remainingTime = Math.max(0, 60 - elapsed);
+      const remainingTime = Math.max(0, quizDurationSeconds - elapsed);
 
       if (elapsed < 120) {
         setRestoringSession(true);
@@ -371,7 +372,7 @@ const QuizTamilMCQ: React.FC = () => {
 
     const timerInterval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - quizStartTime) / 1000);
-      const remaining = Math.max(0, 60 - elapsed);
+      const remaining = Math.max(0, quizDurationSeconds - elapsed);
       setTimeRemaining(remaining);
 
       // save every second so refresh returns to same URL question
@@ -386,7 +387,7 @@ const QuizTamilMCQ: React.FC = () => {
         toast.info(language === "ta" ? "நேரம் முடிந்தது!" : "Time's up!");
       }
 
-      if (elapsed >= 60) setCanViewReview(true);
+      if (elapsed >= quizDurationSeconds) setCanViewReview(true);
     }, 1000);
 
     return () => clearInterval(timerInterval);
@@ -411,7 +412,7 @@ const QuizTamilMCQ: React.FC = () => {
     if (isFinished) return;
     const elapsed = quizStartTime
       ? Math.floor((Date.now() - quizStartTime) / 1000)
-      : Math.max(0, 60 - (timeRemaining ?? 0));
+      : Math.max(0, quizDurationSeconds - (timeRemaining ?? 0));
 
     setAnswers((prev) => {
       const next = [...prev];
@@ -453,13 +454,13 @@ const QuizTamilMCQ: React.FC = () => {
         // Bonus: if answered within 60s, add (60 - seconds taken)
         // For now, estimate seconds taken as (60 - timeRemaining) if available
         // If you track answer time per question, use that instead
-        let secondsTaken = 60;
+        let secondsTaken = quizDurationSeconds;
         if (answers[idx]?.secondsTaken != null) {
           secondsTaken = answers[idx].secondsTaken;
         } else if (typeof timeRemaining === "number") {
-          secondsTaken = 60 - timeRemaining;
+          secondsTaken = quizDurationSeconds - timeRemaining;
         }
-        let bonus = 60 - secondsTaken;
+        let bonus = quizDurationSeconds - secondsTaken;
         if (bonus < 0) bonus = 0;
         score += bonus;
       } else {
@@ -513,6 +514,7 @@ const QuizTamilMCQ: React.FC = () => {
     setQuizStarted(false);
     setQuizStartTime(null);
     setTimeRemaining(60);
+    setQuizDurationSeconds(60);
     setCanViewReview(false);
     setSelectedQuizNo(null);
 
@@ -537,7 +539,7 @@ const QuizTamilMCQ: React.FC = () => {
       // Check password in quiz_passwords table
       const { data: passwordData, error: passwordError } = await supabase
         .from("quiz_passwords" as any)
-        .select("id, quiz_name, password")
+        .select("id, quiz_name, password, duration_minutes")
         .eq("password", quizPassword.trim())
         .maybeSingle();
       if (
@@ -593,7 +595,11 @@ const QuizTamilMCQ: React.FC = () => {
       setShowSchoolDialog(false);
       setShowSchoolInput(false);
       setQuizStartTime(Date.now());
-      setTimeRemaining(60);
+      // Use duration from quiz_passwords if present (minutes -> seconds), otherwise fallback to 60s
+      const durationMinutes = (passwordData as any).duration_minutes;
+      const initialSeconds = (typeof durationMinutes === 'number' && durationMinutes > 0) ? durationMinutes * 60 : 60;
+      setQuizDurationSeconds(initialSeconds);
+      setTimeRemaining(initialSeconds);
       setCanViewReview(false);
       setCurrentIndex(0);
       setAnswers(
@@ -705,7 +711,7 @@ const QuizTamilMCQ: React.FC = () => {
         answersData[columnName] = ans.selectedOptionId ?? null; // 'a'|'b'|'c'|'d'|null
 
         const seconds = typeof ans.secondsTaken === "number" ? ans.secondsTaken : null;
-        const bonus = seconds === null ? null : Math.max(0, 60 - seconds);
+        const bonus = seconds === null ? null : Math.max(0, quizDurationSeconds - seconds);
         answersMeta[columnName] = { secondsTaken: seconds, bonus };
       });
 
