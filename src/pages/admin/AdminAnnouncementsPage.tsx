@@ -232,12 +232,14 @@ export default function AdminAnnouncementsPage() {
       if (editingId) {
         const { error } = await (supabase as any)
           .from('announcements')
-          .update(payload)
-          .eq('announcement_id', editingId);
+          .update(payload as Partial<Announcement>)
+          .eq(announcementPk, editingId);
         if (error) throw error;
         toast.success('Announcement updated');
       } else {
-        const { error } = await supabase.from('announcements').insert(payload);
+        const { error } = await supabase
+          .from('announcements')
+          .insert(payload as any);
         if (error) throw error;
         toast.success('Announcement created');
       }
@@ -415,14 +417,6 @@ export default function AdminAnnouncementsPage() {
                           onClick={() => openEditDialog(announcement)}
                         >
                           <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-400 hover:text-red-300"
-                          onClick={() => handleDelete(announcement.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>

@@ -689,18 +689,28 @@ const QuizTamilMCQ: React.FC = () => {
       }
 
       // Save individual answers to school_quiz_answers table
-      // Map answers array to q1, q2, q3... columns
+      // Map answers array to q1, q2, q3... columns + persist per-question seconds/bonus in answers_meta
       const answersData: any = {
         school_name: schoolName,
         language: language,
-        quiz_password_id: quizPasswordId, // Add quiz_password_id to answers
+        quiz_password_id: quizPasswordId,
       };
+
+      // Build answers_meta (secondsTaken + bonus) for each question
+      const answersMeta: Record<string, { secondsTaken?: number | null; bonus?: number | null }> = {};
 
       // Map each answer to its corresponding question column (q1, q2, q3, etc.)
       answers.forEach((ans, index) => {
         const columnName = `q${index + 1}`;
-        answersData[columnName] = ans.selectedOptionId; // Will be 'a', 'b', 'c', 'd', or null
+        answersData[columnName] = ans.selectedOptionId ?? null; // 'a'|'b'|'c'|'d'|null
+
+        const seconds = typeof ans.secondsTaken === "number" ? ans.secondsTaken : null;
+        const bonus = seconds === null ? null : Math.max(0, 60 - seconds);
+        answersMeta[columnName] = { secondsTaken: seconds, bonus };
       });
+
+      // Attach answers_meta so admin/details can show per-question bonus later
+      answersData.answers_meta = answersMeta;
 
       console.log("Saving answers data:", answersData);
 
