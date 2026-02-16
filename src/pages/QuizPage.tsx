@@ -20,6 +20,7 @@ import { useQuizQuestions } from "@/hooks/useQuizQuestions";
 import { supabase } from "@/integrations/supabase/client";
 import { renderCyanTail } from "@/utils/text";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
+import PartyConfetti from "@/components/PartyConfetti";
 
 // ✅ IMPORTANT: add router imports
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -112,6 +113,8 @@ const QuizTamilMCQ: React.FC = () => {
   const [schoolName, setSchoolName] = useState(urlSchool || "");
   const [quizPassword, setQuizPassword] = useState("");
   const [quizPasswordId, setQuizPasswordId] = useState<number | null>(null); // Store quizPasswordId
+  const [passwordIsTest, setPasswordIsTest] = useState(false);
+  const [passwordIsQuiz, setPasswordIsQuiz] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [incorrectPassword, setIncorrectPassword] = useState(false);
   const [selectedQuizNo, setSelectedQuizNo] = useState<number | null>(null);
@@ -515,6 +518,8 @@ const QuizTamilMCQ: React.FC = () => {
     setQuizStartTime(null);
     setTimeRemaining(60);
     setQuizDurationSeconds(60);
+    setPasswordIsTest(false);
+    setPasswordIsQuiz(false);
     setCanViewReview(false);
     setSelectedQuizNo(null);
 
@@ -539,7 +544,7 @@ const QuizTamilMCQ: React.FC = () => {
       // Check password in quiz_passwords table
       const { data: passwordData, error: passwordError } = await supabase
         .from("quiz_passwords" as any)
-        .select("id, quiz_name, password, duration_minutes")
+        .select("id, quiz_name, password, duration_minutes, is_test, is_quiz")
         .eq("password", quizPassword.trim())
         .maybeSingle();
       if (
@@ -558,6 +563,8 @@ const QuizTamilMCQ: React.FC = () => {
       // Fetch questions for quiz_password_id (matching AdminQuizPage logic)
       const passwordId = (passwordData as any).id;
       setQuizPasswordId(passwordId); // Store in state
+      setPasswordIsTest(!!(passwordData as any).is_test);
+      setPasswordIsQuiz(!!(passwordData as any).is_quiz);
       const { data: questionsData, error: questionsError } = await supabase
         .from("quiz_mcq" as any)
         .select("*")
@@ -1327,6 +1334,45 @@ const QuizTamilMCQ: React.FC = () => {
                         </CardContent>
                       </Card>
                     </motion.div>
+                  ) : passwordIsQuiz && !passwordIsTest ? (
+                    <div className="relative">
+                      <PartyConfetti active={true} count={40} />
+                      <Card className="border-primary/20 shadow-xl mb-8 relative overflow-hidden">
+                        <Watermark />
+                        <CardContent className="pt-12 pb-12 text-center">
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.6, ease: "easeOut" }}
+                          >
+                            <div className="text-6xl mb-6">🎉</div>
+                            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-cyan-400 to-primary/60 bg-clip-text text-transparent mb-4">
+                              {language === "ta" ? "வாழ்த்துக்கள்!" : "Congratulations!"}
+                            </h2>
+                            <p className="text-lg md:text-xl text-foreground/80 max-w-md mx-auto mb-2">
+                              {language === "ta"
+                                ? "நீங்கள் போட்டியை வெற்றிகரமாக முடித்தீர்கள்"
+                                : "You Successfully Finished the Competition"}
+                            </p>
+                            <p className="text-base text-foreground/60 max-w-sm mx-auto">
+                              {language === "ta"
+                                ? "முடிவுகளுக்காக காத்திருங்கள்"
+                                : "Wait for the Results"}
+                            </p>
+                          </motion.div>
+
+                          <div className="mt-8">
+                            <Button
+                              onClick={() => navigate('/', { replace: true })}
+                              variant="outline"
+                              className="px-6"
+                            >
+                              {language === "ta" ? "முகப்புக்கு" : "Back to Home"}
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
                   ) : (
                     <Card className="border-primary/20 shadow-xl mb-8 relative overflow-hidden">
                       <Watermark />

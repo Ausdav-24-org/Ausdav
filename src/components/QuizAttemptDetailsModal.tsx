@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartConfig } from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -173,6 +175,20 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
     ).length,
   };
 
+  // Build per-question timing data (from answers_meta.qN.secondsTaken)
+  const answersMeta = (answers as any)?.answers_meta || {};
+  const chartData = questions.map((q, idx) => {
+    const key = `q${idx + 1}`;
+    const sec = typeof answersMeta[key]?.secondsTaken === "number" ? answersMeta[key].secondsTaken : null;
+    return { question: `Q${idx + 1}`, seconds: sec ?? 0 };
+  });
+
+  const hasTiming = chartData.some((d) => d.seconds > 0);
+
+  const timeChartConfig: ChartConfig = {
+    time: { label: "Seconds", color: "#F59E0B" },
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -246,7 +262,25 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
                   <p className="text-muted-foreground">No questions available</p>
                 </div>
               ) : (
-                <div className="space-y-6">
+                <>
+                  {hasTiming ? (
+                    <div className="mb-4">
+                      <ChartContainer config={timeChartConfig} className="h-[160px]">
+                        <LineChart data={chartData} margin={{ top: 8, right: 20, left: 0, bottom: 20 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="question" />
+                          <YAxis allowDecimals={false} tickFormatter={(v) => `${v}s`} />
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <Line type="monotone" dataKey="seconds" stroke="var(--color-time)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ChartContainer>
+                      <div className="text-xs text-muted-foreground">Time (seconds) per question for this attempt</div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground mb-4">No timing data available for this attempt</div>
+                  )}
+
+                  <div className="space-y-6">
                   {questions.map((question, index) => {
                     const columnName = `q${index + 1}`;
                     const studentAnswer = answers[columnName] || null;
@@ -429,6 +463,7 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
                     );
                   })}
                 </div>
+                </>
               )}
             </div>
 

@@ -429,8 +429,22 @@ const AdminQuizPage: React.FC = () => {
       // allow clearing duration (set to null)
       try {
         setTogglingDurationId(id);
-        const { error } = await supabase.from('quiz_passwords' as any).update({ duration_minutes: null }).eq('id', id);
-        if (error) throw error;
+
+        const res: any = await supabase
+          .from('quiz_passwords' as any)
+          .update({ duration_minutes: null })
+          .eq('id', id)
+          .select('id, duration_minutes');
+        const updatedRows = res.data as any;
+
+        if (res.error) throw res.error;
+
+        // optimistic UI update from returned row (if any)
+        const newVal = updatedRows && updatedRows[0] && updatedRows[0].duration_minutes != null ? String(updatedRows[0].duration_minutes) : "";
+        setDurationInputs(d => ({ ...d, [id]: newVal }));
+        setQuizPasswords(prev => prev.map(p => (p.id === id ? { ...p, duration_minutes: updatedRows && updatedRows[0] ? updatedRows[0].duration_minutes : null } : p)));
+
+        console.debug('[setQuizDuration] cleared duration', { id, updatedRows });
         toast.success('Duration cleared');
         fetchQuizPasswords();
       } catch (err) {
@@ -450,8 +464,22 @@ const AdminQuizPage: React.FC = () => {
 
     try {
       setTogglingDurationId(id);
-      const { error } = await supabase.from('quiz_passwords' as any).update({ duration_minutes: Math.floor(val) }).eq('id', id);
-      if (error) throw error;
+
+      const res: any = await supabase
+        .from('quiz_passwords' as any)
+        .update({ duration_minutes: Math.floor(val) })
+        .eq('id', id)
+        .select('id, duration_minutes');
+      const updatedRows = res.data as any;
+
+      if (res.error) throw res.error;
+
+      // update local state optimistically from returned row
+      const newVal = updatedRows && updatedRows[0] && updatedRows[0].duration_minutes != null ? String(updatedRows[0].duration_minutes) : "";
+      setDurationInputs(d => ({ ...d, [id]: newVal }));
+      setQuizPasswords(prev => prev.map(p => (p.id === id ? { ...p, duration_minutes: updatedRows && updatedRows[0] ? updatedRows[0].duration_minutes : null } : p)));
+
+      console.debug('[setQuizDuration] saved duration', { id, val: Math.floor(val), updatedRows });
       toast.success('Duration saved');
       fetchQuizPasswords();
     } catch (err) {

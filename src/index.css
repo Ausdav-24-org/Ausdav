@@ -366,6 +366,42 @@
   }
 }
 
+/* Confetti pieces used for celebration on quiz completion */
+.confetti-piece {
+  position: absolute;
+  top: -10%;
+  border-radius: 2px;
+  opacity: 0.95;
+  transform-origin: center;
+  will-change: transform, opacity, top;
+  animation-name: confetti-fall, confetti-tilt, confetti-fade;
+  animation-timing-function: linear, ease-in-out, ease-in;
+  animation-iteration-count: 1, infinite, 1;
+  animation-fill-mode: forwards;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotateZ(0deg); top: -8%; }
+  100% { transform: translateY(110vh) rotateZ(600deg); top: 110%; }
+}
+
+@keyframes confetti-tilt {
+  0% { transform: translateX(0) rotate(0deg); }
+  50% { transform: translateX(8px) rotate(120deg); }
+  100% { transform: translateX(-6px) rotate(240deg); }
+}
+
+@keyframes confetti-fade {
+  0% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0.0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece { animation: none !important; opacity: 1 !important; }
+}
+
+
 /* Rotating gradient border (card) - added for QuizPage */
 @property --angle {
   syntax: '<angle>';
