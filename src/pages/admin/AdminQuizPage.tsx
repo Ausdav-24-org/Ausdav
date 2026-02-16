@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Plus, Minus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload, Loader2 } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LabelList } from "recharts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
@@ -112,6 +113,19 @@ const AdminQuizPage: React.FC = () => {
     setScoreRange([Math.min(minVal, maxVal), Math.max(minVal, maxVal)]);
   }, [pendingScoreRange]);
 
+  // View mode (default = table). Table mode shows charts + table; Card mode shows the existing cards.
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  // Map of school_name -> total duration in seconds (computed from answers_meta)
+  const [schoolDurations, setSchoolDurations] = useState<Record<string, number | null>>({});
+  const [loadingDurations, setLoadingDurations] = useState(false);
+
+  const formatSeconds = (s: number | null | undefined) => {
+    if (s == null) return '—';
+    const minutes = Math.floor(s / 60);
+    const seconds = Math.floor(s % 60);
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  };
+
   const [loading, setLoading] = useState(true);
   const [loadingResults, setLoadingResults] = useState(true);
   const [isQuizEnabled, setIsQuizEnabled] = useState(false);
@@ -120,7 +134,10 @@ const AdminQuizPage: React.FC = () => {
   const [deletingQuizPasswordId, setDeletingQuizPasswordId] = useState<number | null>(null);
   const [deletingAllResults, setDeletingAllResults] = useState(false);
   const [isMemberUploadEnabled, setIsMemberUploadEnabled] = useState(false);
-  const [quizPasswords, setQuizPasswords] = useState<{ id: number; quiz_name: string; password: string }[]>([]);
+  // per-password mode toggling (Test / Quiz)
+  const [togglingQuizModeId, setTogglingQuizModeId] = useState<number | null>(null);
+  const [togglingQuizModeField, setTogglingQuizModeField] = useState<'is_test' | 'is_quiz' | null>(null);
+  const [quizPasswords, setQuizPasswords] = useState<{ id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean }[]>([]);
   const [loadingQuizPasswords, setLoadingQuizPasswords] = useState(false);
   const [showQuizPassword, setShowQuizPassword] = useState<{ [id: number]: boolean }>({});
   const [newQuizName, setNewQuizName] = useState("");
@@ -182,6 +199,69 @@ const AdminQuizPage: React.FC = () => {
     };
   }, [isAdminView]);
 
+  // Fetch answers_meta for visible schools and compute total duration (seconds)
+  useEffect(() => {
+    if (!filteredSortedResults || filteredSortedResults.length === 0) {
+      setSchoolDurations({});
+      return;
+    }
+
+    let mounted = true;
+    const loadDurations = async () => {
+      setLoadingDurations(true);
+      try {
+        const names = Array.from(new Set(filteredSortedResults.map(r => r.school_name).filter(Boolean)));
+        if (names.length === 0) {
+          if (mounted) setSchoolDurations({});
+          return;
+        }
+
+        let query = supabase
+          .from("school_quiz_answers" as any)
+          .select("school_name, answers_meta, created_at, quiz_password_id")
+          .in("school_name", names)
+          .order("created_at", { ascending: false });
+
+        // apply quiz filter if set
+        if (resultsQuizFilter !== 'all') {
+          query = query.eq('quiz_password_id', Number(resultsQuizFilter));
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const map: Record<string, number | null> = {};
+        names.forEach(n => (map[n] = null));
+
+        const seen = new Set<string>();
+        (data || []).forEach((row: any) => {
+          const name = row.school_name;
+          if (seen.has(name)) return; // only take the latest per school (data ordered desc)
+          seen.add(name);
+          const meta = row.answers_meta || {};
+          let totalSec = 0;
+          let found = false;
+          Object.values(meta).forEach((m: any) => {
+            if (m && typeof m.secondsTaken === 'number') {
+              totalSec += Number(m.secondsTaken || 0);
+              found = true;
+            }
+          });
+          map[name] = found ? totalSec : null;
+        });
+
+        if (mounted) setSchoolDurations(map);
+      } catch (err) {
+        console.error('Error fetching school durations:', err);
+      } finally {
+        if (mounted) setLoadingDurations(false);
+      }
+    };
+
+    loadDurations();
+    return () => { mounted = false; };
+  }, [filteredSortedResults, resultsQuizFilter]);
+
   const checkQuizEnabled = async () => {
     try {
       const { data, error } = await supabase
@@ -224,9 +304,9 @@ const AdminQuizPage: React.FC = () => {
       setLoadingQuizPasswords(true);
       const { data, error } = await supabase
         .from("quiz_passwords" as any)
-        .select("id, quiz_name, password");
+        .select("id, quiz_name, password, is_test, is_quiz");
       if (error) throw error;
-      setQuizPasswords((data || []) as unknown as { id: number; quiz_name: string; password: string }[]);
+      setQuizPasswords((data || []) as unknown as { id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean }[]);
     } catch (error) {
       console.error("Error fetching quiz passwords:", error);
       toast.error("Failed to load quiz passwords");
@@ -271,7 +351,7 @@ const AdminQuizPage: React.FC = () => {
         setSavingQuizPassword(true);
         const { error } = await supabase
           .from("quiz_passwords" as any)
-          .insert([{ quiz_name: newQuizName.trim(), password: newQuizPassword.trim() }]);
+          .insert([{ quiz_name: newQuizName.trim(), password: newQuizPassword.trim(), is_test: false, is_quiz: false }]);
         if (error) throw error;
         toast.success("Quiz password added");
         setNewQuizName("");
@@ -301,6 +381,31 @@ const AdminQuizPage: React.FC = () => {
       toast.error("Failed to delete");
     } finally {
       setDeletingQuizPasswordId(null);
+    }
+  };
+
+  // Toggle a quiz password's mode (Test / Quiz). Enforces mutual exclusivity when enabling.
+  const toggleQuizMode = async (id: number, field: 'is_test' | 'is_quiz', value: boolean) => {
+    if (togglingQuizModeId === id && togglingQuizModeField === field) return;
+    setTogglingQuizModeId(id);
+    setTogglingQuizModeField(field);
+    try {
+      const updates: any = { [field]: value };
+      if (value) {
+        // enable one mode and disable the other to keep modes mutually exclusive
+        if (field === 'is_test') updates.is_quiz = false;
+        if (field === 'is_quiz') updates.is_test = false;
+      }
+      const { error } = await supabase.from('quiz_passwords' as any).update(updates).eq('id', id);
+      if (error) throw error;
+      toast.success('Quiz mode updated');
+      fetchQuizPasswords();
+    } catch (err) {
+      console.error('Error updating quiz mode:', err);
+      toast.error('Failed to update quiz mode');
+    } finally {
+      setTogglingQuizModeId(null);
+      setTogglingQuizModeField(null);
     }
   }; 
 
@@ -665,6 +770,17 @@ const AdminQuizPage: React.FC = () => {
       </div>
     );
   }
+  // Chart data derived from filtered/sorted results
+  const chartDataScore = useMemo(() => {
+    return filteredSortedResults.map(r => ({ name: r.school_name, score: Number(r.final_score), id: r.id }));
+  }, [filteredSortedResults]);
+
+  const chartDataDuration = useMemo(() => {
+    return filteredSortedResults.map(r => {
+      const secs = schoolDurations[r.school_name] ?? null;
+      return { name: r.school_name, duration: secs ?? 0, durationLabel: secs == null ? '—' : formatSeconds(secs), id: r.id };
+    });
+  }, [filteredSortedResults, schoolDurations]);
 
   return (
     <>
@@ -824,62 +940,82 @@ const AdminQuizPage: React.FC = () => {
           )}
 
           {isAdminView && (
-            /* School Quiz Results */
-            <Card className="mb-6">
-              <CardHeader>
+          <>
+          {/* School Quiz Results */}
+          <Card className="mb-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
                 <CardTitle>School Quiz Results</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* Filters and Sorting Controls */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 px-2 py-3 bg-muted/40 rounded-lg border border-muted-foreground/10 shadow-sm">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <label className="font-semibold text-sm text-white mr-2">Score Range</label>
-                          <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
-                            <button
-                              type="button"
-                              aria-label="Decrease min score"
-                              className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                              onClick={() => setPendingScoreRange([Math.max(0, pendingScoreRange[0] - 50), pendingScoreRange[1]])}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={5000}
-                              step={50}
-                              value={pendingScoreRange[0]}
-                              onChange={e => setPendingScoreRange([Number(e.target.value), pendingScoreRange[1]])}
-                              className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
-                            />
-                            <button
-                              type="button"
-                              aria-label="Increase min score"
-                              className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                              onClick={() => setPendingScoreRange([Math.min(5000, pendingScoreRange[0] + 50), pendingScoreRange[1]])}
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <span className="mx-1 text-white">-</span>
-                          <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
-                            <button
-                              type="button"
-                              aria-label="Decrease max score"
-                              className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                              onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.max(0, pendingScoreRange[1] - 50)])}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={5000}
-                              step={50}
-                              value={pendingScoreRange[1]}
-                              onChange={e => setPendingScoreRange([pendingScoreRange[0], Number(e.target.value)])}
-                              className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
-                            />
+                {/* View Mode Toggle */}
+                <div className="flex gap-2">
+                  <Button
+                    variant={viewMode === 'table' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('table')}
+                    className="text-xs"
+                  >
+                    Table
+                  </Button>
+                  <Button
+                    variant={viewMode === 'card' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('card')}
+                    className="text-xs"
+                  >
+                    Cards
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Filters and Sorting Controls */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 px-2 py-3 bg-muted/40 rounded-lg border border-muted-foreground/10 shadow-sm">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="font-semibold text-sm text-white mr-2">Score Range</label>
+                        <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
+                          <button
+                            type="button"
+                            aria-label="Decrease min score"
+                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                            onClick={() => setPendingScoreRange([Math.max(0, pendingScoreRange[0] - 1), pendingScoreRange[1]])}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={5000}
+                            value={pendingScoreRange[0]}
+                            onChange={e => setPendingScoreRange([Number(e.target.value), pendingScoreRange[1]])}
+                            className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Increase min score"
+                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                            onClick={() => setPendingScoreRange([Math.min(5000, pendingScoreRange[0] + 1), pendingScoreRange[1]])}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <span className="mx-1 text-white">-</span>
+                        <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
+                          <button
+                            type="button"
+                            aria-label="Decrease max score"
+                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                            onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.max(0, pendingScoreRange[1] - 1)])}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={5000}
+                            value={pendingScoreRange[1]}
+                            onChange={e => setPendingScoreRange([pendingScoreRange[0], Number(e.target.value)])}
+                            className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
+                          />
                           <button
                             type="button"
                             aria-label="Increase max score"
@@ -924,102 +1060,230 @@ const AdminQuizPage: React.FC = () => {
                   </Select>
                 </div>
               </div>
-              {loadingResults ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Loading...
-                </div>
-              ) : filteredSortedResults.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No results found
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredSortedResults.map((result, index) => (
-                    <motion.div
-                      key={result.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                    >
-                      <Card 
-                        className={`relative overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-                          index === 0 ? 'border-yellow-500 border-2 shadow-lg' :
-                          index === 1 ? 'border-gray-400 border-2' :
-                          index === 2 ? 'border-orange-600 border-2' :
-                          'border-primary/20'
-                        }`}
-                        onClick={async () => {
-                          // Fetch quiz_password_id from school_quiz_answers for this school
-                          let quizPasswordId = 0;
-                          try {
-                            const { data, error } = await (supabase as any)
-                              .from("school_quiz_answers" as any)
-                              .select("quiz_password_id")
-                              .eq("school_name", result.school_name)
-                              .order("created_at", { ascending: false })
-                              .limit(1);
-                            if (data && data.length > 0) {
-                              quizPasswordId = data[0].quiz_password_id;
-                            }
-                          } catch (e) {
-                            // fallback: leave as 0
-                          }
-                          setSelectedQuizResult({ ...result, quiz_password_id: quizPasswordId });
-                          setShowDetailsModal(true);
-                        }}
-                      >
-                        <CardContent className="pt-6">
-                          {index < 3 && (
-                            <div className="absolute top-2 right-2">
-                              <div className={`text-2xl ${
-                                index === 0 ? '🥇' :
-                                index === 1 ? '🥈' :
-                                '🥉'
-                              }`}></div>
-                            </div>
-                          )}
-                          <div className="space-y-2">
-                            <h3 className="font-bold text-lg text-primary line-clamp-1">
-                              {result.school_name}
-                            </h3>
-                            <div className="text-3xl font-bold text-center my-4">
-                              {result.final_score.toFixed(1)}
-                            </div>
-                            <div className="space-y-1 text-sm text-muted-foreground">
-                              <div className="flex justify-between">
-                                <span>Correct:</span>
-                                <span className="font-semibold text-green-600">{result.correct_answers}</span>
+
+              {/* Card Mode */}
+              {viewMode === 'card' && (
+                <>
+                  {loadingResults ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Loading...
+                    </div>
+                  ) : filteredSortedResults.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No results found
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredSortedResults.map((result, index) => (
+                        <motion.div
+                          key={result.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <Card 
+                            className={`relative overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+                              index === 0 ? 'border-yellow-500 border-2 shadow-lg' :
+                              index === 1 ? 'border-gray-400 border-2' :
+                              index === 2 ? 'border-orange-600 border-2' :
+                              'border-primary/20'
+                            }`}
+                            onClick={async () => {
+                              let quizPasswordId = 0;
+                              try {
+                                const { data, error } = await (supabase as any)
+                                  .from("school_quiz_answers" as any)
+                                  .select("quiz_password_id")
+                                  .eq("school_name", result.school_name)
+                                  .order("created_at", { ascending: false })
+                                  .limit(1);
+                                if (data && data.length > 0) {
+                                  quizPasswordId = data[0].quiz_password_id;
+                                }
+                              } catch (e) {
+                                // fallback
+                              }
+                              setSelectedQuizResult({ ...result, quiz_password_id: quizPasswordId });
+                              setShowDetailsModal(true);
+                            }}
+                          >
+                            <CardContent className="pt-6">
+                              {index < 3 && (
+                                <div className="absolute top-2 right-2">
+                                  <div className={`text-2xl ${
+                                    index === 0 ? '🥇' :
+                                    index === 1 ? '🥈' :
+                                    '🥉'
+                                  }`}></div>
+                                </div>
+                              )}
+                              <div className="space-y-2">
+                                <h3 className="font-bold text-lg text-primary line-clamp-1">
+                                  {result.school_name}
+                                </h3>
+                                <div className="text-3xl font-bold text-center my-4">
+                                  {result.final_score.toFixed(1)}
+                                </div>
+                                <div className="space-y-1 text-sm text-muted-foreground">
+                                  <div className="flex justify-between">
+                                    <span>Correct:</span>
+                                    <span className="font-semibold text-green-600">{result.correct_answers}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Wrong:</span>
+                                    <span className="font-semibold text-red-600">{result.wrong_answers}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Not Answered:</span>
+                                    <span className="font-semibold text-yellow-600">{result.not_answered}</span>
+                                  </div>
+                                  <div className="flex justify-between border-t pt-1 mt-2">
+                                    <span>Total:</span>
+                                    <span className="font-semibold">{result.total_questions}</span>
+                                  </div>
+                                  <div className="text-xs text-center mt-2 text-muted-foreground">
+                                    {new Date(result.completed_at).toLocaleString()}
+                                  </div>
+                                </div>
+                                <div className="mt-4 pt-3 border-t">
+                                  <p className="text-xs text-center text-primary font-semibold cursor-pointer hover:underline">
+                                    Click to view details →
+                                  </p>
+                                </div>
                               </div>
-                              <div className="flex justify-between">
-                                <span>Wrong:</span>
-                                <span className="font-semibold text-red-600">{result.wrong_answers}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Not Answered:</span>
-                                <span className="font-semibold text-yellow-600">{result.not_answered}</span>
-                              </div>
-                              <div className="flex justify-between border-t pt-1 mt-2">
-                                <span>Total:</span>
-                                <span className="font-semibold">{result.total_questions}</span>
-                              </div>
-                              <div className="text-xs text-center mt-2 text-muted-foreground">
-                                {new Date(result.completed_at).toLocaleString()}
-                              </div>
-                            </div>
-                            <div className="mt-4 pt-3 border-t">
-                              <p className="text-xs text-center text-primary font-semibold cursor-pointer hover:underline">
-                                Click to view details →
-                              </p>
-                            </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Table Mode */}
+              {viewMode === 'table' && (
+                <>
+                  {/* Charts */}
+                  {!loadingResults && filteredSortedResults.length > 0 && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                      {/* School vs Score Chart */}
+                      <div className="bg-muted/40 rounded-lg p-4 border border-muted-foreground/10">
+                        <h3 className="text-sm font-semibold mb-4 text-foreground">School vs Score</h3>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={chartDataScore} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                            <XAxis 
+                              dataKey="name" 
+                              angle={-45} 
+                              textAnchor="end" 
+                              height={80}
+                              tick={{ fontSize: 12, fill: '#888' }}
+                            />
+                            <YAxis tick={{ fontSize: 12, fill: '#888' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} />
+                            <Bar dataKey="score" fill="#3b82f6" radius={[8, 8, 0, 0]}>
+                              <LabelList dataKey="score" position="top" fill="#fff" fontSize={12} />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* School vs Duration Chart */}
+                      <div className="bg-muted/40 rounded-lg p-4 border border-muted-foreground/10">
+                        <h3 className="text-sm font-semibold mb-4 text-foreground">School vs Duration (seconds)</h3>
+                        {loadingDurations ? (
+                          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground">
+                            Loading durations...
                           </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))}
-                </div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={chartDataDuration} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                              <XAxis 
+                                dataKey="name" 
+                                angle={-45} 
+                                textAnchor="end" 
+                                height={80}
+                                tick={{ fontSize: 12, fill: '#888' }}
+                              />
+                              <YAxis tick={{ fontSize: 12, fill: '#888' }} />
+                              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} />
+                              <Bar dataKey="duration" fill="#10b981" radius={[8, 8, 0, 0]}>
+                                <LabelList dataKey="durationLabel" position="top" fill="#fff" fontSize={12} />
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Table */}
+                  {loadingResults ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Loading...
+                    </div>
+                  ) : filteredSortedResults.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No results found
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/40 border-b border-muted-foreground/10">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-semibold">School Name</th>
+                            <th className="px-4 py-3 text-right font-semibold">Score</th>
+                            <th className="px-4 py-3 text-center font-semibold">Duration</th>
+                            <th className="px-4 py-3 text-center font-semibold">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredSortedResults.map((result, idx) => (
+                            <tr key={result.id} className="border-b border-muted-foreground/5 hover:bg-muted/20 transition-colors">
+                              <td className="px-4 py-3 font-medium">{result.school_name}</td>
+                              <td className="px-4 py-3 text-right font-semibold text-primary">{result.final_score.toFixed(1)}</td>
+                              <td className="px-4 py-3 text-center text-muted-foreground">
+                                {formatSeconds(schoolDurations[result.school_name])}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={async () => {
+                                    let quizPasswordId = 0;
+                                    try {
+                                      const { data, error } = await (supabase as any)
+                                        .from("school_quiz_answers" as any)
+                                        .select("quiz_password_id")
+                                        .eq("school_name", result.school_name)
+                                        .order("created_at", { ascending: false })
+                                        .limit(1);
+                                      if (data && data.length > 0) {
+                                        quizPasswordId = data[0].quiz_password_id;
+                                      }
+                                    } catch (e) {
+                                      // fallback
+                                    }
+                                    setSelectedQuizResult({ ...result, quiz_password_id: quizPasswordId });
+                                    setShowDetailsModal(true);
+                                  }}
+                                  className="text-xs"
+                                >
+                                  View Details
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
+          </>
           )}
 
           {/* Delete All School Results (admin only) */}
