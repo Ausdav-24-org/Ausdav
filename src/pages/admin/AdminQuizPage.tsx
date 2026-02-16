@@ -66,11 +66,21 @@ const AdminQuizPage: React.FC = () => {
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 4800]);
   const [pendingScoreRange, setPendingScoreRange] = useState<[number, number]>([0, 4800]);
   const [sortBy, setSortBy] = useState<'score-desc' | 'score-asc' | 'name-asc' | 'name-desc' | 'time-asc' | 'time-desc'>("score-desc");
+  const [resultsQuizFilter, setResultsQuizFilter] = useState<string>("all");
+  const [schoolQuizMap, setSchoolQuizMap] = useState<Record<string, number[]>>({});
     // Memoized filtered and sorted results
     const filteredSortedResults = useMemo(() => {
       let results = [...schoolResults];
       // Filter by score range
       results = results.filter(r => r.final_score >= scoreRange[0] && r.final_score <= scoreRange[1]);
+      // Filter by quiz (if a specific quiz is selected)
+      if (resultsQuizFilter !== 'all') {
+        const qid = Number(resultsQuizFilter);
+        results = results.filter(r => {
+          const arr = schoolQuizMap[(r.school_name || '').trim()] || [];
+          return arr.includes(qid);
+        });
+      }
       // Sort
       switch (sortBy) {
         case 'score-asc':
@@ -93,7 +103,7 @@ const AdminQuizPage: React.FC = () => {
           break;
       }
       return results;
-    }, [schoolResults, scoreRange, sortBy]);
+    }, [schoolResults, scoreRange, sortBy, resultsQuizFilter, schoolQuizMap]);
 
   // Auto-apply pending score inputs to the active filter and clamp to 0..5000
   useEffect(() => {
@@ -153,6 +163,8 @@ const AdminQuizPage: React.FC = () => {
     fetchQuestions();
     // Fetch school results only for admin/super_admin views
     if (isAdminView) fetchSchoolResults();
+    fetchSchoolResults();
+    fetchSchoolAnswersMap();
     checkQuizEnabled();
     fetchQuizPasswords();
 
@@ -310,11 +322,35 @@ const AdminQuizPage: React.FC = () => {
 
       if (error) throw error;
       setSchoolResults(data || []);
+      // refresh cached map of which quizzes each school has answers for
+      fetchSchoolAnswersMap().catch(err => console.error('fetchSchoolAnswersMap error:', err));
     } catch (error) {
       console.error("Error fetching school results:", error);
       toast.error("Failed to load results");
     } finally {
       setLoadingResults(false);
+    }
+  };
+
+  // Build a map: school_name -> array of quiz_password_id values (unique)
+  const fetchSchoolAnswersMap = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("school_quiz_answers" as any)
+        .select("school_name, quiz_password_id")
+        .not("quiz_password_id", "is", null);
+      if (error) throw error;
+      const map: Record<string, number[]> = {};
+      (data || []).forEach((row: any) => {
+        const name = (row.school_name || "").trim();
+        const qid = row.quiz_password_id;
+        if (!name || qid == null) return;
+        if (!map[name]) map[name] = [];
+        if (!map[name].includes(qid)) map[name].push(qid);
+      });
+      setSchoolQuizMap(map);
+    } catch (err) {
+      console.error("Error fetching school_quiz_answers map:", err);
     }
   };
 
@@ -364,6 +400,8 @@ const AdminQuizPage: React.FC = () => {
 
       // Immediately clear the UI
       setSchoolResults([]);
+      // answers were deleted too — refresh the map
+      fetchSchoolAnswersMap().catch(() => {});
 
       toast.success("All school results and answers deleted successfully");
 
@@ -852,6 +890,24 @@ const AdminQuizPage: React.FC = () => {
                           </button>
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-2">
+                        <label className="font-semibold text-sm text-white mr-2">Quiz</label>
+                        <div className="w-44">
+                          <Select value={resultsQuizFilter} onValueChange={v => setResultsQuizFilter(v)}>
+                            <SelectTrigger className="min-w-[160px] h-9 text-sm px-2 bg-[#232b3b] border-none text-white focus:ring-2 focus:ring-primary">
+                              <SelectValue placeholder="All Quizzes" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#232b3b] text-white">
+                              <SelectItem value="all">All Quizzes</SelectItem>
+                              {quizPasswords.map(qp => (
+                                <SelectItem key={qp.id} value={String(qp.id)}>{qp.quiz_name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
                 <div className="flex items-center gap-2 flex-wrap">
                   <Select value={sortBy} onValueChange={v => setSortBy(v as any)}>
                     <SelectTrigger className="min-w-[180px] h-9 text-sm px-2 bg-[#232b3b] border-none text-white focus:ring-2 focus:ring-primary">

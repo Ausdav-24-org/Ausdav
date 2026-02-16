@@ -37,6 +37,7 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<QuizAnswersData>({});
+  const [storedScore, setStoredScore] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen && schoolName && quizPasswordId) {
@@ -74,7 +75,29 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
       setQuestions((questionsData || []) as any);
 
       if (answersData && Array.isArray(answersData) && answersData.length > 0) {
-        setAnswers((answersData[0] as any) || {});
+        const answersRow = (answersData[0] as any) || {};
+        setAnswers(answersRow);
+
+        // Also fetch authoritative stored score from school_quiz_results (if available)
+        try {
+          const { data: resultRows, error: resultErr } = await supabase
+            .from("school_quiz_results" as any)
+            .select("final_score")
+            .eq("school_name", schoolName)
+            .eq("quiz_password_id", quizPasswordId)
+            .order("created_at", { ascending: false })
+            .limit(1) as any;
+
+          if (!resultErr && resultRows && resultRows.length > 0) {
+            setStoredScore(resultRows[0].final_score ?? null);
+          } else {
+            setStoredScore(null);
+          }
+        } catch (err) {
+          setStoredScore(null);
+        }
+      } else {
+        setStoredScore(null);
       }
     } catch (error) {
       console.error("Error fetching quiz data:", error);
@@ -108,6 +131,33 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
     }
 
     return { status: "wrong", label: "Wrong" };
+  };
+
+  // Compute total score from questions + answers_meta (matches QuizPage scoring)
+  const computeScoreFromAnswers = (qs: QuizQuestion[] = questions, ans: any = answers) => {
+    let total = 0;
+
+    qs.forEach((q, idx) => {
+      const col = `q${idx + 1}`;
+      const studentAnswer = ans[col] || null;
+      const meta = (ans && (ans.answers_meta || {}) && (ans.answers_meta[col] || null)) || null;
+
+      if (!studentAnswer) {
+        // not answered -> 0
+      } else if (studentAnswer === q.correct_answer) {
+        total += 100;
+        const bonus = typeof meta?.bonus === 'number'
+          ? meta.bonus
+          : typeof meta?.secondsTaken === 'number'
+          ? Math.max(0, 60 - meta.secondsTaken)
+          : 0;
+        total += bonus;
+      } else {
+        total -= 50;
+      }
+    });
+
+    return total;
   };
 
   const stats = {
@@ -160,7 +210,7 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-4 gap-4 p-6 bg-muted/30 border-b">
+            <div className="grid grid-cols-5 gap-4 p-6 bg-muted/30 border-b">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
                 <div className="text-xs text-muted-foreground">Total Questions</div>
@@ -176,6 +226,12 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
               <div className="text-center">
                 <div className="text-2xl font-bold text-yellow-600">{stats.notAnswered}</div>
                 <div className="text-xs text-muted-foreground">Not Answered</div>
+              </div>
+
+              {/* Score (use stored score if available, otherwise compute from answers_meta) */}
+              <div className="text-center">
+                <div className="text-2xl font-bold text-cyan-400">{(storedScore ?? computeScoreFromAnswers(questions, answers)).toFixed(1)}</div>
+                <div className="text-xs text-muted-foreground">Score</div>
               </div>
             </div>
 
@@ -325,6 +381,47 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
                                   </>
                                 )}
                               </span>
+
+                              {/* Per-question scoring breakdown (qstn point + bonus point) */}
+                              {(() => {
+                                // answers may include answers_meta (added in submissions)
+                                const answersMeta = (answers as any)?.answers_meta || {};
+                                const meta = answersMeta[columnName] || null;
+
+                                // Use same scoring as the quiz: +100 for correct, -50 for wrong, 0 for not answered
+                                const qstnPoint =
+                                  statusData.status === "correct" ? 100 : statusData.status === "wrong" ? -50 : 0;
+                                const bonusPoint = meta?.bonus ?? null; // null means not recorded
+
+                                return (
+                                  <div className="mt-3 flex gap-4 items-center">
+                                    <div className="text-sm text-muted-foreground">
+                                      Qstn point: 
+                                      <span
+                                        className={`ml-2 font-semibold ${
+                                          qstnPoint > 0 ? "text-green-600" : qstnPoint < 0 ? "text-red-600" : "text-foreground"
+                                        }`}
+                                      >
+                                        {qstnPoint > 0 ? `+${qstnPoint}` : qstnPoint}
+                                      </span>
+                                    </div>
+
+                                    <div className="text-sm text-muted-foreground">
+                                      Bonus point: 
+                                      <span className="ml-2 font-semibold text-yellow-500">
+                                        {bonusPoint != null ? `+${bonusPoint}` : "+0"}
+                                      </span>
+                                    </div>
+
+                                    {/* show secondsTaken if available */}
+                                    {meta?.secondsTaken != null && (
+                                      <div className="text-sm text-muted-foreground ml-auto">
+                                        <span className="text-xs">Time: {meta.secondsTaken}s</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </CardContent>
                         </Card>
