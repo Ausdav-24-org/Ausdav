@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Plus, Minus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload, Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Button } from "@/components/ui/button";
@@ -141,9 +143,16 @@ const AdminQuizPage: React.FC = () => {
     image_path: null,
   });
 
+  // Role / permission (members with 'quiz' grant get restricted view)
+  const { role, isAdmin, isSuperAdmin } = useAdminAuth();
+  const { hasPermission } = useAdminGrantedPermissions();
+  const isMemberWithQuizGrant = role === 'member' && hasPermission('quiz');
+  const isAdminView = isAdmin || isSuperAdmin;
+
   useEffect(() => {
     fetchQuestions();
-    fetchSchoolResults();
+    // Fetch school results only for admin/super_admin views
+    if (isAdminView) fetchSchoolResults();
     checkQuizEnabled();
     fetchQuizPasswords();
 
@@ -159,7 +168,7 @@ const AdminQuizPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [isAdminView]);
 
   const checkQuizEnabled = async () => {
     try {
@@ -606,6 +615,19 @@ const AdminQuizPage: React.FC = () => {
     return questions.filter((q) => (q.quiz_password_id ?? -1) === qId);
   }, [questions, quizFilter]);
 
+  // Block direct access for members without the grant
+  if (role === 'member' && !isMemberWithQuizGrant) {
+    return (
+      <div className="p-6">
+        <AdminHeader title="Quiz Management" breadcrumb="Admin / Quiz" />
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+          <p className="text-lg font-semibold">Access restricted</p>
+          <p className="text-sm text-muted-foreground mt-2">You don't have permission to view this page. Request the <strong>Quiz</strong> permission from a Super Admin.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <AdminHeader title="Quiz Management" breadcrumb="Admin / Quiz" />
@@ -620,204 +642,211 @@ const AdminQuizPage: React.FC = () => {
             Quiz Management
           </h1>
 
-          {/* Quiz Enable/Disable Toggle */}
-          <Card className="mb-6">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-lg">
-                    Quiz Availability
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Show/Hide Quiz in navigation bar
-                  </p>
-                </div>
-                <Button
-                  onClick={toggleQuizAvailability}
-                  variant={isQuizEnabled ? "default" : "outline"}
-                  className="gap-2"
-                  disabled={togglingQuiz}
-                >
-                  {togglingQuiz ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : isQuizEnabled ? (
-                    <Eye className="w-4 h-4" />
-                  ) : (
-                    <EyeOff className="w-4 h-4" />
-                  )}
-                  {togglingQuiz ? (isQuizEnabled ? 'Disabling...' : 'Enabling...') : isQuizEnabled ? "Enabled" : "Disabled"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Quiz Passwords - Dynamic List */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Quiz Passwords</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Add, edit, or delete quiz passwords for any quiz name
-              </p>
-            </CardHeader>
-            <CardContent>
-              {/* Add new quiz password */}
-              <div className="flex flex-col md:flex-row gap-2 mb-4">
-                <Input
-                  placeholder="Quiz name (e.g. Science 2026)"
-                  value={newQuizName}
-                  onChange={e => setNewQuizName(e.target.value)}
-                  className="md:w-1/3"
-                  disabled={savingQuizPassword}
-                />
-                <div className="relative md:w-1/3">
-                  <Input
-                    placeholder="Password"
-                    type={showQuizPassword[0] ? "text" : "password"}
-                    value={newQuizPassword}
-                    onChange={e => setNewQuizPassword(e.target.value)}
-                    disabled={savingQuizPassword}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
-                    onClick={() => setShowQuizPassword(s => ({ ...s, 0: !s[0] }))}
-                    aria-label={showQuizPassword[0] ? "Hide password" : "Show password"}
+          {/* Quiz Enable/Disable Toggle (admin only) */}
+          {isAdminView && (
+            <Card className="mb-6">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-lg">
+                      Quiz Availability
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Show/Hide Quiz in navigation bar
+                    </p>
+                  </div>
+                  <Button
+                    onClick={toggleQuizAvailability}
+                    variant={isQuizEnabled ? "default" : "outline"}
+                    className="gap-2"
+                    disabled={togglingQuiz}
                   >
-                    {showQuizPassword[0] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+                    {togglingQuiz ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : isQuizEnabled ? (
+                      <Eye className="w-4 h-4" />
+                    ) : (
+                      <EyeOff className="w-4 h-4" />
+                    )}
+                    {togglingQuiz ? (isQuizEnabled ? 'Disabling...' : 'Enabling...') : isQuizEnabled ? "Enabled" : "Disabled"}
+                  </Button>
                 </div>
-                <Button onClick={saveQuizPassword} disabled={savingQuizPassword} className="md:w-1/6">
-                  {savingQuizPassword ? "Saving..." : "Add"}
-                </Button>
-              </div>
-              {/* List all quiz passwords */}
-              {loadingQuizPasswords ? (
-                <div className="text-muted-foreground py-4">Loading...</div>
-              ) : quizPasswords.length === 0 ? (
-                <div className="text-muted-foreground py-4">No quiz passwords set</div>
-              ) : (
-                <div className="space-y-2">
-                  {quizPasswords.map(qp => (
-                    <div key={qp.id} className="flex items-center gap-2 border rounded px-3 py-2">
-                      {editingQuizId === qp.id ? (
-                        <>
-                          <Input
-                            value={editingQuizName}
-                            onChange={e => setEditingQuizName(e.target.value)}
-                            className="w-1/3"
-                          />
-                          <div className="relative w-1/3">
-                            <Input
-                              type={showQuizPassword[qp.id] ? "text" : "password"}
-                              value={editingQuizPassword}
-                              onChange={e => setEditingQuizPassword(e.target.value)}
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
-                              onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
-                              aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
-                            >
-                              {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
-                          </div>
-                          <Button size="sm" onClick={saveQuizPassword} className="mr-2">Save</Button>
-                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); }}>Cancel</Button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="w-1/3 font-semibold">{qp.quiz_name}</span>
-                          <div className="relative w-1/3">
-                            <Input
-                              type={showQuizPassword[qp.id] ? "text" : "password"}
-                              value={qp.password}
-                              readOnly
-                              className="pr-10 bg-muted"
-                            />
-                            <button
-                              type="button"
-                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
-                              onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
-                              aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
-                            >
-                              {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); }}>Edit</Button>
-                          <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)} disabled={deletingQuizPasswordId === qp.id}>
-                            {deletingQuizPasswordId === qp.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                            Delete
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* School Quiz Results */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>School Quiz Results</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Filters and Sorting Controls */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 px-2 py-3 bg-muted/40 rounded-lg border border-muted-foreground/10 shadow-sm">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <label className="font-semibold text-sm text-white mr-2">Score Range</label>
-                        <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
-                          <button
-                            type="button"
-                            aria-label="Decrease min score"
-                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                            onClick={() => setPendingScoreRange([Math.max(0, pendingScoreRange[0] - 1), pendingScoreRange[1]])}
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={5000}
-                            value={pendingScoreRange[0]}
-                            onChange={e => setPendingScoreRange([Number(e.target.value), pendingScoreRange[1]])}
-                            className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
-                          />
-                          <button
-                            type="button"
-                            aria-label="Increase min score"
-                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                            onClick={() => setPendingScoreRange([Math.min(5000, pendingScoreRange[0] + 1), pendingScoreRange[1]])}
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <span className="mx-1 text-white">-</span>
-                        <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
-                          <button
-                            type="button"
-                            aria-label="Decrease max score"
-                            className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                            onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.max(0, pendingScoreRange[1] - 1)])}
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={5000}
-                            value={pendingScoreRange[1]}
-                            onChange={e => setPendingScoreRange([pendingScoreRange[0], Number(e.target.value)])}
-                            className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
-                          />
+          {/* Quiz Passwords - Dynamic List (admin only) */}
+          {isAdminView && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Quiz Passwords</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Add, edit, or delete quiz passwords for any quiz name
+                </p>
+              </CardHeader>
+              <CardContent>
+                {/* Add new quiz password */}
+                <div className="flex flex-col md:flex-row gap-2 mb-4">
+                  <Input
+                    placeholder="Quiz name (e.g. Science 2026)"
+                    value={newQuizName}
+                    onChange={e => setNewQuizName(e.target.value)}
+                    className="md:w-1/3"
+                    disabled={savingQuizPassword}
+                  />
+                  <div className="relative md:w-1/3">
+                    <Input
+                      placeholder="Password"
+                      type={showQuizPassword[0] ? "text" : "password"}
+                      value={newQuizPassword}
+                      onChange={e => setNewQuizPassword(e.target.value)}
+                      disabled={savingQuizPassword}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                      onClick={() => setShowQuizPassword(s => ({ ...s, 0: !s[0] }))}
+                      aria-label={showQuizPassword[0] ? "Hide password" : "Show password"}
+                    >
+                      {showQuizPassword[0] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  <Button onClick={saveQuizPassword} disabled={savingQuizPassword} className="md:w-1/6">
+                    {savingQuizPassword ? "Saving..." : "Add"}
+                  </Button>
+                </div>
+                {/* List all quiz passwords */}
+                {loadingQuizPasswords ? (
+                  <div className="text-muted-foreground py-4">Loading...</div>
+                ) : quizPasswords.length === 0 ? (
+                  <div className="text-muted-foreground py-4">No quiz passwords set</div>
+                ) : (
+                  <div className="space-y-2">
+                    {quizPasswords.map(qp => (
+                      <div key={qp.id} className="flex items-center gap-2 border rounded px-3 py-2">
+                        {editingQuizId === qp.id ? (
+                          <>
+                            <Input
+                              value={editingQuizName}
+                              onChange={e => setEditingQuizName(e.target.value)}
+                              className="w-1/3"
+                            />
+                            <div className="relative w-1/3">
+                              <Input
+                                type={showQuizPassword[qp.id] ? "text" : "password"}
+                                value={editingQuizPassword}
+                                onChange={e => setEditingQuizPassword(e.target.value)}
+                                className="pr-10"
+                              />
+                              <button
+                                type="button"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                                onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
+                                aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
+                              >
+                                {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                              </button>
+                            </div>
+                            <Button size="sm" onClick={saveQuizPassword} className="mr-2">Save</Button>
+                            <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); }}>Cancel</Button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-1/3 font-semibold">{qp.quiz_name}</span>
+                            <div className="relative w-1/3">
+                              <Input
+                                type={showQuizPassword[qp.id] ? "text" : "password"}
+                                value={qp.password}
+                                readOnly
+                                className="pr-10 bg-muted"
+                              />
+                              <button
+                                type="button"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary bg-transparent border-none outline-none cursor-pointer p-0"
+                                onClick={() => setShowQuizPassword(s => ({ ...s, [qp.id]: !s[qp.id] }))}
+                                aria-label={showQuizPassword[qp.id] ? "Hide password" : "Show password"}
+                              >
+                                {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                              </button>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); }}>Edit</Button>
+                            <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)} disabled={deletingQuizPasswordId === qp.id}>
+                              {deletingQuizPasswordId === qp.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                              Delete
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdminView && (
+            /* School Quiz Results */
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>School Quiz Results</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Filters and Sorting Controls */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 px-2 py-3 bg-muted/40 rounded-lg border border-muted-foreground/10 shadow-sm">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <label className="font-semibold text-sm text-white mr-2">Score Range</label>
+                          <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
+                            <button
+                              type="button"
+                              aria-label="Decrease min score"
+                              className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                              onClick={() => setPendingScoreRange([Math.max(0, pendingScoreRange[0] - 50), pendingScoreRange[1]])}
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={5000}
+                              step={50}
+                              value={pendingScoreRange[0]}
+                              onChange={e => setPendingScoreRange([Number(e.target.value), pendingScoreRange[1]])}
+                              className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
+                            />
+                            <button
+                              type="button"
+                              aria-label="Increase min score"
+                              className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                              onClick={() => setPendingScoreRange([Math.min(5000, pendingScoreRange[0] + 50), pendingScoreRange[1]])}
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <span className="mx-1 text-white">-</span>
+                          <div className="inline-flex items-center bg-[#232b3b] rounded-md overflow-hidden border border-muted-foreground/10">
+                            <button
+                              type="button"
+                              aria-label="Decrease max score"
+                              className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
+                              onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.max(0, pendingScoreRange[1] - 50)])}
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={5000}
+                              step={50}
+                              value={pendingScoreRange[1]}
+                              onChange={e => setPendingScoreRange([pendingScoreRange[0], Number(e.target.value)])}
+                              className="w-14 h-9 text-sm text-center bg-transparent border-none text-white focus:ring-0 px-0"
+                            />
                           <button
                             type="button"
                             aria-label="Increase max score"
                             className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                            onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.min(5000, pendingScoreRange[1] + 1)])}
+                            onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.min(5000, pendingScoreRange[1] + 50)])}
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -935,55 +964,60 @@ const AdminQuizPage: React.FC = () => {
               )}
             </CardContent>
           </Card>
+          )}
 
-          {/* Delete All School Results */}
-          <Card className="mb-6 border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20">
-            <CardHeader>
-              <CardTitle className="text-red-600 dark:text-red-400">
-                Danger Zone - Delete All Results
-              </CardTitle>
-              <p className="text-sm text-red-600 dark:text-red-400 mt-2">
-                Permanently delete all school quiz results. This action cannot be undone.
-              </p>
-            </CardHeader>
-            <CardContent>
+          {/* Delete All School Results (admin only) */}
+          {isAdminView && (
+            <Card className="mb-6 border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20">
+              <CardHeader>
+                <CardTitle className="text-red-600 dark:text-red-400">
+                  Danger Zone - Delete All Results
+                </CardTitle>
+                <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+                  Permanently delete all school quiz results. This action cannot be undone.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={handleDeleteAllResults}
+                  variant="destructive"
+                  className="gap-2"
+                  disabled={deletingAllResults}
+                >
+                  {deletingAllResults ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  {deletingAllResults ? 'Deleting...' : 'Delete All Results'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {(isAdminView || isMemberWithQuizGrant) && (
+            <div className="flex justify-end mb-6">
               <Button
-                onClick={handleDeleteAllResults}
-                variant="destructive"
+                onClick={() => {
+                  if (showAddForm) {
+                    resetForm();
+                  } else {
+                    setEditingId(null);
+                    setShowAddForm(true);
+                  }
+                }}
                 className="gap-2"
-                disabled={deletingAllResults}
+                variant={showAddForm && !editingId ? "outline" : "default"}
               >
-                {deletingAllResults ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                {deletingAllResults ? 'Deleting...' : 'Delete All Results'}
+                {showAddForm && !editingId ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                {showAddForm && !editingId
+                  ? language === "ta"
+                    ? "மூடு"
+                    : "Cancel"
+                  : language === "ta"
+                  ? "புதிய கேள்வி"
+                  : "Add Question"}
               </Button>
-            </CardContent>
-          </Card>
-          <div className="flex justify-end mb-6">
-            <Button
-              onClick={() => {
-                if (showAddForm) {
-                  resetForm();
-                } else {
-                  setEditingId(null);
-                  setShowAddForm(true);
-                }
-              }}
-              className="gap-2"
-              variant={showAddForm && !editingId ? "outline" : "default"}
-            >
-              {showAddForm && !editingId ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              {showAddForm && !editingId
-                ? language === "ta"
-                  ? "மூடு"
-                  : "Cancel"
-                : language === "ta"
-                ? "புதிய கேள்வி"
-                : "Add Question"}
-            </Button>
-          </div>
+            </div>
+          )}
 
           {/* Add New Question Form - Only show when adding new, not editing */}
-          {showAddForm && !editingId && (
+          {(isAdminView || isMemberWithQuizGrant) && showAddForm && !editingId && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
@@ -1487,26 +1521,28 @@ const AdminQuizPage: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => startEdit(question)}
-                            className="gap-2"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteQuestion(question.id)}
-                            className="gap-2"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </Button>
-                        </div>
+                        {isAdminView && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEdit(question)}
+                              className="gap-2"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteQuestion(question.id)}
+                              className="gap-2"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </CardContent>

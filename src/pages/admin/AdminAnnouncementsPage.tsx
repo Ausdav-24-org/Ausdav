@@ -230,10 +230,10 @@ export default function AdminAnnouncementsPage() {
       };
 
       if (editingId) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('announcements')
           .update(payload)
-          .eq(announcementPk, editingId);
+          .eq('announcement_id', editingId);
         if (error) throw error;
         toast.success('Announcement updated');
       } else {
@@ -256,10 +256,10 @@ export default function AdminAnnouncementsPage() {
     if (togglingAnnouncementId === announcement.id) return;
     setTogglingAnnouncementId(announcement.id);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('announcements')
         .update({ is_active: !announcement.is_active })
-        .eq(announcementPk, announcement.id);
+        .eq('announcement_id', announcement.id);
 
       if (error) throw error;
       setAnnouncements((prev) =>
@@ -281,10 +281,10 @@ export default function AdminAnnouncementsPage() {
     setDeletingAnnouncementId(id);
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('announcements')
         .delete()
-        .eq(announcementPk, id);
+        .eq('announcement_id', id);
       if (error) throw error;
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
       toast.success('Announcement deleted');
@@ -295,21 +295,7 @@ export default function AdminAnnouncementsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this announcement?')) return;
 
-    try {
-      const { error } = await supabase
-        .from('announcements')
-        .delete()
-        .eq(announcementPk, id);
-      if (error) throw error;
-      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
-      toast.success('Announcement deleted');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete');
-    }
-  };
 
   const getCategoryColor = (category: string) => {
     switch (category.toLowerCase()) {

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +45,8 @@ export default function AdminSeminarPage() {
   });
   const [seminarPaperFile, setSeminarPaperFile] = useState<File | null>(null);
   const [answersFile, setAnswersFile] = useState<File | null>(null);
+  const { role, isAdmin, isSuperAdmin } = useAdminAuth();
+  const canDelete = isAdmin || isSuperAdmin;
 
   const queryClient = useQueryClient();
 
@@ -371,14 +374,17 @@ export default function AdminSeminarPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(seminar)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+
+                      {canDelete && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(seminar)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

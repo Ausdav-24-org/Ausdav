@@ -643,40 +643,44 @@ export default function AdminApplicantsPage() {
               <div className="flex items-center gap-3">
                 <CardTitle className="text-lg">Select Year</CardTitle>
 
-                <Badge className={allowExamApplications ? 'bg-green-500/20 text-green-500' : 'bg-muted text-muted-foreground'}>
-                  {settingsLoading ? 'Loading...' : allowExamApplications ? 'Applications Open' : 'Applications Closed'}
-                </Badge>
+                {isAdmin && (
+                  <>
+                    <Badge className={allowExamApplications ? 'bg-green-500/20 text-green-500' : 'bg-muted text-muted-foreground'}>
+                      {settingsLoading ? 'Loading...' : allowExamApplications ? 'Applications Open' : 'Applications Closed'}
+                    </Badge>
 
-                {/* ✅ NEW BADGE for manual applications (members page) */}
-                <Badge className={allowManualApplications ? 'bg-blue-500/20 text-blue-600' : 'bg-muted text-muted-foreground'}>
-                  {settingsLoading ? 'Loading...' : allowManualApplications ? 'Manual Page Open' : 'Manual Page Closed'}
-                </Badge>
+                    {/* Admin-only badge: manual applications control */}
+                    <Badge className={allowManualApplications ? 'bg-blue-500/20 text-blue-600' : 'bg-muted text-muted-foreground'}>
+                      {settingsLoading ? 'Loading...' : allowManualApplications ? 'Manual Page Open' : 'Manual Page Closed'}
+                    </Badge>
+                  </>
+                )}
               </div>
 
               {/* ✅ BOTH BUTTONS IN SAME ROW */}
-              <div className="flex gap-2">
-                <Button
-                  variant={allowExamApplications ? 'destructive' : 'default'}
-                  size="sm"
-                  onClick={toggleExamSetting}
-                  disabled={!isAdmin || settingsLoading || settingsSaving || allowExamApplications === null}
-                  title={isAdmin ? undefined : 'Only admins can change this setting'}
-                >
-                  {settingsSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                  {allowExamApplications ? 'Close Applications' : 'Open Applications'}
-                </Button>
+              {isAdmin && (
+                <div className="flex gap-2">
+                  <Button
+                    variant={allowExamApplications ? 'destructive' : 'default'}
+                    size="sm"
+                    onClick={toggleExamSetting}
+                    disabled={!isAdmin || settingsLoading || settingsSaving || allowExamApplications === null}
+                  >
+                    {settingsSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                    {allowExamApplications ? 'Close Applications' : 'Open Applications'}
+                  </Button>
 
-                <Button
-                  variant={allowManualApplications ? 'destructive' : 'default'}
-                  size="sm"
-                  onClick={toggleManualSetting}
-                  disabled={!isAdmin || settingsLoading || settingsSaving || allowManualApplications === null}
-                  title={isAdmin ? undefined : 'Only admins can change this setting'}
-                >
-                  {settingsSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                  {allowManualApplications ? 'Manual Application Close' : 'Manual Application Open'}
-                </Button>
-              </div>
+                  <Button
+                    variant={allowManualApplications ? 'destructive' : 'default'}
+                    size="sm"
+                    onClick={toggleManualSetting}
+                    disabled={!isAdmin || settingsLoading || settingsSaving || allowManualApplications === null}
+                  >
+                    {settingsSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                    {allowManualApplications ? 'Manual Application Close' : 'Manual Application Open'}
+                  </Button>
+                </div>
+              )}
             </div>
           </CardHeader>
 

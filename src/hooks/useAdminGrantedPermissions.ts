@@ -39,13 +39,7 @@ export const useAdminGrantedPermissions = () => {
       return;
     }
 
-    // Non-admin roles don't have these permissions
-    if (!isAdmin) {
-      setGrantedPermissions([]);
-      setLoading(false);
-      return;
-    }
-
+    // Fetch explicit grants for the current authenticated user (members and admins alike)
     try {
       const { data, error } = await db
         .from("admin_granted_permissions")

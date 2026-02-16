@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,6 +56,8 @@ export default function AdminPastPaperPage() {
   });
   const [examPaperFile, setExamPaperFile] = useState<File | null>(null);
   const [schemeFile, setSchemeFile] = useState<File | null>(null);
+  const { role, isAdmin, isSuperAdmin } = useAdminAuth();
+  const canDelete = isAdmin || isSuperAdmin;
 
   const queryClient = useQueryClient();
 
@@ -261,7 +264,7 @@ export default function AdminPastPaperPage() {
   }
 
   return (
-    <PermissionGate permissionKey="seminar" permissionName="Past Paper Handling">
+    <PermissionGate permissionKey="exam" permissionName="Past Paper Handling">
       <div className="p-6 space-y-6">
         <AdminHeader title="Past Paper Management" breadcrumb="Admin / Past Paper Management" />
         <div className="flex items-center justify-between">
@@ -412,14 +415,17 @@ export default function AdminPastPaperPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(pastPaper)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+
+                      {canDelete && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(pastPaper)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
