@@ -121,6 +121,7 @@ const QuizTamilMCQ: React.FC = () => {
   const [quizStarted, setQuizStarted] = useState(false);
   const [checkingAttempt, setCheckingAttempt] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
+  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [quizDurationSeconds, setQuizDurationSeconds] = useState(60); // dynamic quiz duration (seconds)
   const [canViewReview, setCanViewReview] = useState(false);
@@ -268,13 +269,20 @@ const QuizTamilMCQ: React.FC = () => {
   const currentQuestion = activeQuestions[currentIndex] as any;
   const currentAnswer = answers[currentIndex]?.selectedOptionId ?? null;
 
-  // Per-question bonus calculation — cycles every 60 seconds (max 60 pts)
+  // Reset per-question timer whenever the question changes
+  useEffect(() => {
+    if (!answers[currentIndex]?.secondsTaken) {
+      setQuestionStartTime(Date.now());
+    }
+  }, [currentIndex]);
+
+  // Per-question bonus calculation — max 60 pts, refills on each new question
   const BONUS_MAX = 60;
   const _takenForBonus =
     answers[currentIndex]?.secondsTaken ??
-    (quizStartTime ? Math.floor((Date.now() - quizStartTime) / 1000) : quizDurationSeconds - timeRemaining);
-  // Cycling bonus: 60 → 59 → … → 1 → 60 → 59 → … (refills every 60 s)
-  const _bonusRemaining = BONUS_MAX - (_takenForBonus % BONUS_MAX || 0);
+    Math.floor((Date.now() - questionStartTime) / 1000);
+  // Bonus decreases from 60 per question; cycles every 60 s
+  const _bonusRemaining = clamp(BONUS_MAX - (_takenForBonus % BONUS_MAX), 0, BONUS_MAX);
   const bonusProgressPct = Math.round((_bonusRemaining / BONUS_MAX) * 100);
   const bonusTextColorClass = _bonusRemaining <= 10 ? "text-red-500" : _bonusRemaining <= 20 ? "text-yellow-600" : "text-green-600";
   // Battery-style: filled portion = colored (green/yellow/red), empty track = white
@@ -415,9 +423,8 @@ const QuizTamilMCQ: React.FC = () => {
   // ---------- Select / clear option ----------
   const selectOption = (optionId: string) => {
     if (isFinished) return;
-    const elapsed = quizStartTime
-      ? Math.floor((Date.now() - quizStartTime) / 1000)
-      : Math.max(0, quizDurationSeconds - (timeRemaining ?? 0));
+    // Per-question elapsed time (seconds since this question was shown)
+    const elapsed = Math.floor((Date.now() - questionStartTime) / 1000);
 
     setAnswers((prev) => {
       const next = [...prev];
@@ -459,15 +466,14 @@ const QuizTamilMCQ: React.FC = () => {
         // Bonus: if answered within 60s, add (60 - seconds taken)
         // For now, estimate seconds taken as (60 - timeRemaining) if available
         // If you track answer time per question, use that instead
-        let secondsTaken = quizDurationSeconds;
+        // Per-question time (how long they spent before answering)
+        let secondsTaken = 60; // fallback: max penalty
         if (answers[idx]?.secondsTaken != null) {
           secondsTaken = answers[idx].secondsTaken;
-        } else if (typeof timeRemaining === "number") {
-          secondsTaken = quizDurationSeconds - timeRemaining;
         }
-        // Cycling bonus capped at 60 pts (refills every 60 s)
+        // Bonus capped at 60 pts, decreases per second on the question
         const BONUS_CAP = 60;
-        let bonus = BONUS_CAP - (secondsTaken % BONUS_CAP || 0);
+        let bonus = BONUS_CAP - (secondsTaken % BONUS_CAP);
         if (bonus < 0) bonus = 0;
         score += bonus;
       } else {
