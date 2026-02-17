@@ -913,7 +913,7 @@ const QuizTamilMCQ: React.FC = () => {
                   renderCyanTail("வினாடிவினா போட்டி")
                 ) : (
                   <>
-                    Quiz <span className="text-cyan-400">Competition</span>
+                    Penta<span className="text-cyan-400">thlon</span>
                   </>
                 )}
               </motion.h1>
@@ -988,7 +988,7 @@ const QuizTamilMCQ: React.FC = () => {
                         <div className="px-4 py-4 md:py-6 flex-1 flex flex-col justify-center gap-3 rounded-b-2xl md:rounded-r-2xl md:rounded-bl-none">
                           <div>
                             <h2 className="text-2xl md:text-3xl font-sans font-bold text-foreground">
-                              Pentathlon 2026
+                              Pentathlon 3.0
                             </h2>
                             <p className="text-muted-foreground mt-2">
                               {language === "ta"
