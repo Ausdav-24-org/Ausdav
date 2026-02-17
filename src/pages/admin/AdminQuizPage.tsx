@@ -864,6 +864,13 @@ const AdminQuizPage: React.FC = () => {
     });
   }, [filteredSortedResults, schoolDurations]);
 
+  // Shorten long X-axis tick labels (keeps original data/tooltip intact)
+  const shortenTickLabel = (value: string | number) => {
+    const s = String(value ?? "");
+    const max = 5; // max characters to show on the axis tick
+    return s.length > max ? s.slice(0, max) + '\u2026' : s;
+  };
+
   return (
     <>
       <AdminHeader title="Quiz Management" breadcrumb="Admin / Quiz" />
@@ -1282,8 +1289,9 @@ const AdminQuizPage: React.FC = () => {
                               dataKey="name" 
                               angle={-45} 
                               textAnchor="end" 
-                              height={80}
+                              height={1}
                               tick={{ fontSize: 12, fill: '#888' }}
+                              tickFormatter={shortenTickLabel}
                             />
                             <YAxis tick={{ fontSize: 12, fill: '#888' }} />
                             <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} />
@@ -1309,8 +1317,9 @@ const AdminQuizPage: React.FC = () => {
                                 dataKey="name" 
                                 angle={-45} 
                                 textAnchor="end" 
-                                height={80}
+                                height={1}
                                 tick={{ fontSize: 12, fill: '#888' }}
+                                tickFormatter={shortenTickLabel}
                               />
                               <YAxis tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(v) => `${v}`} />
                               <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} formatter={(value: any) => (value == null ? '—' : `${value} min`)} />
