@@ -140,8 +140,6 @@ const AdminQuizPage: React.FC = () => {
   const [quizPasswords, setQuizPasswords] = useState<{ id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean; duration_minutes?: number | null }[]>([]);
   const [loadingQuizPasswords, setLoadingQuizPasswords] = useState(false);
   const [showQuizPassword, setShowQuizPassword] = useState<{ [id: number]: boolean }>({});
-  // ID of the quiz row that was edited most recently — used to highlight + scroll into view
-  const [recentlyEditedQuizId, setRecentlyEditedQuizId] = useState<number | null>(null);
   const [newQuizName, setNewQuizName] = useState("");
   const [newQuizPassword, setNewQuizPassword] = useState("");
   const [newQuizDuration, setNewQuizDuration] = useState("");
@@ -346,7 +344,6 @@ const AdminQuizPage: React.FC = () => {
         setEditingQuizPassword("");
         setEditingQuizDuration("");
         await fetchQuizPasswords();
-        setRecentlyEditedQuizId(editingQuizId);
       } catch (error) {
         console.error("Error updating quiz password:", error);
         toast.error("Failed to update");
@@ -780,19 +777,7 @@ const AdminQuizPage: React.FC = () => {
     }
   }, [quizFilter, showAddForm, editingId]);
 
-  // Scroll to + highlight the quiz password row that was just edited.
-  useEffect(() => {
-    if (!recentlyEditedQuizId) return;
-    const scrollTimer = setTimeout(() => {
-      const el = document.getElementById(`quiz-row-${recentlyEditedQuizId}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 120);
-    const clearTimer = setTimeout(() => setRecentlyEditedQuizId(null), 3000);
-    return () => {
-      clearTimeout(scrollTimer);
-      clearTimeout(clearTimer);
-    };
-  }, [recentlyEditedQuizId]);
+
 
   const filteredQuestions = useMemo(() => {
     if (quizFilter === "all") return questions;
@@ -938,7 +923,7 @@ const AdminQuizPage: React.FC = () => {
               ) : (
                 <div className="space-y-2">
                   {quizPasswords.map(qp => (
-                    <div id={`quiz-row-${qp.id}`} key={qp.id} className={`flex items-center gap-2 border rounded px-3 py-2 transition-shadow duration-300 ${recentlyEditedQuizId === qp.id ? 'ring-2 ring-amber-300 bg-amber-50 shadow-md' : ''}`}>
+                    <div id={`quiz-row-${qp.id}`} key={qp.id} className="flex items-center gap-2 border rounded px-3 py-2 transition-shadow duration-300">
 
                       {editingQuizId === qp.id ? (
                         <>

@@ -268,15 +268,17 @@ const QuizTamilMCQ: React.FC = () => {
   const currentQuestion = activeQuestions[currentIndex] as any;
   const currentAnswer = answers[currentIndex]?.selectedOptionId ?? null;
 
-  // Per-question bonus calculation used by progress and color logic
+  // Per-question bonus calculation — cycles every 60 seconds (max 60 pts)
+  const BONUS_MAX = 60;
   const _takenForBonus =
     answers[currentIndex]?.secondsTaken ??
     (quizStartTime ? Math.floor((Date.now() - quizStartTime) / 1000) : quizDurationSeconds - timeRemaining);
-  const _bonusRemaining = clamp(quizDurationSeconds - (_takenForBonus ?? 0), 0, quizDurationSeconds);
-  const bonusProgressPct = Math.round((_bonusRemaining / Math.max(1, quizDurationSeconds)) * 100);
-  const bonusTextColorClass = _bonusRemaining <= 10 ? "text-red-500" : _bonusRemaining <= Math.max(10, Math.floor(quizDurationSeconds / 3)) ? "text-yellow-600" : "text-green-600";
+  // Cycling bonus: 60 → 59 → … → 1 → 60 → 59 → … (refills every 60 s)
+  const _bonusRemaining = BONUS_MAX - (_takenForBonus % BONUS_MAX || 0);
+  const bonusProgressPct = Math.round((_bonusRemaining / BONUS_MAX) * 100);
+  const bonusTextColorClass = _bonusRemaining <= 10 ? "text-red-500" : _bonusRemaining <= 20 ? "text-yellow-600" : "text-green-600";
   // Battery-style: filled portion = colored (green/yellow/red), empty track = white
-  const bonusIndicatorClassName = _bonusRemaining <= 10 ? "bg-red-500" : _bonusRemaining <= Math.max(10, Math.floor(quizDurationSeconds / 3)) ? "bg-yellow-400" : "bg-green-500";
+  const bonusIndicatorClassName = _bonusRemaining <= 10 ? "bg-red-500" : _bonusRemaining <= 20 ? "bg-yellow-400" : "bg-green-500";
 
   const isLast = currentIndex === totalQuestions - 1; 
   const hasQuestions = totalQuestions > 0;
@@ -463,7 +465,9 @@ const QuizTamilMCQ: React.FC = () => {
         } else if (typeof timeRemaining === "number") {
           secondsTaken = quizDurationSeconds - timeRemaining;
         }
-        let bonus = quizDurationSeconds - secondsTaken;
+        // Cycling bonus capped at 60 pts (refills every 60 s)
+        const BONUS_CAP = 60;
+        let bonus = BONUS_CAP - (secondsTaken % BONUS_CAP || 0);
         if (bonus < 0) bonus = 0;
         score += bonus;
       } else {
