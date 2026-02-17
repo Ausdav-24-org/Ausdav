@@ -970,17 +970,18 @@ const QuizTamilMCQ: React.FC = () => {
                     <CardContent className="p-0 relative overflow-visible">
                       {/* colored blurred accents behind content */}
                       <div className="glass-accent-blobs pointer-events-none" aria-hidden />
-                      <div className="relative z-10 flex flex-col gap-2">
-                        {/* Full-width image at top of the card */}
-                        <div className="w-full overflow-hidden rounded-t-2xl bg-black/10">
+                      <div className="relative z-10 flex flex-col md:flex-row gap-2">
+                        {/* Image on the left (stacks on small screens) */}
+                        <div className="w-full md:w-1/2 overflow-hidden bg-black/10 rounded-t-2xl md:rounded-l-2xl md:rounded-tr-none">
                           <img
                             src={BG1}
                             alt="Pentathlon banner"
-                            className="w-full h-44 md:h-56 object-cover rounded-t-2xl"
+                            className="w-full h-44 md:h-full object-cover md:min-h-[220px] md:max-h-[360px] rounded-t-2xl md:rounded-l-2xl"
                           />
                         </div>
 
-                        <div className="px-4 py-3 md:py-4 flex flex-col justify-center gap-3">
+                        {/* Content on the right */}
+                        <div className="px-4 py-4 md:py-6 flex-1 flex flex-col justify-center gap-3 rounded-b-2xl md:rounded-r-2xl md:rounded-bl-none">
                           <div>
                             <h2 className="text-2xl md:text-3xl font-sans font-bold text-foreground">
                               Pentathlon 2026
@@ -992,9 +993,9 @@ const QuizTamilMCQ: React.FC = () => {
                             </p>
                           </div>
 
-                          {/* Start Quiz button (visible by default below image) */}
+                          {/* Start Quiz button (visible by default) */}
                           {!showSchoolInput ? (
-                            <div className="flex justify-center">
+                            <div className="flex justify-center md:justify-start">
                               {loadingQuizStatus ? (
                                 <Button
                                   variant="donate"
@@ -1006,7 +1007,7 @@ const QuizTamilMCQ: React.FC = () => {
                                     : "Loading..."}
                                 </Button>
                               ) : !isQuizEnabled ? (
-                                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 w-full text-center">
+                                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 w-full text-center md:text-left">
                                   <p className="text-destructive font-semibold">
                                     {language === "ta"
                                       ? "வினாடிவினா போட்டி தற்போது மூடப்பட்டுள்ளது"
