@@ -762,6 +762,17 @@ const AdminQuizPage: React.FC = () => {
     setShowAddForm(false);
   };
 
+  // Keep the add-question form's quiz preselected from the questions filter
+  // when the Add form is open and we're not editing an existing question.
+  useEffect(() => {
+    if (showAddForm && !editingId) {
+      setFormData((f) => ({
+        ...f,
+        quiz_password_id: quizFilter === 'all' ? null : Number(quizFilter),
+      }));
+    }
+  }, [quizFilter, showAddForm, editingId]);
+
   const filteredQuestions = useMemo(() => {
     if (quizFilter === "all") return questions;
     const qId = Number(quizFilter);
@@ -1385,6 +1396,11 @@ const AdminQuizPage: React.FC = () => {
                   if (showAddForm) {
                     resetForm();
                   } else {
+                    // Pre-fill quiz select from the current questions filter when opening add-form
+                    setFormData((f) => ({
+                      ...f,
+                      quiz_password_id: quizFilter === 'all' ? null : Number(quizFilter),
+                    }));
                     setEditingId(null);
                     setShowAddForm(true);
                   }
