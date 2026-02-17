@@ -662,6 +662,18 @@ const QuizTamilMCQ: React.FC = () => {
   };
 
   // ---------- Save results ----------
+  const retryFetch = async <T,>(fn: () => PromiseLike<T> | Promise<T>, retries = 3, delay = 1500): Promise<T> => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        if (i === retries - 1) throw err;
+        await new Promise((r) => setTimeout(r, delay * (i + 1)));
+      }
+    }
+    throw new Error("Retry exhausted");
+  };
+
   const saveQuizResults = async () => {
     // Type and null checks for all required fields
     if (!schoolName || typeof schoolName !== "string") {
@@ -705,10 +717,10 @@ const QuizTamilMCQ: React.FC = () => {
       return;
     }
     try {
-      // Save summary results
-      const { error } = await supabase
-        .from("school_quiz_results")
-        .insert(insertObj);
+      // Save summary results (with retry for transient failures)
+      const { error } = await retryFetch(() =>
+        Promise.resolve(supabase.from("school_quiz_results").insert(insertObj))
+      );
 
       if (error) {
         // Check if it's a unique constraint violation (duplicate attempt)
@@ -758,9 +770,9 @@ const QuizTamilMCQ: React.FC = () => {
 
       console.log("Saving answers data:", answersData);
 
-      const { error: answersError } = await supabase
-        .from("school_quiz_answers" as any)
-        .insert(answersData);
+      const { error: answersError } = await retryFetch(() =>
+        Promise.resolve(supabase.from("school_quiz_answers" as any).insert(answersData))
+      );
 
       if (answersError) {
         console.error("Error saving individual answers:", answersError);
