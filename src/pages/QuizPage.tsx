@@ -1238,7 +1238,7 @@ const QuizTamilMCQ: React.FC = () => {
                         <CardHeader className="border-b border-primary/10">
                           <div className="flex gap-4">
                             <p
-                              className="flex-1 text-base md:text-lg font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
+                              className="flex-1 text-lg md:text-xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
                                 userSelect: "none",
                                 WebkitUserSelect: "none",
