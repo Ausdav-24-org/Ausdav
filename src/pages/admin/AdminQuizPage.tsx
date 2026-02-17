@@ -137,8 +137,6 @@ const AdminQuizPage: React.FC = () => {
   // per-password mode toggling (Test / Quiz)
   const [togglingQuizModeId, setTogglingQuizModeId] = useState<number | null>(null);
   const [togglingQuizModeField, setTogglingQuizModeField] = useState<'is_test' | 'is_quiz' | null>(null);
-  const [togglingDurationId, setTogglingDurationId] = useState<number | null>(null);
-  const [durationInputs, setDurationInputs] = useState<Record<number, string>>({});
   const [quizPasswords, setQuizPasswords] = useState<{ id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean; duration_minutes?: number | null }[]>([]);
   const [loadingQuizPasswords, setLoadingQuizPasswords] = useState(false);
   const [showQuizPassword, setShowQuizPassword] = useState<{ [id: number]: boolean }>({});
@@ -149,6 +147,7 @@ const AdminQuizPage: React.FC = () => {
   const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
   const [editingQuizName, setEditingQuizName] = useState("");
   const [editingQuizPassword, setEditingQuizPassword] = useState("");
+  const [editingQuizDuration, setEditingQuizDuration] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [quizFilter, setQuizFilter] = useState<string>("all");
@@ -312,12 +311,6 @@ const AdminQuizPage: React.FC = () => {
       if (error) throw error;
       const rows = (data || []) as unknown as { id: number; quiz_name: string; password: string; is_test?: boolean; is_quiz?: boolean; duration_minutes?: number | null }[];
       setQuizPasswords(rows);
-      // initialize per-row duration input values
-      const map: Record<number, string> = {};
-      rows.forEach(r => {
-        map[r.id] = r.duration_minutes != null ? String(r.duration_minutes) : "";
-      });
-      setDurationInputs(map);
     } catch (error) {
       console.error("Error fetching quiz passwords:", error);
       toast.error("Failed to load quiz passwords");
@@ -329,22 +322,24 @@ const AdminQuizPage: React.FC = () => {
   // Add or update quiz password
   const saveQuizPassword = async () => {
     if (editingQuizId) {
-      // Update existing (name/password only — duration is set via per-row Set)
+      // Update existing (name/password/duration via edit)
       if (!editingQuizName.trim() || !editingQuizPassword.trim()) {
         toast.error("Enter quiz name and password");
         return;
       }
       try {
         setSavingQuizPassword(true);
+        const durationVal = editingQuizDuration.trim() === "" ? null : Number(editingQuizDuration);
         const { error } = await supabase
           .from("quiz_passwords" as any)
-          .update({ quiz_name: editingQuizName.trim(), password: editingQuizPassword.trim() })
+          .update({ quiz_name: editingQuizName.trim(), password: editingQuizPassword.trim(), duration_minutes: durationVal })
           .eq("id", editingQuizId);
         if (error) throw error;
         toast.success("Quiz password updated");
         setEditingQuizId(null);
         setEditingQuizName("");
         setEditingQuizPassword("");
+        setEditingQuizDuration("");
         fetchQuizPasswords();
       } catch (error) {
         console.error("Error updating quiz password:", error);
@@ -422,73 +417,7 @@ const AdminQuizPage: React.FC = () => {
     }
   };
 
-  // Set duration (minutes) for a specific quiz password
-  const setQuizDuration = async (id: number) => {
-    const raw = durationInputs[id] ?? "";
-    if (raw.trim() === "") {
-      // allow clearing duration (set to null)
-      try {
-        setTogglingDurationId(id);
-
-        const res: any = await supabase
-          .from('quiz_passwords' as any)
-          .update({ duration_minutes: null })
-          .eq('id', id)
-          .select('id, duration_minutes');
-        const updatedRows = res.data as any;
-
-        if (res.error) throw res.error;
-
-        // optimistic UI update from returned row (if any)
-        const newVal = updatedRows && updatedRows[0] && updatedRows[0].duration_minutes != null ? String(updatedRows[0].duration_minutes) : "";
-        setDurationInputs(d => ({ ...d, [id]: newVal }));
-        setQuizPasswords(prev => prev.map(p => (p.id === id ? { ...p, duration_minutes: updatedRows && updatedRows[0] ? updatedRows[0].duration_minutes : null } : p)));
-
-        console.debug('[setQuizDuration] cleared duration', { id, updatedRows });
-        toast.success('Duration cleared');
-        fetchQuizPasswords();
-      } catch (err) {
-        console.error('Error clearing duration:', err);
-        toast.error('Failed to update duration');
-      } finally {
-        setTogglingDurationId(null);
-      }
-      return;
-    }
-
-    const val = Number(raw);
-    if (!Number.isFinite(val) || val <= 0) {
-      toast.error('Enter a valid positive number for minutes');
-      return;
-    }
-
-    try {
-      setTogglingDurationId(id);
-
-      const res: any = await supabase
-        .from('quiz_passwords' as any)
-        .update({ duration_minutes: Math.floor(val) })
-        .eq('id', id)
-        .select('id, duration_minutes');
-      const updatedRows = res.data as any;
-
-      if (res.error) throw res.error;
-
-      // update local state optimistically from returned row
-      const newVal = updatedRows && updatedRows[0] && updatedRows[0].duration_minutes != null ? String(updatedRows[0].duration_minutes) : "";
-      setDurationInputs(d => ({ ...d, [id]: newVal }));
-      setQuizPasswords(prev => prev.map(p => (p.id === id ? { ...p, duration_minutes: updatedRows && updatedRows[0] ? updatedRows[0].duration_minutes : null } : p)));
-
-      console.debug('[setQuizDuration] saved duration', { id, val: Math.floor(val), updatedRows });
-      toast.success('Duration saved');
-      fetchQuizPasswords();
-    } catch (err) {
-      console.error('Error saving duration:', err);
-      toast.error('Failed to update duration');
-    } finally {
-      setTogglingDurationId(null);
-    }
-  }; 
+  // duration is edited via the quiz "Edit" form now; per-row Set handler removed. 
 
   const fetchSchoolResults = async () => {
     try {
@@ -921,9 +850,9 @@ const AdminQuizPage: React.FC = () => {
           {/* Quiz Passwords - Dynamic List */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Quiz Passwords</CardTitle>
+              <CardTitle>Quiz Manipulation</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Add, edit, or delete quiz passwords for any quiz name
+                Add, edit, or delete quiz passwords and Handling other quiz related stuffs
               </p>
             </CardHeader>
             <CardContent>
@@ -954,6 +883,17 @@ const AdminQuizPage: React.FC = () => {
                     {showQuizPassword[0] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
+
+                <Input
+                  placeholder="Duration (min)"
+                  type="number"
+                  min={1}
+                  value={newQuizDuration}
+                  onChange={e => setNewQuizDuration(e.target.value)}
+                  disabled={savingQuizPassword}
+                  className="md:w-1/6"
+                />
+
                 <Button onClick={saveQuizPassword} disabled={savingQuizPassword} className="md:w-1/6">
                   {savingQuizPassword ? "Saving..." : "Add"}
                 </Button>
@@ -990,8 +930,16 @@ const AdminQuizPage: React.FC = () => {
                               {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
                           </div>
+                          <Input
+                            placeholder="Duration (min)"
+                            type="number"
+                            min={1}
+                            value={editingQuizDuration}
+                            onChange={e => setEditingQuizDuration(e.target.value)}
+                            className="w-1/6"
+                          />
                           <Button size="sm" onClick={saveQuizPassword} className="mr-2">Save</Button>
-                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); }}>Cancel</Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); setEditingQuizDuration(""); }}>Cancel</Button>
                         </>
                       ) : (
                         <>
@@ -1022,7 +970,7 @@ const AdminQuizPage: React.FC = () => {
                             </Button>
                           </div>
 
-                          <div className="relative w-1/3">
+                          <div className="relative w-1/4">
                             <Input
                               type={showQuizPassword[qp.id] ? "text" : "password"}
                               value={qp.password}
@@ -1038,7 +986,12 @@ const AdminQuizPage: React.FC = () => {
                               {showQuizPassword[qp.id] ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); }}>Edit</Button>
+
+                          <div className="flex items-center gap-2 w-1/6">
+                            <span className="text-sm">{qp.duration_minutes != null ? `${qp.duration_minutes} mins` : '—'}</span>
+                          </div>
+
+                          <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); setEditingQuizDuration(qp.duration_minutes != null ? String(qp.duration_minutes) : ""); }}>Edit</Button>
                           <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)} disabled={deletingQuizPasswordId === qp.id}>
                             {deletingQuizPasswordId === qp.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                             Delete
