@@ -25,6 +25,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import logoImg from '@/assets/logo/AUSDAV_llogo.png';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
 import { Button } from '@/components/ui/button';
@@ -154,8 +155,8 @@ export function AdminSidebar() {
               exit={{ opacity: 0 }}
               className="flex items-center gap-2"
             >
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">A</span>
+              <div className="w-8 h-8 rounded-lg bg-transparent flex items-center justify-center overflow-hidden">
+                <img src={logoImg} alt="AUSDAV" className="w-full h-full object-contain neon-glow" />
               </div>
               <span className="font-semibold text-foreground">
                 {role === 'super_admin'
