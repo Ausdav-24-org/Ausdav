@@ -1237,7 +1237,7 @@ const QuizTamilMCQ: React.FC = () => {
                         <CardHeader className="border-b border-primary/10">
                           <div className="flex gap-4">
                             <p
-                              className="flex-1 text-lg font-medium text-foreground mt-4 leading-relaxed select-none"
+                              className="flex-1 text-base md:text-lg font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
                                 userSelect: "none",
                                 WebkitUserSelect: "none",
@@ -1255,11 +1255,11 @@ const QuizTamilMCQ: React.FC = () => {
 
                             {/* Display question image in top right corner if exists */}
                             {currentQuestion?.imageUrl && (
-                              <div className="flex-shrink-0 mt-2 md:mt-0">
+                              <div className="flex-shrink md:flex-shrink-0 mt-2 md:mt-0">
                                 <img
                                   src={currentQuestion.imageUrl}
                                   alt="Question image"
-                                  className="w-40 h-32 md:w-52 md:h-40 rounded-lg object-contain border border-primary/20 bg-card/60 shadow-sm"
+                                  className="w-28 h-20 sm:w-40 sm:h-32 md:w-52 md:h-40 rounded-lg object-contain border border-primary/20 bg-card/60 shadow-sm"
                                 />
                               </div>
                             )}
