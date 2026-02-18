@@ -15,6 +15,7 @@ import AboutPage from "@/pages/AboutPage";
 import UnderConstructionPage from "@/pages/UnderConstructionPage";
 import CommitteePage from "@/pages/CommitteePage";
 import ExamPage from "@/pages/ExamPage";
+import QuizPage from "@/pages/QuizPage";
 import ResourcesPage from "@/pages/ResourcesPage";
 import SeminarPage from "@/pages/SeminarPage";
 import EventsPage from "@/pages/EventsPage";
@@ -42,6 +43,7 @@ import FinanceVerifyPage from "@/pages/admin/finance/FinanceVerifyPage";
 import FinanceLedgerPage from "@/pages/admin/finance/FinanceLedgerPage";
 import ProfileSetupPage from "@/pages/admin/ProfileSetupPage";
 import AdminExamPage from "@/pages/admin/AdminExamPage";
+import AdminQuizPage from "@/pages/admin/AdminQuizPage";
 import AdminSeminarPage from "@/pages/admin/AdminSeminarPage";
 import AdminPastPaperPage from "@/pages/admin/AdminPastPaperPage";
 import AdminApplicantsPage from "@/pages/admin/AdminApplicantsPage";
@@ -75,7 +77,7 @@ const App = () => {
     document.documentElement.classList.add("dark");
 
     // if (devStayOnSplash) {
-    if (false) {
+    if (devStayOnSplash) {
       setAppReady(true);
       setShowSplash(true);
       return;
@@ -111,7 +113,10 @@ const App = () => {
             )}
 
             {appReady && (
-              <BrowserRouter basename={import.meta.env.BASE_URL}>
+              <BrowserRouter
+                  basename={import.meta.env.BASE_URL}
+                  future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+                >
                 <ScrollToTop />
                 <Routes>
                   {/* Public routes with Layout */}
@@ -163,6 +168,15 @@ const App = () => {
                     element={
                       <Layout>
                         <ExamPage />
+                      </Layout>
+                    }
+                  />
+                  <Route path="/quiz" element={<Navigate to="/quiz/1" replace />} />
+                  <Route
+                    path="/quiz/:questionIndex"
+                    element={
+                      <Layout>
+                        <QuizPage />
                       </Layout>
                     }
                   />
@@ -267,6 +281,7 @@ const App = () => {
                     <Route path="site-mode" element={<AdminSiteModePage />} />
                     <Route path="events" element={<AdminEventsPage />} />
                     <Route path="exam" element={<AdminExamPage />} />
+                    <Route path="quiz" element={<AdminQuizPage />} />
                     <Route path="seminar" element={<AdminSeminarPage />} />
                     <Route path="past-paper" element={<AdminPastPaperPage />} />
                     <Route

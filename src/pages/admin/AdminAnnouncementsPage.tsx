@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useAdminRefresh } from '@/hooks/useAdminRefresh';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 interface Announcement {
   id: string;
@@ -178,13 +179,18 @@ export default function AdminAnnouncementsPage() {
         : null;
     }
 
-    const ext = imageFile.name.split('.').pop() || 'jpg';
+    const compressedBlob = await compressImageBlob(imageFile, {
+      maxSize: 1600,
+      quality: 0.82,
+      mimeType: 'image/jpeg',
+    });
+    const compressedFile = new File([compressedBlob], `announcement-${Date.now()}.jpg`, { type: 'image/jpeg' });
     const bucket = 'announcements';
-    const path = `announcements/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const path = `announcements/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+      .upload(path, compressedFile, { upsert: true, contentType: 'image/jpeg' });
 
     if (uploadError) throw uploadError;
 
@@ -224,14 +230,16 @@ export default function AdminAnnouncementsPage() {
       };
 
       if (editingId) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('announcements')
-          .update(payload)
+          .update(payload as Partial<Announcement>)
           .eq(announcementPk, editingId);
         if (error) throw error;
         toast.success('Announcement updated');
       } else {
-        const { error } = await supabase.from('announcements').insert(payload);
+        const { error } = await supabase
+          .from('announcements')
+          .insert(payload as any);
         if (error) throw error;
         toast.success('Announcement created');
       }
@@ -243,12 +251,17 @@ export default function AdminAnnouncementsPage() {
     }
   };
 
+  const [togglingAnnouncementId, setTogglingAnnouncementId] = useState<string | null>(null);
+  const [deletingAnnouncementId, setDeletingAnnouncementId] = useState<string | null>(null);
+
   const toggleActive = async (announcement: Announcement) => {
+    if (togglingAnnouncementId === announcement.id) return;
+    setTogglingAnnouncementId(announcement.id);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('announcements')
         .update({ is_active: !announcement.is_active })
-        .eq(announcementPk, announcement.id);
+        .eq('announcement_id', announcement.id);
 
       if (error) throw error;
       setAnnouncements((prev) =>
@@ -259,24 +272,32 @@ export default function AdminAnnouncementsPage() {
       toast.success(announcement.is_active ? 'Announcement hidden' : 'Announcement visible');
     } catch (error: any) {
       toast.error(error.message || 'Failed to update');
+    } finally {
+      setTogglingAnnouncementId(null);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this announcement?')) return;
+    if (deletingAnnouncementId === id) return;
+    setDeletingAnnouncementId(id);
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('announcements')
         .delete()
-        .eq(announcementPk, id);
+        .eq('announcement_id', id);
       if (error) throw error;
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
       toast.success('Announcement deleted');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete');
+    } finally {
+      setDeletingAnnouncementId(null);
     }
   };
+
+
 
   const getCategoryColor = (category: string) => {
     switch (category.toLowerCase()) {
@@ -371,8 +392,11 @@ export default function AdminAnnouncementsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => toggleActive(announcement)}
+                          disabled={togglingAnnouncementId === announcement.id}
                         >
-                          {announcement.is_active ? (
+                          {togglingAnnouncementId === announcement.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : announcement.is_active ? (
                             <Eye className="h-4 w-4" />
                           ) : (
                             <EyeOff className="h-4 w-4" />
@@ -381,17 +405,18 @@ export default function AdminAnnouncementsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => openEditDialog(announcement)}
+                          className="text-red-400 hover:text-red-300"
+                          onClick={() => handleDelete(announcement.id)}
+                          disabled={deletingAnnouncementId === announcement.id}
                         >
-                          <Edit className="h-4 w-4" />
+                          {deletingAnnouncementId === announcement.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-red-400 hover:text-red-300"
-                          onClick={() => handleDelete(announcement.id)}
+                          onClick={() => openEditDialog(announcement)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Edit className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>

@@ -24,6 +24,7 @@ const Navbar: React.FC = () => {
   const [hasUser, setHasUser] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userLabel, setUserLabel] = useState('');
+  const [isQuizEnabled, setIsQuizEnabled] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
@@ -114,16 +115,66 @@ const Navbar: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const fetchQuizStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("app_settings")
+          .select("allow_exam_applications")
+          .single();
+
+        if (error) throw error;
+        setIsQuizEnabled(data?.allow_exam_applications || false);
+      } catch (error) {
+        console.error("Error fetching quiz status:", error);
+        setIsQuizEnabled(false);
+      }
+    };
+
+    fetchQuizStatus();
+
+    // Listen for changes to app_settings
+    const channel = supabase
+      .channel('quiz-settings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'app_settings',
+        },
+        () => {
+          fetchQuizStatus();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const quizLabel = t("nav.quiz");
+  const safeQuizLabel = quizLabel === "nav.quiz"
+    ? (language === "ta" ? "வினாடிவினா" : "Quiz")
+    : quizLabel;
+
   const navLinks = [
     { href: "/", label: t("nav.home") },
     { href: "/about", label: t("nav.about") },
     { href: "/exam", label: t("nav.exam") },
+    { href: "/quiz", label: safeQuizLabel },
     { href: "/resources", label: t("nav.resources") },
     { href: "/events", label: t("nav.events") },
     { href: "/committee", label: t("nav.committee") },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === "/quiz") {
+      return location.pathname.startsWith("/quiz");
+    }
+    return location.pathname === path;
+  };
   const initials = userLabel
     ? userLabel
         .split(' ')
@@ -134,13 +185,21 @@ const Navbar: React.FC = () => {
         .toUpperCase()
     : 'U';
 
+  // Hide navbar when the quiz UI is active. This is a defensive fallback in case
+  // the global `body.quiz-open` class or URL-based signal isn't propagated.
+  const hideNav = (typeof window !== 'undefined') && (
+    document.body.classList.contains('quiz-open') ||
+    (location.pathname.startsWith('/quiz') && new URLSearchParams(location.search).has('school'))
+  );
+
   return (
     <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-500",
+        hideNav ? "hidden" : "",
+        "fixed top-0 left-0 right-0 z-50 transition-all duration-500 site-hidden-when-quiz",
         scrolled ? "glass-card shadow-lg" : "bg-transparent"
       )}
     >

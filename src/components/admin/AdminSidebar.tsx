@@ -22,8 +22,10 @@ import {
   HandHelping,
   TrendingUp, // ✅ added for Results page icon
   Wrench,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import logoImg from '@/assets/logo/AUSDAV_llogo.png';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
 import { Button } from '@/components/ui/button';
@@ -52,9 +54,10 @@ const navItems: NavItem[] = [
   { title: 'Patrons', href: '/admin/patrons', icon: UserPlus, roles: ['super_admin'] },
   { title: 'Designations', href: '/admin/designations', icon: User, roles: ['super_admin'] },
 
-  { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['admin', 'super_admin'], permissionKey: 'events' },
-  { title: 'Seminar', href: '/admin/seminar', icon: BookOpen, roles: ['admin', 'super_admin'], permissionKey: 'seminar' },
-  { title: 'Past Papers', href: '/admin/past-paper', icon: FileText, roles: ['admin', 'super_admin'], permissionKey: 'seminar' },
+  { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['member', 'admin', 'super_admin'], permissionKey: 'events' },
+  { title: 'Quiz', href: '/admin/quiz', icon: ClipboardCheck, roles: ['member', 'admin', 'super_admin'], permissionKey: 'quiz' },
+  { title: 'Seminar', href: '/admin/seminar', icon: BookOpen, roles: ['member', 'admin', 'super_admin'], permissionKey: 'seminar' },
+  { title: 'Past Papers', href: '/admin/past-paper', icon: FileText, roles: ['member', 'admin', 'super_admin'], permissionKey: 'exam' },
 
   { title: 'Submit Finance', href: '/admin/finance/submit', icon: Receipt, roles: ['member'] },
   { title: 'Verify Finance', href: '/admin/finance/verify', icon: CheckSquare, roles: ['admin', 'super_admin'], permissionKey: 'finance' },
@@ -86,16 +89,18 @@ export function AdminSidebar() {
 
     (async () => {
       try {
+        // Select entire settings row so missing columns don't cause a DB error
         const { data, error } = await supabase
           .from('app_settings')
-          .select('allow_manual_applications')
+          .select('*')
           .eq('id', 1)
-          .maybeSingle<{ allow_manual_applications: boolean | null }>();
+          .maybeSingle();
 
         if (error) throw error;
-        if (active) setManualApplicantsOpen(Boolean(data?.allow_manual_applications));
+        if (active) setManualApplicantsOpen(Boolean((data as any)?.allow_manual_applications ?? false));
       } catch (err) {
-        console.error('Failed to load manual applications setting', err);
+        // Don't spam console when the column is absent; default to closed
+        console.debug('Manual applications setting not available or failed to load', err);
         if (active) setManualApplicantsOpen(false);
       }
     })();
@@ -118,6 +123,11 @@ export function AdminSidebar() {
     if (role === 'admin' && item.permissionKey) {
       // Allow admins to view the Feedback portal even if they don't have the granular 'feedback' grant.
       if (item.permissionKey === 'feedback') return true;
+      return hasPermission(item.permissionKey);
+    }
+
+    // For members, require explicit grant for nav items that have permissionKey
+    if (role === 'member' && item.permissionKey) {
       return hasPermission(item.permissionKey);
     }
 
@@ -145,8 +155,8 @@ export function AdminSidebar() {
               exit={{ opacity: 0 }}
               className="flex items-center gap-2"
             >
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">A</span>
+              <div className="w-8 h-8 rounded-lg bg-transparent flex items-center justify-center overflow-hidden">
+                <img src={logoImg} alt="AUSDAV" className="w-full h-full object-contain neon-glow" />
               </div>
               <span className="font-semibold text-foreground">
                 {role === 'super_admin'

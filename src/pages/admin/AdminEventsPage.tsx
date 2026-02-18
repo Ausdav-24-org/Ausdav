@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,7 @@ import { Plus, Pencil, Trash2, Calendar, Image as ImageIcon, Loader2 } from 'luc
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import GalleryBulkUpload from './GalleryBulkUpload';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 interface Event {
   id: number;
@@ -158,6 +160,10 @@ const AdminEventsPage: React.FC = () => {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+
+  // Role / permission helpers — hide destructive actions from non-admin members
+  const { role, isAdmin, isSuperAdmin } = useAdminAuth();
+  const isAdminView = isAdmin || isSuperAdmin;
 
   const validateForm = () => {
     if (!formData.title_en.trim()) {
@@ -467,13 +473,18 @@ const AdminEventsPage: React.FC = () => {
       return formData.image_path ? { bucket: formData.image_bucket, path: formData.image_path } : null;
     }
 
-    const ext = imageFile.name.split('.').pop() || 'jpg';
+    const compressedBlob = await compressImageBlob(imageFile, {
+      maxSize: 1600,
+      quality: 0.82,
+      mimeType: 'image/jpeg',
+    });
+    const compressedFile = new File([compressedBlob], `event-${Date.now()}.jpg`, { type: 'image/jpeg' });
     const bucket = 'events';
-    const path = `events/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const path = `events/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+      .upload(path, compressedFile, { upsert: true, contentType: 'image/jpeg' });
 
     if (uploadError) throw uploadError;
 
@@ -774,21 +785,23 @@ const AdminEventsPage: React.FC = () => {
                           >
                             Add Images
                           </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this gallery? This will also delete all images in the gallery.')) {
-                                deleteGalleryMutation.mutate(gallery.id);
-                              }
-                            }}
-                            disabled={deleteGalleryMutation.isPending}
-                          >
-                            {deleteGalleryMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
-                          </Button>
+                          {isAdminView && (
+                            <Button
+                              variant="destructive"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this gallery? This will also delete all images in the gallery.')) {
+                                  deleteGalleryMutation.mutate(gallery.id);
+                                }
+                              }}
+                              disabled={deleteGalleryMutation.isPending}
+                            >
+                              {deleteGalleryMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -921,17 +934,19 @@ const AdminEventsPage: React.FC = () => {
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (confirm('Are you sure you want to delete this event?')) {
-                              deleteMutation.mutate(event.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        {isAdminView && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this event?')) {
+                                deleteMutation.mutate(event.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

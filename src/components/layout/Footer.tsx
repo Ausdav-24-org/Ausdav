@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Facebook, Instagram, Youtube, Phone, Mail, MapPin, Heart, LogIn, ArrowUpRight, Sparkles } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -13,6 +13,14 @@ import logo from '@/assets/logo/AUSDAV_llogo.png';
 
 const Footer: React.FC = () => {
   const { t } = useLanguage();
+  const location = useLocation();
+
+  // Defensive check to hide footer while quiz UI is active (fallback if body class isn't applied)
+  const hideFooter = (typeof window !== 'undefined') && (
+    document.body.classList.contains('quiz-open') ||
+    (location.pathname.startsWith('/quiz') && new URLSearchParams(location.search).has('school'))
+  );
+
   const [footerMessage, setFooterMessage] = useState('');
   const { data: orgContact } = useQuery<OrgContact | null, Error>({
     queryKey: ['org_contact'],
@@ -37,7 +45,7 @@ const Footer: React.FC = () => {
   ];
 
   return (
-    <footer className="relative bg-background overflow-hidden">
+    <footer className={`${hideFooter ? 'hidden' : ''} relative bg-background overflow-hidden site-hidden-when-quiz`}>
       {/* Gradient background */}
       <div
         className="absolute inset-0 opacity-50"

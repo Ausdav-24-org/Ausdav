@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Home, Info, FileText, BookOpen, Calendar, Users } from "lucide-react";
+import { Home, Info, FileText, BookOpen, Calendar, Users, Sparkles } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { href: "/", icon: Home, labelEn: "Home", labelTa: "முகப்பு" },
   { href: "/about", icon: Info, labelEn: "About", labelTa: "எங்களை" },
   { href: "/exam", icon: FileText, labelEn: "Exam", labelTa: "தேர்வு" },
+  { href: "/quiz", icon: Sparkles, labelEn: "Quiz", labelTa: "வினாடிவினா" },
   { href: "/resources", icon: BookOpen, labelEn: "Resources", labelTa: "வளங்கள்" },
   { href: "/events", icon: Calendar, labelEn: "Events", labelTa: "நிகழ்வுகள்" },
   { href: "/committee", icon: Users, labelEn: "Committee", labelTa: "குழு" },

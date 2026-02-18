@@ -798,11 +798,16 @@ const ExamPage: React.FC = () => {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center z-10 px-4"
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="relative w-full"
         >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-center z-10 px-4"
+          >
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -839,6 +844,7 @@ const ExamPage: React.FC = () => {
               : "தேர்வுகளுக்கு பதிவு செய்யுங்கள் மற்றும் உங்கள் முடிவுகளை சரிபார்க்கவும்"}
           </motion.p>
         </motion.div>
+      </motion.div>
 
         {/* Scroll indicator */}
         <motion.div

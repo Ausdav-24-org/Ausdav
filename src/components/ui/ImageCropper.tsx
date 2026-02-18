@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { ZoomIn, ZoomOut, RotateCw, Check, X } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCw, Check, X, Loader2 } from 'lucide-react';
 
 interface ImageCropperProps {
   open: boolean;
@@ -25,6 +25,7 @@ export function ImageCropper({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, posX: 0, posY: 0 });
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -102,87 +103,101 @@ export function ImageCropper({
 
   const handleCrop = useCallback(async () => {
     if (!imageRef.current || !containerRef.current) return;
+    if (isCropping) return;
+    setIsCropping(true);
 
-    const image = imageRef.current;
-    const container = containerRef.current;
-    const containerRect = container.getBoundingClientRect();
-    
-    // The crop circle is 80% of container (40% radius from center)
-    const cropSize = containerRect.width * 0.8;
-    const cropLeft = (containerRect.width - cropSize) / 2;
-    const cropTop = (containerRect.height - cropSize) / 2;
+    try {
+      const image = imageRef.current;
+      const container = containerRef.current;
+      const containerRect = container.getBoundingClientRect();
+      
+      // The crop circle is 80% of container (40% radius from center)
+      const cropSize = containerRect.width * 0.8;
+      const cropLeft = (containerRect.width - cropSize) / 2;
+      const cropTop = (containerRect.height - cropSize) / 2;
 
-    // Create a canvas to draw the result
-    const outputSize = 400;
-    const canvas = document.createElement('canvas');
-    canvas.width = outputSize;
-    canvas.height = outputSize;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      // Create a canvas to draw the result
+      const outputSize = 400;
+      const canvas = document.createElement('canvas');
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        setIsCropping(false);
+        return;
+      }
 
-    // Calculate the displayed image dimensions (object-cover behavior)
-    const containerAspect = containerRect.width / containerRect.height;
-    const imageAspect = imageDimensions.width / imageDimensions.height;
-    
-    let displayedWidth: number, displayedHeight: number;
-    if (imageAspect > containerAspect) {
-      // Image is wider - height fits, width is cropped
-      displayedHeight = containerRect.height;
-      displayedWidth = displayedHeight * imageAspect;
-    } else {
-      // Image is taller - width fits, height is cropped
-      displayedWidth = containerRect.width;
-      displayedHeight = displayedWidth / imageAspect;
+      // Calculate the displayed image dimensions (object-cover behavior)
+      const containerAspect = containerRect.width / containerRect.height;
+      const imageAspect = imageDimensions.width / imageDimensions.height;
+      
+      let displayedWidth: number, displayedHeight: number;
+      if (imageAspect > containerAspect) {
+        // Image is wider - height fits, width is cropped
+        displayedHeight = containerRect.height;
+        displayedWidth = displayedHeight * imageAspect;
+      } else {
+        // Image is taller - width fits, height is cropped
+        displayedWidth = containerRect.width;
+        displayedHeight = displayedWidth / imageAspect;
+      }
+
+      // Apply zoom
+      displayedWidth *= zoom;
+      displayedHeight *= zoom;
+
+      // Calculate where the image starts (centered + position offset)
+      const imageLeft = (containerRect.width - displayedWidth) / 2 + position.x;
+      const imageTop = (containerRect.height - displayedHeight) / 2 + position.y;
+
+      // Calculate the source rectangle in the original image
+      const scaleX = imageDimensions.width / displayedWidth;
+      const scaleY = imageDimensions.height / displayedHeight;
+
+      const srcX = (cropLeft - imageLeft) * scaleX;
+      const srcY = (cropTop - imageTop) * scaleY;
+      const srcWidth = cropSize * scaleX;
+      const srcHeight = cropSize * scaleY;
+
+      // Handle rotation
+      if (rotation !== 0) {
+        ctx.translate(outputSize / 2, outputSize / 2);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.translate(-outputSize / 2, -outputSize / 2);
+      }
+
+      // Draw the cropped portion
+      ctx.drawImage(
+        image,
+        Math.max(0, srcX),
+        Math.max(0, srcY),
+        Math.min(srcWidth, imageDimensions.width - srcX),
+        Math.min(srcHeight, imageDimensions.height - srcY),
+        0,
+        0,
+        outputSize,
+        outputSize
+      );
+
+      canvas.toBlob(
+        (blob) => {
+          try {
+            if (blob) {
+              onCropComplete(blob);
+              handleClose();
+            }
+          } finally {
+            setIsCropping(false);
+          }
+        },
+        'image/jpeg',
+        0.92
+      );
+    } catch (err) {
+      console.error('Crop failed:', err);
+      setIsCropping(false);
     }
-
-    // Apply zoom
-    displayedWidth *= zoom;
-    displayedHeight *= zoom;
-
-    // Calculate where the image starts (centered + position offset)
-    const imageLeft = (containerRect.width - displayedWidth) / 2 + position.x;
-    const imageTop = (containerRect.height - displayedHeight) / 2 + position.y;
-
-    // Calculate the source rectangle in the original image
-    const scaleX = imageDimensions.width / displayedWidth;
-    const scaleY = imageDimensions.height / displayedHeight;
-
-    const srcX = (cropLeft - imageLeft) * scaleX;
-    const srcY = (cropTop - imageTop) * scaleY;
-    const srcWidth = cropSize * scaleX;
-    const srcHeight = cropSize * scaleY;
-
-    // Handle rotation
-    if (rotation !== 0) {
-      ctx.translate(outputSize / 2, outputSize / 2);
-      ctx.rotate((rotation * Math.PI) / 180);
-      ctx.translate(-outputSize / 2, -outputSize / 2);
-    }
-
-    // Draw the cropped portion
-    ctx.drawImage(
-      image,
-      Math.max(0, srcX),
-      Math.max(0, srcY),
-      Math.min(srcWidth, imageDimensions.width - srcX),
-      Math.min(srcHeight, imageDimensions.height - srcY),
-      0,
-      0,
-      outputSize,
-      outputSize
-    );
-
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          onCropComplete(blob);
-          handleClose();
-        }
-      },
-      'image/jpeg',
-      0.92
-    );
-  }, [zoom, position, rotation, imageDimensions, onCropComplete]);
+  }, [zoom, position, rotation, imageDimensions, onCropComplete, isCropping, handleClose]);
 
   const handleClose = useCallback(() => {
     setZoom(1);
@@ -281,13 +296,22 @@ export function ImageCropper({
         </div>
 
         <DialogFooter className="flex gap-2">
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={isCropping}>
             <X className="w-4 h-4 mr-2" />
             Cancel
           </Button>
-          <Button onClick={handleCrop}>
-            <Check className="w-4 h-4 mr-2" />
-            Apply
+          <Button onClick={handleCrop} disabled={isCropping || !imageLoaded}>
+            {isCropping ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Applying...
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4 mr-2" />
+                Apply
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

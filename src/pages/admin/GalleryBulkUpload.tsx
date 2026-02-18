@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Upload, X, Loader2, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 interface GalleryBulkUploadProps {
   galleryId: string;
@@ -51,18 +52,31 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
   const queryClient = useQueryClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabaseDb = supabase as unknown as SupabaseClient<any, any, any, any>;
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [facebookPostUrl, setFacebookPostUrl] = useState('');
+  const [facebookToken, setFacebookToken] = useState('');
+  const [fetchedImages, setFetchedImages] = useState<string[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   const uploadImagesMutation = useMutation({
-    mutationFn: async (files: File[]) => {
-      const uploadPromises = files.map(async (file) => {
-        const ext = file.name.split('.').pop() || 'jpg';
-        const path = `${eventId}/${galleryId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    mutationFn: async (urls: string[]) => {
+      const uploadPromises = urls.map(async (url) => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error('Failed to download image from Facebook');
+        }
+        const blob = await response.blob();
+        const compressedBlob = await compressImageBlob(blob, {
+          maxSize: 1600,
+          quality: 0.82,
+          mimeType: 'image/jpeg',
+        });
+        const compressedFile = new File([compressedBlob], `gallery-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const path = `${eventId}/${galleryId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
         const { error: uploadError } = await supabase.storage
           .from('event-gallery')
-          .upload(path, file, { upsert: true, contentType: file.type });
+          .upload(path, compressedFile, { upsert: true, contentType: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
 
@@ -82,7 +96,7 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
       queryClient.invalidateQueries({ queryKey: ['galleries', eventId] });
       queryClient.invalidateQueries({ queryKey: ['gallery-images', galleryId] });
       toast.success('Images uploaded successfully');
-      setSelectedFiles([]);
+      setFetchedImages([]);
     },
     onError: (error) => {
       toast.error('Failed to upload images: ' + error.message);
@@ -91,6 +105,19 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
       setIsUploading(false);
     },
   });
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem('facebook-access-token');
+    if (savedToken) {
+      setFacebookToken(savedToken);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (facebookToken) {
+      localStorage.setItem('facebook-access-token', facebookToken);
+    }
+  }, [facebookToken]);
 
   // Fetch existing gallery images
   const { data: existingImages, isLoading: imagesLoading } = useQuery({
@@ -149,26 +176,66 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
     },
   });
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length + selectedFiles.length > 100) {
-      toast.error('Maximum 100 images allowed');
-      return;
-    }
-    setSelectedFiles(prev => [...prev, ...files]);
+  const removeFile = (index: number) => {
+    setFetchedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  const extractImageUrls = (payload: any) => {
+    const urls: string[] = [];
+    const attachments = payload?.attachments?.data ?? [];
+    for (const attachment of attachments) {
+      const mediaUrl = attachment?.media?.image?.src;
+      if (mediaUrl) urls.push(mediaUrl);
+      const subAttachments = attachment?.subattachments?.data ?? [];
+      for (const sub of subAttachments) {
+        const subUrl = sub?.media?.image?.src;
+        if (subUrl) urls.push(subUrl);
+      }
+    }
+    return Array.from(new Set(urls));
+  };
+
+  const handleFetch = async () => {
+    if (!facebookPostUrl.trim()) {
+      toast.error('Please paste a Facebook post URL');
+      return;
+    }
+    if (!facebookToken.trim()) {
+      toast.error('Please paste a Facebook access token');
+      return;
+    }
+    setIsFetching(true);
+    try {
+      const endpoint = `https://graph.facebook.com/v18.0/?id=${encodeURIComponent(facebookPostUrl.trim())}&fields=attachments{media,subattachments{media}}&access_token=${encodeURIComponent(facebookToken.trim())}`;
+      const response = await fetch(endpoint);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error?.message || 'Failed to fetch Facebook post');
+      }
+      const urls = extractImageUrls(data);
+      if (urls.length === 0) {
+        toast.error('No images found on this post');
+        return;
+      }
+      if (urls.length > 100) {
+        toast.error('Maximum 100 images allowed');
+      }
+      setFetchedImages(urls.slice(0, 100));
+      toast.success(`Fetched ${Math.min(urls.length, 100)} images`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to fetch images from Facebook');
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   const handleUpload = () => {
-    if (selectedFiles.length === 0) {
-      toast.error('Please select at least one image');
+    if (fetchedImages.length === 0) {
+      toast.error('Please fetch at least one image');
       return;
     }
     setIsUploading(true);
-    uploadImagesMutation.mutate(selectedFiles);
+    uploadImagesMutation.mutate(fetchedImages);
   };
 
   return (
@@ -180,7 +247,7 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
         </Button>
         <div>
           <h1 className="text-3xl font-bold text-foreground">Upload Images</h1>
-          <p className="text-muted-foreground mt-1">Gallery for {year} - {selectedFiles.length}/100 images selected</p>
+          <p className="text-muted-foreground mt-1">Gallery for {year} - {fetchedImages.length}/100 images fetched</p>
         </div>
       </div>
 
@@ -188,31 +255,68 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="w-5 h-5 text-accent" />
-            Bulk Image Upload
+            Facebook Post Import
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="image-files">Select Images (max 100)</Label>
+            <Label htmlFor="facebook-post-url">Facebook Post URL</Label>
             <Input
-              id="image-files"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileSelect}
-              disabled={isUploading || selectedFiles.length >= 100}
+              id="facebook-post-url"
+              type="url"
+              placeholder="https://www.facebook.com/..."
+              value={facebookPostUrl}
+              onChange={(e) => setFacebookPostUrl(e.target.value)}
+              disabled={isUploading || isFetching}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="facebook-token">Facebook Access Token</Label>
+            <Input
+              id="facebook-token"
+              type="password"
+              placeholder="Paste access token"
+              value={facebookToken}
+              onChange={(e) => setFacebookToken(e.target.value)}
+              disabled={isUploading || isFetching}
             />
           </div>
 
-          {selectedFiles.length > 0 && (
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setFetchedImages([])}
+              disabled={isUploading || isFetching || fetchedImages.length === 0}
+            >
+              Clear
+            </Button>
+            <Button
+              onClick={handleFetch}
+              disabled={isUploading || isFetching}
+            >
+              {isFetching ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Fetch Photos
+                </>
+              )}
+            </Button>
+          </div>
+
+          {fetchedImages.length > 0 && (
             <div className="space-y-2">
-              <Label>Selected Images ({selectedFiles.length})</Label>
+              <Label>Fetched Images ({fetchedImages.length})</Label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-60 overflow-y-auto">
-                {selectedFiles.map((file, index) => (
+                {fetchedImages.map((url, index) => (
                   <div key={index} className="relative group">
                     <img
-                      src={URL.createObjectURL(file)}
-                      alt={file.name}
+                      src={url}
+                      alt={`Facebook image ${index + 1}`}
                       className="w-full h-20 object-cover rounded border"
                     />
                     <Button
@@ -224,7 +328,7 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
                     >
                       <X className="w-3 h-3" />
                     </Button>
-                    <p className="text-xs truncate mt-1">{file.name}</p>
+                    <p className="text-xs truncate mt-1">{`Image ${index + 1}`}</p>
                   </div>
                 ))}
               </div>
@@ -232,10 +336,7 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
           )}
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setSelectedFiles([])} disabled={isUploading}>
-              Clear All
-            </Button>
-            <Button onClick={handleUpload} disabled={isUploading || selectedFiles.length === 0}>
+            <Button onClick={handleUpload} disabled={isUploading || fetchedImages.length === 0}>
               {isUploading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -244,7 +345,7 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
               ) : (
                 <>
                   <Upload className="w-4 h-4 mr-2" />
-                  Upload {selectedFiles.length} Images
+                  Import {fetchedImages.length} Images
                 </>
               )}
             </Button>

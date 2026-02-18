@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import { Loader2, Trash2, PlusCircle } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 const IconUser = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
@@ -63,9 +64,14 @@ export default function AdminPatronsPage() {
       // optionally upload file
       let path: string | null = null;
       if (file) {
-        const ext = file.name.split('.').pop() || 'jpg';
-        const filePath = `patrons/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: uploadErr } = await supabase.storage.from('patrons').upload(filePath, file, { upsert: true, contentType: file.type });
+        const compressedBlob = await compressImageBlob(file, {
+          maxSize: 1600,
+          quality: 0.82,
+          mimeType: 'image/jpeg',
+        });
+        const compressedFile = new File([compressedBlob], `patron-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const filePath = `patrons/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+        const { error: uploadErr } = await supabase.storage.from('patrons').upload(filePath, compressedFile, { upsert: true, contentType: 'image/jpeg' });
         if (uploadErr) throw uploadErr;
         path = filePath;
       }

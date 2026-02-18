@@ -1,7 +1,7 @@
 // The Deno runtime supplies these remote modules at deploy/serve time.
-// @ts-ignore - TypeScript in this workspace does not resolve remote Deno imports.
+// @ts-expect-error - TypeScript in this workspace does not resolve remote Deno imports.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-// @ts-ignore - TypeScript in this workspace does not resolve remote Deno imports.
+// @ts-expect-error - TypeScript in this workspace does not resolve remote Deno imports.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Minimal declaration so editors know Deno.env exists during local type checking.

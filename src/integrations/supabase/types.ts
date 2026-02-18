@@ -737,6 +737,81 @@ export type Database = {
         };
         Relationships: [];
       };
+      quiz_mcq: {
+        Row: {
+          id: number;
+          question_text: string;
+          language: string;
+          option_a: string;
+          option_b: string;
+          option_c: string;
+          option_d: string;
+          correct_answer: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          question_text: string;
+          language?: string;
+          option_a: string;
+          option_b: string;
+          option_c: string;
+          option_d: string;
+          correct_answer?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          question_text?: string;
+          language?: string;
+          option_a?: string;
+          option_b?: string;
+          option_c?: string;
+          option_d?: string;
+          correct_answer?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      school_quiz_results: {
+        Row: {
+          id: number;
+          school_name: string;
+          total_questions: number;
+          correct_answers: number;
+          wrong_answers: number;
+          not_answered: number;
+          final_score: number;
+          language: string;
+          completed_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          school_name: string;
+          total_questions?: number;
+          correct_answers?: number;
+          wrong_answers?: number;
+          not_answered?: number;
+          final_score?: number;
+          language?: string;
+          completed_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          school_name?: string;
+          total_questions?: number;
+          correct_answers?: number;
+          wrong_answers?: number;
+          not_answered?: number;
+          final_score?: number;
+          language?: string;
+          completed_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

@@ -100,6 +100,13 @@ const permissionItems: PermissionItem[] = [
     icon: Megaphone,
     color: 'from-emerald-500 to-green-500',
   },
+  {
+    key: 'quiz',
+    title: 'Quiz Handling',
+    description: 'Manage quiz questions, view results, and control quiz settings.',
+    icon: GraduationCap,
+    color: 'from-cyan-500 to-blue-500',
+  },
 ];
 
 export default function ClaimPermissionPage() {

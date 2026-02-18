@@ -95,9 +95,14 @@ const AboutPage: React.FC = () => {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="relative w-full"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
           className="text-center z-10 px-4"
         >
           <motion.p
@@ -130,8 +135,7 @@ const AboutPage: React.FC = () => {
               ? "Discover who we are and what we offer"
               : "நாங்கள் யார், என்ன செய்கிறோம் என்பதை அறிந்து கொள்ளுங்கள்"}
           </motion.p>
-        </motion.div>
-
+        </motion.div>        </motion.div>
         {/* Scroll indicator */}
         <motion.div
           initial={{ opacity: 0 }}
