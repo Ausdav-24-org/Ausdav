@@ -7,6 +7,7 @@ import {
   HelpCircle,
   Eye,
   EyeOff,
+  List,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -121,7 +122,7 @@ const QuizTamilMCQ: React.FC = () => {
   const [quizStarted, setQuizStarted] = useState(false);
   const [checkingAttempt, setCheckingAttempt] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
-  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
+  const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [quizDurationSeconds, setQuizDurationSeconds] = useState(60); // dynamic quiz duration (seconds)
   const [canViewReview, setCanViewReview] = useState(false);
@@ -250,6 +251,8 @@ const QuizTamilMCQ: React.FC = () => {
   );
 
   const [isFinished, setIsFinished] = useState(false);
+  // Toggle for question index panel (shows small card with question numbers)
+  const [showQuestionPanel, setShowQuestionPanel] = useState(false);
 
   // Resize answers when question count changes
   useEffect(() => {
@@ -271,18 +274,34 @@ const QuizTamilMCQ: React.FC = () => {
 
   // Reset per-question timer whenever the question changes
   useEffect(() => {
+    // only start per-question timer when quiz timer has started (first question is visible)
+    if (!quizStartTime) return;
     if (!answers[currentIndex]?.secondsTaken) {
       setQuestionStartTime(Date.now());
     }
-  }, [currentIndex]);
+  }, [currentIndex, quizStartTime]);
 
-  // Per-question bonus calculation — max 60 pts, refills on each new question
+  // Start the overall quiz timer only when the first question card is visible to the user
+  useEffect(() => {
+    if (!quizStarted) return;
+    if (quizStartTime) return; // already started (or restored)
+    if (!currentQuestion) return; // wait until a question is rendered
+
+    // mark quiz start at the moment the first question is shown
+    setQuizStartTime(Date.now());
+    // ensure displayed remaining time matches configured quiz duration
+    setTimeRemaining(quizDurationSeconds);
+  }, [quizStarted, quizStartTime, currentQuestion, quizDurationSeconds]);
+
+  // Per-question bonus calculation — max 60 pts, single 60s window per question
+  // If the user spends more than 60s on the question the bonus becomes zero and
+  // cannot be re-earned by waiting (no cycling).
   const BONUS_MAX = 60;
   const _takenForBonus =
     answers[currentIndex]?.secondsTaken ??
     Math.floor((Date.now() - questionStartTime) / 1000);
-  // Bonus decreases from 60 per question; cycles every 60 s
-  const _bonusRemaining = clamp(BONUS_MAX - (_takenForBonus % BONUS_MAX), 0, BONUS_MAX);
+  // Bonus decreases linearly from 60 -> 0 across the first 60s; clamp to 0 afterwards
+  const _bonusRemaining = clamp(BONUS_MAX - _takenForBonus, 0, BONUS_MAX);
   const bonusProgressPct = Math.round((_bonusRemaining / BONUS_MAX) * 100);
   const bonusTextColorClass = _bonusRemaining <= 10 ? "text-red-500" : _bonusRemaining <= 20 ? "text-yellow-600" : "text-green-600";
   // Battery-style: filled portion = colored (green/yellow/red), empty track = white
@@ -296,9 +315,7 @@ const QuizTamilMCQ: React.FC = () => {
     [activeQuestions],
   );
 
-  const progressValue = totalQuestions
-    ? (Math.min(currentIndex + 1, totalQuestions) / totalQuestions) * 100
-    : 0;
+  // progressValue and visual progress bar removed per design request
 
   // ✅ When URL changes (refresh/back/forward), update currentIndex accordingly
   useEffect(() => {
@@ -421,14 +438,22 @@ const QuizTamilMCQ: React.FC = () => {
   }, [currentIndex, quizStarted, quizStartTime, schoolName, answers]);
 
   // ---------- Select / clear option ----------
+  // NOTE: once a question records `secondsTaken` we preserve it so the time bonus
+  // is applied only once for that question (subsequent selections/clears don't reset it).
   const selectOption = (optionId: string) => {
     if (isFinished) return;
     // Per-question elapsed time (seconds since this question was shown)
-    const elapsed = Math.floor((Date.now() - questionStartTime) / 1000);
+    const elapsed = questionStartTime ? Math.floor((Date.now() - questionStartTime) / 1000) : 0;
 
     setAnswers((prev) => {
       const next = [...prev];
-      next[currentIndex] = { selectedOptionId: optionId, secondsTaken: elapsed };
+      const existing = next[currentIndex] || { selectedOptionId: null, secondsTaken: undefined };
+      next[currentIndex] = {
+        // always update selectedOptionId so user can change their choice
+        selectedOptionId: optionId,
+        // preserve previously recorded secondsTaken if present; otherwise record elapsed now
+        secondsTaken: typeof existing.secondsTaken === "number" ? existing.secondsTaken : elapsed,
+      };
       return next;
     });
   };
@@ -437,7 +462,13 @@ const QuizTamilMCQ: React.FC = () => {
     if (isFinished) return;
     setAnswers((prev) => {
       const next = [...prev];
-      next[currentIndex] = { selectedOptionId: null, secondsTaken: undefined };
+      const existing = next[currentIndex] || { selectedOptionId: null, secondsTaken: undefined };
+      next[currentIndex] = {
+        // clear only the selected option but DO NOT remove an existing secondsTaken —
+        // preserving it ensures the time bonus cannot be re-earned by re-answering.
+        selectedOptionId: null,
+        secondsTaken: typeof existing.secondsTaken === "number" ? existing.secondsTaken : undefined,
+      };
       return next;
     });
   };
@@ -463,18 +494,12 @@ const QuizTamilMCQ: React.FC = () => {
         correct += 1;
         // 100 points for correct
         score += 100;
-        // Bonus: if answered within 60s, add (60 - seconds taken)
-        // For now, estimate seconds taken as (60 - timeRemaining) if available
-        // If you track answer time per question, use that instead
-        // Per-question time (how long they spent before answering)
-        let secondsTaken = 60; // fallback: max penalty
-        if (answers[idx]?.secondsTaken != null) {
-          secondsTaken = answers[idx].secondsTaken;
-        }
-        // Bonus capped at 60 pts, decreases per second on the question
+        // Bonus: per-question time bonus = max(0, 60 - secondsTaken)
+        // Use recorded per-question secondsTaken if available; otherwise no bonus
+        let secondsTaken: number | null = null;
+        if (typeof answers[idx]?.secondsTaken === 'number') secondsTaken = answers[idx].secondsTaken;
         const BONUS_CAP = 60;
-        let bonus = BONUS_CAP - (secondsTaken % BONUS_CAP);
-        if (bonus < 0) bonus = 0;
+        const bonus = secondsTaken == null ? 0 : Math.max(0, BONUS_CAP - secondsTaken);
         score += bonus;
       } else {
         wrong += 1;
@@ -632,7 +657,7 @@ const QuizTamilMCQ: React.FC = () => {
       setQuizStarted(true);
       setShowSchoolDialog(false);
       setShowSchoolInput(false);
-      setQuizStartTime(Date.now());
+      // Do NOT start the quiz timer here — start when the first question card is visible to the user
       // Use duration from quiz_passwords if present (minutes -> seconds), otherwise fallback to 60s
       const durationMinutes = (passwordData as any).duration_minutes;
       const initialSeconds = (typeof durationMinutes === 'number' && durationMinutes > 0) ? durationMinutes * 60 : 60;
@@ -745,27 +770,34 @@ const QuizTamilMCQ: React.FC = () => {
       }
 
       // Save individual answers to school_quiz_answers table
-      // Map answers array to q1, q2, q3... columns + persist per-question seconds/bonus in answers_meta
+      // Persist per-question selections in `choice_meta` (question-id -> selected option)
+      // Keep `answers_meta` for per-question timing/bonus (used by admin/details views)
       const answersData: any = {
         school_name: schoolName,
         language: language,
         quiz_password_id: quizPasswordId,
       };
 
-      // Build answers_meta (secondsTaken + bonus) for each question
+      // Build answers_meta (secondsTaken + bonus) for each question — keys use `quiz_mcq.id` as string
       const answersMeta: Record<string, { secondsTaken?: number | null; bonus?: number | null }> = {};
+      const choiceMeta: Record<string, string | null> = {};
 
-      // Map each answer to its corresponding question column (q1, q2, q3, etc.)
+      // Map each answer to choice_meta using the question id; populate answers_meta keyed by question id
       answers.forEach((ans, index) => {
-        const columnName = `q${index + 1}`;
-        answersData[columnName] = ans.selectedOptionId ?? null; // 'a'|'b'|'c'|'d'|null
+        const q = activeQuestions[index] as any;
+        const qId = q?.id?.toString() ?? `${index + 1}`;
+        choiceMeta[qId] = ans.selectedOptionId ?? null; // 'a'|'b'|'c'|'d'|null
 
         const seconds = typeof ans.secondsTaken === "number" ? ans.secondsTaken : null;
-        const bonus = seconds === null ? null : Math.max(0, quizDurationSeconds - seconds);
-        answersMeta[columnName] = { secondsTaken: seconds, bonus };
+        // per-question bonus uses 60s cap (higher bonus for faster answers). store null if unknown
+        const BONUS_CAP = 60;
+        const bonus = seconds === null ? null : Math.max(0, BONUS_CAP - seconds);
+        // store timing keyed by the question's DB id (string) for stability
+        answersMeta[qId] = { secondsTaken: seconds, bonus };
       });
 
-      // Attach answers_meta so admin/details can show per-question bonus later
+      // Attach choice_meta and answers_meta so admin/details can show user selections and timing later
+      answersData.choice_meta = choiceMeta;
       answersData.answers_meta = answersMeta;
 
       console.log("Saving answers data:", answersData);
@@ -1190,17 +1222,67 @@ const QuizTamilMCQ: React.FC = () => {
                     </h1>
                   </motion.div>
 
-                  <div className="mb-8">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-sm font-medium text-foreground/70">
-                        {language === "ta" ? "முன்னேற்றம்" : "Progress"}
-                      </span>
-                      <span className="text-sm font-bold text-primary">
-                        {Math.min(currentIndex + 1, totalQuestions)}/
-                        {totalQuestions}
-                      </span>
+                  {/* Per-question time-bonus (moved above question card) */}
+                  <div className="mb-8" aria-live="polite">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-foreground/70">Time bonus</div>
+
+                      <div className="flex items-center gap-3">
+                        <div className={`text-sm font-semibold ${bonusTextColorClass}`}>
+                          +{_bonusRemaining} pts
+                        </div>
+
+                        {/* Toggle button to show question index panel (mobile) */}
+                        {totalQuestions > 1 && (
+                          <button
+                            type="button"
+                            aria-expanded={showQuestionPanel}
+                            aria-label={showQuestionPanel ? 'Hide question index' : 'Show question index'}
+                            onClick={() => setShowQuestionPanel((s) => !s)}
+                            className="p-1 rounded-md hover:bg-primary/5 active:scale-95 md:hidden"
+                          >
+                            <List className="w-4 h-4 text-foreground/70" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <Progress value={progressValue} className="h-2" />
+
+                    {/* progress value: percentage of remaining bonus */}
+                    <Progress
+                      value={bonusProgressPct}
+                      className="h-2 rounded-full bg-white/10 border border-white/10"
+                      indicatorClassName={bonusIndicatorClassName}
+                    />
+
+                    {/* Question index panel (non-overlapping, appears below progress on mobile) */}
+                    {showQuestionPanel && totalQuestions > 1 && (
+                      <div className="mt-3 p-3 bg-muted/30 border border-primary/10 rounded-lg md:hidden">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs text-foreground/70">Questions: {totalQuestions}</div>
+                          <div className="text-xs text-foreground/60">Current: {currentIndex + 1}</div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 py-1">
+                          {Array.from({ length: totalQuestions }).map((_, i) => {
+                            const isActive = i === currentIndex;
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => {
+                                  setCurrentIndex(i);
+                                  setUrl(i + 1, schoolName, false);
+                                }}
+                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent hover:bg-primary/5'}`}
+                                aria-current={isActive ? 'true' : undefined}
+                                aria-label={`Go to question ${i + 1}`}
+                              >
+                                {i + 1}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {questionsLoading ? (
@@ -1234,6 +1316,48 @@ const QuizTamilMCQ: React.FC = () => {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3 }}
                     >
+                      {/* Floating right-side index toggle (desktop only) */}
+                      {totalQuestions > 1 && (
+                        <>
+                          <button
+                            onClick={() => setShowQuestionPanel((s) => !s)}
+                            aria-expanded={showQuestionPanel}
+                            aria-label={showQuestionPanel ? 'Hide question index' : 'Show question index'}
+                            className="hidden md:flex items-center justify-center fixed right-4 top-[15%] -translate-y-1/2 z-40 w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg"
+                          >
+                            <List className="w-5 h-5" />
+                          </button>
+
+                          <div
+                            className={`hidden md:block fixed right-14 top-[20%] -translate-y-1/2 z-30 w-auto max-w-[420px] p-3 bg-muted/90 border border-primary/10 rounded-lg shadow-lg transition-transform duration-200 ${showQuestionPanel ? 'translate-x-0' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-xs text-foreground/70">Questions: {totalQuestions}</div>
+                              <div className="text-xs text-foreground/60">Current: {currentIndex + 1}</div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 py-1">
+                              {Array.from({ length: totalQuestions }).map((_, i) => {
+                                const isActive = i === currentIndex;
+                                return (
+                                  <button
+                                    key={i}
+                                    onClick={() => {
+                                      setCurrentIndex(i);
+                                      setUrl(i + 1, schoolName, false);
+                                    }}
+                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent hover:bg-primary/5'}`}
+                                    aria-current={isActive ? 'true' : undefined}
+                                    aria-label={`Go to question ${i + 1}`}
+                                  >
+                                    {i + 1}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      )}
                       <Card
                         className="border-primary/20 shadow-lg mb-8 relative overflow-hidden select-none"
                         onCopy={(e) => { e.preventDefault(); punishCopyAttempt(); }}
@@ -1260,7 +1384,7 @@ const QuizTamilMCQ: React.FC = () => {
                         <CardHeader className="border-b border-primary/10">
                           <div className="flex gap-4">
                             <p
-                              className="flex-1 text-lg md:text-xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
+                              className="flex-1 text-2xl md:text-3xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
                                 userSelect: "none",
                                 WebkitUserSelect: "none",
@@ -1306,7 +1430,7 @@ const QuizTamilMCQ: React.FC = () => {
                                   }`}
                                 >
                                   <div
-                                    className={`flex-shrink-0 w-10 h-10 rounded-lg font-bold flex items-center justify-center text-sm transition-all ${
+                                    className={`flex-shrink-0 w-10 h-10 rounded-lg font-bold flex items-center justify-center text-base md:text-lg transition-all ${
                                       checkedOpt
                                         ? "bg-primary text-primary-foreground"
                                         : "bg-primary/20 text-primary group-hover:bg-primary/30"
@@ -1314,7 +1438,7 @@ const QuizTamilMCQ: React.FC = () => {
                                   >
                                     {String.fromCharCode(65 + idx)}
                                   </div>
-                                  <span className="text-foreground font-medium select-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
+                                  <span className="text-foreground font-medium text-lg md:text-xl select-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
                                     {opt.text}
                                   </span>
                                 </motion.button>
@@ -1322,22 +1446,7 @@ const QuizTamilMCQ: React.FC = () => {
                             })}
                           </div>
 
-                          {/* Per-question time-bonus progress (below all answers) */}
-                          <div className="mb-4 mt-2" aria-live="polite">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="text-sm text-foreground/70">Time bonus</div>
-                              <div className={`text-sm font-semibold ${bonusTextColorClass}`}>
-                                +{_bonusRemaining} pts
-                              </div>
-                            </div>
-
-                            {/* progress value: percentage of remaining bonus */}
-                            <Progress
-                              value={bonusProgressPct}
-                              className="h-2 rounded-full bg-white/10 border border-white/10"
-                              indicatorClassName={bonusIndicatorClassName}
-                            />
-                          </div>
+                          {/* progress bar removed — progressValue no longer used */}
 
                           <div className="flex justify-between items-center gap-4">
                             <Button
