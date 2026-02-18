@@ -121,7 +121,7 @@ const QuizTamilMCQ: React.FC = () => {
   const [quizStarted, setQuizStarted] = useState(false);
   const [checkingAttempt, setCheckingAttempt] = useState(false);
   const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
-  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
+  const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(60);
   const [quizDurationSeconds, setQuizDurationSeconds] = useState(60); // dynamic quiz duration (seconds)
   const [canViewReview, setCanViewReview] = useState(false);
@@ -271,10 +271,24 @@ const QuizTamilMCQ: React.FC = () => {
 
   // Reset per-question timer whenever the question changes
   useEffect(() => {
+    // only start per-question timer when quiz timer has started (first question is visible)
+    if (!quizStartTime) return;
     if (!answers[currentIndex]?.secondsTaken) {
       setQuestionStartTime(Date.now());
     }
-  }, [currentIndex]);
+  }, [currentIndex, quizStartTime]);
+
+  // Start the overall quiz timer only when the first question card is visible to the user
+  useEffect(() => {
+    if (!quizStarted) return;
+    if (quizStartTime) return; // already started (or restored)
+    if (!currentQuestion) return; // wait until a question is rendered
+
+    // mark quiz start at the moment the first question is shown
+    setQuizStartTime(Date.now());
+    // ensure displayed remaining time matches configured quiz duration
+    setTimeRemaining(quizDurationSeconds);
+  }, [quizStarted, quizStartTime, currentQuestion, quizDurationSeconds]);
 
   // Per-question bonus calculation — max 60 pts, refills on each new question
   const BONUS_MAX = 60;
@@ -424,7 +438,7 @@ const QuizTamilMCQ: React.FC = () => {
   const selectOption = (optionId: string) => {
     if (isFinished) return;
     // Per-question elapsed time (seconds since this question was shown)
-    const elapsed = Math.floor((Date.now() - questionStartTime) / 1000);
+    const elapsed = questionStartTime ? Math.floor((Date.now() - questionStartTime) / 1000) : 0;
 
     setAnswers((prev) => {
       const next = [...prev];
@@ -626,7 +640,7 @@ const QuizTamilMCQ: React.FC = () => {
       setQuizStarted(true);
       setShowSchoolDialog(false);
       setShowSchoolInput(false);
-      setQuizStartTime(Date.now());
+      // Do NOT start the quiz timer here — start when the first question card is visible to the user
       // Use duration from quiz_passwords if present (minutes -> seconds), otherwise fallback to 60s
       const durationMinutes = (passwordData as any).duration_minutes;
       const initialSeconds = (typeof durationMinutes === 'number' && durationMinutes > 0) ? durationMinutes * 60 : 60;
@@ -1261,7 +1275,7 @@ const QuizTamilMCQ: React.FC = () => {
                         <CardHeader className="border-b border-primary/10">
                           <div className="flex gap-4">
                             <p
-                              className="flex-1 text-lg md:text-xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
+                              className="flex-1 text-2xl md:text-3xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
                                 userSelect: "none",
                                 WebkitUserSelect: "none",
@@ -1307,7 +1321,7 @@ const QuizTamilMCQ: React.FC = () => {
                                   }`}
                                 >
                                   <div
-                                    className={`flex-shrink-0 w-10 h-10 rounded-lg font-bold flex items-center justify-center text-sm transition-all ${
+                                    className={`flex-shrink-0 w-10 h-10 rounded-lg font-bold flex items-center justify-center text-base md:text-lg transition-all ${
                                       checkedOpt
                                         ? "bg-primary text-primary-foreground"
                                         : "bg-primary/20 text-primary group-hover:bg-primary/30"
@@ -1315,7 +1329,7 @@ const QuizTamilMCQ: React.FC = () => {
                                   >
                                     {String.fromCharCode(65 + idx)}
                                   </div>
-                                  <span className="text-foreground font-medium select-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
+                                  <span className="text-foreground font-medium text-lg md:text-xl select-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
                                     {opt.text}
                                   </span>
                                 </motion.button>
