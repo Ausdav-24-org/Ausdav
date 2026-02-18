@@ -463,18 +463,12 @@ const QuizTamilMCQ: React.FC = () => {
         correct += 1;
         // 100 points for correct
         score += 100;
-        // Bonus: if answered within 60s, add (60 - seconds taken)
-        // For now, estimate seconds taken as (60 - timeRemaining) if available
-        // If you track answer time per question, use that instead
-        // Per-question time (how long they spent before answering)
-        let secondsTaken = 60; // fallback: max penalty
-        if (answers[idx]?.secondsTaken != null) {
-          secondsTaken = answers[idx].secondsTaken;
-        }
-        // Bonus capped at 60 pts, decreases per second on the question
+        // Bonus: per-question time bonus = max(0, 60 - secondsTaken)
+        // Use recorded per-question secondsTaken if available; otherwise no bonus
+        let secondsTaken: number | null = null;
+        if (typeof answers[idx]?.secondsTaken === 'number') secondsTaken = answers[idx].secondsTaken;
         const BONUS_CAP = 60;
-        let bonus = BONUS_CAP - (secondsTaken % BONUS_CAP);
-        if (bonus < 0) bonus = 0;
+        const bonus = secondsTaken == null ? 0 : Math.max(0, BONUS_CAP - secondsTaken);
         score += bonus;
       } else {
         wrong += 1;
@@ -745,27 +739,34 @@ const QuizTamilMCQ: React.FC = () => {
       }
 
       // Save individual answers to school_quiz_answers table
-      // Map answers array to q1, q2, q3... columns + persist per-question seconds/bonus in answers_meta
+      // Persist per-question selections in `choice_meta` (question-id -> selected option)
+      // Keep `answers_meta` for per-question timing/bonus (used by admin/details views)
       const answersData: any = {
         school_name: schoolName,
         language: language,
         quiz_password_id: quizPasswordId,
       };
 
-      // Build answers_meta (secondsTaken + bonus) for each question
+      // Build answers_meta (secondsTaken + bonus) for each question — keys use `quiz_mcq.id` as string
       const answersMeta: Record<string, { secondsTaken?: number | null; bonus?: number | null }> = {};
+      const choiceMeta: Record<string, string | null> = {};
 
-      // Map each answer to its corresponding question column (q1, q2, q3, etc.)
+      // Map each answer to choice_meta using the question id; populate answers_meta keyed by question id
       answers.forEach((ans, index) => {
-        const columnName = `q${index + 1}`;
-        answersData[columnName] = ans.selectedOptionId ?? null; // 'a'|'b'|'c'|'d'|null
+        const q = activeQuestions[index] as any;
+        const qId = q?.id?.toString() ?? `${index + 1}`;
+        choiceMeta[qId] = ans.selectedOptionId ?? null; // 'a'|'b'|'c'|'d'|null
 
         const seconds = typeof ans.secondsTaken === "number" ? ans.secondsTaken : null;
-        const bonus = seconds === null ? null : Math.max(0, quizDurationSeconds - seconds);
-        answersMeta[columnName] = { secondsTaken: seconds, bonus };
+        // per-question bonus uses 60s cap (higher bonus for faster answers). store null if unknown
+        const BONUS_CAP = 60;
+        const bonus = seconds === null ? null : Math.max(0, BONUS_CAP - seconds);
+        // store timing keyed by the question's DB id (string) for stability
+        answersMeta[qId] = { secondsTaken: seconds, bonus };
       });
 
-      // Attach answers_meta so admin/details can show per-question bonus later
+      // Attach choice_meta and answers_meta so admin/details can show user selections and timing later
+      answersData.choice_meta = choiceMeta;
       answersData.answers_meta = answersMeta;
 
       console.log("Saving answers data:", answersData);

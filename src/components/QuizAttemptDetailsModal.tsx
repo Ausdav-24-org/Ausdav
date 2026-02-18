@@ -36,17 +36,42 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  // defensive: don't render or run effects when modal is closed
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<QuizAnswersData>({});
   const [storedScore, setStoredScore] = useState<number | null>(null);
+  const [localError, setLocalError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (isOpen && schoolName && quizPasswordId) {
-      console.log('[QuizAttemptDetailsModal] Opening for school:', schoolName, 'quizPasswordId:', quizPasswordId);
-      fetchQuizData();
-    }
+    if (!isOpen) return;
+    if (!schoolName || !quizPasswordId) return;
+
+    setLocalError(null);
+    console.log('[QuizAttemptDetailsModal] Opening for school:', schoolName, 'quizPasswordId:', quizPasswordId);
+    fetchQuizData().catch((err) => {
+      console.error('[QuizAttemptDetailsModal] fetch error:', err);
+      setLocalError(err instanceof Error ? err : new Error(String(err)));
+    });
   }, [isOpen, schoolName, quizPasswordId]);
+
+  // early return if modal closed or required props missing
+  if (!isOpen) return null;
+  if (!schoolName) return null;
+  if (!quizPasswordId) return null;
+  if (localError) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-background rounded-lg shadow-lg p-6 max-w-lg w-full">
+          <h3 className="text-lg font-semibold">Failed to load attempt details</h3>
+          <p className="text-sm text-muted-foreground mt-2">{localError.message}</p>
+          <div className="mt-4 text-right">
+            <button className="btn btn-ghost" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const fetchQuizData = async () => {
     try {
@@ -122,7 +147,8 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
 
   const getAnswerStatus = (question: QuizQuestion, questionIndex: number) => {
     const columnName = `q${questionIndex + 1}`;
-    const studentAnswer = answers[columnName] || null;
+    const choiceMeta: Record<string, string | null> = (answers as any)?.choice_meta || {};
+    const studentAnswer = choiceMeta[question.id?.toString()] ?? (answers as any)[columnName] ?? null;
 
     if (!studentAnswer) {
       return { status: "not-answered", label: "Not Answered" };
@@ -139,14 +165,18 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
   const computeScoreFromAnswers = (qs: QuizQuestion[] = questions, ans: any = answers) => {
     let total = 0;
 
-    qs.forEach((q, idx) => {
+    qs.forEach((question, idx) => {
       const col = `q${idx + 1}`;
-      const studentAnswer = ans[col] || null;
-      const meta = (ans && (ans.answers_meta || {}) && (ans.answers_meta[col] || null)) || null;
+      const choiceMeta = (ans && ans.choice_meta) || {};
+      const studentAnswer = choiceMeta[question.id?.toString()] ?? ans[col] ?? null;
+
+      // answers_meta may be keyed by question-id (preferred) or legacy qN — support both
+      const answersMetaObj = (ans && ans.answers_meta) || {};
+      const meta = answersMetaObj[question.id?.toString()] ?? answersMetaObj[col] ?? null;
 
       if (!studentAnswer) {
         // not answered -> 0
-      } else if (studentAnswer === q.correct_answer) {
+      } else if (studentAnswer === question.correct_answer) {
         total += 100;
         const bonus = typeof meta?.bonus === 'number'
           ? meta.bonus
@@ -165,21 +195,26 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
   const stats = {
     total: questions.length,
     correct: questions.filter(
-      (q, idx) => getAnswerStatus(q, idx).status === "correct"
+      (question, idx) => getAnswerStatus(question, idx).status === "correct"
     ).length,
     wrong: questions.filter(
-      (q, idx) => getAnswerStatus(q, idx).status === "wrong"
+      (question, idx) => getAnswerStatus(question, idx).status === "wrong"
     ).length,
     notAnswered: questions.filter(
-      (q, idx) => getAnswerStatus(q, idx).status === "not-answered"
+      (question, idx) => getAnswerStatus(question, idx).status === "not-answered"
     ).length,
   };
 
-  // Build per-question timing data (from answers_meta.qN.secondsTaken)
+  // Build per-question timing data (supports answers_meta keyed by question-id OR legacy qN)
   const answersMeta = (answers as any)?.answers_meta || {};
-  const chartData = questions.map((q, idx) => {
+  const chartData = questions.map((question, idx) => {
     const key = `q${idx + 1}`;
-    const sec = typeof answersMeta[key]?.secondsTaken === "number" ? answersMeta[key].secondsTaken : null;
+    const sec =
+      typeof answersMeta[question.id?.toString()]?.secondsTaken === "number"
+        ? answersMeta[question.id?.toString()].secondsTaken
+        : typeof answersMeta[key]?.secondsTaken === "number"
+        ? answersMeta[key].secondsTaken
+        : null;
     return { question: `Q${idx + 1}`, seconds: sec ?? 0 };
   });
 
@@ -283,7 +318,8 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
                   <div className="space-y-6">
                   {questions.map((question, index) => {
                     const columnName = `q${index + 1}`;
-                    const studentAnswer = answers[columnName] || null;
+                    const choiceMeta = (answers as any)?.choice_meta || {};
+                    const studentAnswer = choiceMeta[question.id?.toString()] ?? (answers as any)[columnName] ?? null;
                     const statusData = getAnswerStatus(question, index);
 
                     return (
@@ -420,12 +456,26 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
                               {(() => {
                                 // answers may include answers_meta (added in submissions)
                                 const answersMeta = (answers as any)?.answers_meta || {};
-                                const meta = answersMeta[columnName] || null;
+                                // support question-id keyed meta (preferred) with legacy qN fallback
+                                const meta = answersMeta[question.id?.toString()] ?? answersMeta[columnName] ?? null;
 
                                 // Use same scoring as the quiz: +100 for correct, -50 for wrong, 0 for not answered
-                                const qstnPoint =
-                                  statusData.status === "correct" ? 100 : statusData.status === "wrong" ? -50 : 0;
-                                const bonusPoint = meta?.bonus ?? null; // null means not recorded
+                                const qstnPoint = statusData.status === "correct" ? 100 : statusData.status === "wrong" ? -50 : 0;
+
+                                // Determine displayed bonus: only apply time bonus when the answer is correct.
+                                let bonusPoint: number | null = null;
+                                if (statusData.status === "correct") {
+                                  if (typeof meta?.bonus === "number") {
+                                    bonusPoint = meta.bonus;
+                                  } else if (typeof meta?.secondsTaken === "number") {
+                                    bonusPoint = Math.max(0, 60 - meta.secondsTaken);
+                                  } else {
+                                    bonusPoint = 0;
+                                  }
+                                } else {
+                                  // wrong or not-answered -> no time bonus shown/applied
+                                  bonusPoint = 0;
+                                }
 
                                 return (
                                   <div className="mt-3 flex gap-4 items-center">

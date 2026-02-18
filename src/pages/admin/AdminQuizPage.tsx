@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
 import QuizAttemptDetailsModal from "@/components/QuizAttemptDetailsModal";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 type QuizQuestion = {
   id: number;
@@ -1966,15 +1967,17 @@ const AdminQuizPage: React.FC = () => {
 
       {/* Quiz Attempt Details Modal */}
       {selectedQuizResult && (
-        <QuizAttemptDetailsModal
-          schoolName={selectedQuizResult.school_name}
-          quizPasswordId={selectedQuizResult.quiz_password_id ?? 0}
-          isOpen={showDetailsModal}
-          onClose={() => {
-            setShowDetailsModal(false);
-            setSelectedQuizResult(null);
-          }}
-        />
+        <ErrorBoundary fallback={<div className="p-6">Failed to load attempt details.</div>}>
+          <QuizAttemptDetailsModal
+            schoolName={selectedQuizResult.school_name}
+            quizPasswordId={selectedQuizResult.quiz_password_id ?? 0}
+            isOpen={showDetailsModal}
+            onClose={() => {
+              setShowDetailsModal(false);
+              setSelectedQuizResult(null);
+            }}
+          />
+        </ErrorBoundary>
       )}
       </div>
     </>
