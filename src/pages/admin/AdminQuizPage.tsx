@@ -1863,6 +1863,7 @@ const AdminQuizPage: React.FC = () => {
                             onClick={() => {
                               setEditingId(null);
                               setImagePreview(null);
+                              setShowAddForm(false);
                             }}
                           >
                             Cancel
