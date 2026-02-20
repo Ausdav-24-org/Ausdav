@@ -149,6 +149,8 @@ const QuizTamilMCQ: React.FC = () => {
     currentIdx: number,
     savedAnswers: AnswerState[],
     startTime: number,
+    // optional override so callers can persist an immediately-set questionStartTime
+    overrideQuestionStartTime?: number | null,
   ) => {
     const session: any = {
       schoolName,
@@ -161,7 +163,10 @@ const QuizTamilMCQ: React.FC = () => {
       quizDurationSeconds: quizDurationSeconds ?? null,
       quizStarted: quizStarted ?? false,
       // persist per-question visible start so time-bonus doesn't reset on refresh
-      questionStartTime: questionStartTime ?? null,
+      questionStartTime:
+        typeof overrideQuestionStartTime === "number"
+          ? overrideQuestionStartTime
+          : questionStartTime ?? null,
       savedAt: Date.now(),
     };
     localStorage.setItem(`quiz_session_${schoolName}`, JSON.stringify(session));
@@ -281,11 +286,13 @@ const QuizTamilMCQ: React.FC = () => {
 
   // Reset per-question timer when the user navigates between questions (but DO NOT
   // overwrite a restored `questionStartTime` during session restore).
+  // NOTE: depend only on `currentIndex` so toggling `restoringSession` does not
+  // re-run this effect and accidentally clear a restored timestamp.
   useEffect(() => {
     if (restoringSession) return; // keep restored questionStartTime intact
     // clear the per-question start so the next effect can set a fresh timestamp
     setQuestionStartTime(null);
-  }, [currentIndex, restoringSession]);
+  }, [currentIndex]);
 
   // Start per-question timer when a question becomes visible. Do nothing if we're
   // restoring a session or if the question already has a recorded `secondsTaken` or
@@ -295,9 +302,12 @@ const QuizTamilMCQ: React.FC = () => {
     if (restoringSession) return;
     if (typeof questionStartTime === "number") return; // already set (maybe restored)
     if (!answers[currentIndex]?.secondsTaken) {
-      setQuestionStartTime(Date.now());
+      const ts = Date.now();
+      setQuestionStartTime(ts);
+      // persist immediately so a refresh RIGHT AFTER this will still have the timestamp
+      if (schoolName) saveQuizSession(currentIndex, answers, quizStartTime ?? Date.now(), ts);
     }
-  }, [currentIndex, quizStartTime, restoringSession, answers, questionStartTime]);
+  }, [currentIndex, quizStartTime, restoringSession, answers, questionStartTime, schoolName]);
 
   // Start the overall quiz timer only when the first question card is visible to the user
   useEffect(() => {
@@ -548,9 +558,9 @@ const QuizTamilMCQ: React.FC = () => {
       const remaining = Math.max(0, quizDurationSeconds - elapsed);
       setTimeRemaining(remaining);
 
-      // save every second so refresh returns to same URL question
+        // save every second so refresh returns to same URL question
       if (schoolName && !isFinished) {
-        saveQuizSession(currentIndex, answers, quizStartTime);
+        saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
       }
 
       if (remaining === 0 && !isFinished) {
@@ -577,12 +587,14 @@ const QuizTamilMCQ: React.FC = () => {
   // Persist current position immediately when it changes so refresh stays on the same question
   useEffect(() => {
     if (!quizStarted || !quizStartTime || !schoolName) return;
-    saveQuizSession(currentIndex, answers, quizStartTime);
-  }, [currentIndex, quizStarted, quizStartTime, schoolName, answers]);
+    saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
+  }, [currentIndex, quizStarted, quizStartTime, schoolName, answers, questionStartTime]);
 
   // ---------- Select / clear option ----------
-  // NOTE: once a question records `secondsTaken` we preserve it so the time bonus
-  // is applied only once for that question (subsequent selections/clears don't reset it).
+  // NOTE: selecting an option records the per-question elapsed time for *that selection*.
+  // We overwrite `secondsTaken` on every selection so the UI shows the time-bonus for
+  // the most recent selection. Clearing an answer removes the recorded `secondsTaken`
+  // so the live per-question timer (based on `questionStartTime`) continues to run.
   const selectOption = (optionId: string) => {
     if (isFinished) return;
     // Per-question elapsed time (seconds since this question was shown)
@@ -590,12 +602,10 @@ const QuizTamilMCQ: React.FC = () => {
 
     setAnswers((prev) => {
       const next = [...prev];
-      const existing = next[currentIndex] || { selectedOptionId: null, secondsTaken: undefined };
+      // overwrite secondsTaken for this question each time the user selects an option
       next[currentIndex] = {
-        // always update selectedOptionId so user can change their choice
         selectedOptionId: optionId,
-        // preserve previously recorded secondsTaken if present; otherwise record elapsed now
-        secondsTaken: typeof existing.secondsTaken === "number" ? existing.secondsTaken : elapsed,
+        secondsTaken: elapsed,
       };
       return next;
     });
@@ -605,12 +615,11 @@ const QuizTamilMCQ: React.FC = () => {
     if (isFinished) return;
     setAnswers((prev) => {
       const next = [...prev];
-      const existing = next[currentIndex] || { selectedOptionId: null, secondsTaken: undefined };
+      // Remove any recorded `secondsTaken` when the user clears their selection so
+      // the live per-question timer continues to run and the time-bonus keeps decreasing.
       next[currentIndex] = {
-        // clear only the selected option but DO NOT remove an existing secondsTaken —
-        // preserving it ensures the time bonus cannot be re-earned by re-answering.
         selectedOptionId: null,
-        secondsTaken: typeof existing.secondsTaken === "number" ? existing.secondsTaken : undefined,
+        secondsTaken: undefined,
       };
       return next;
     });
