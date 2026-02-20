@@ -150,12 +150,18 @@ const QuizTamilMCQ: React.FC = () => {
     savedAnswers: AnswerState[],
     startTime: number,
   ) => {
-    const session = {
+    const session: any = {
       schoolName,
       currentIndex: currentIdx,
       answers: savedAnswers,
       startTime: startTime,
       quizNo: selectedQuizNo,
+      // persist password-based quiz info so refresh restores the same quiz
+      quizPasswordId: quizPasswordId ?? null,
+      quizDurationSeconds: quizDurationSeconds ?? null,
+      quizStarted: quizStarted ?? false,
+      // persist per-question visible start so time-bonus doesn't reset on refresh
+      questionStartTime: questionStartTime ?? null,
       savedAt: Date.now(),
     };
     localStorage.setItem(`quiz_session_${schoolName}`, JSON.stringify(session));
@@ -273,14 +279,25 @@ const QuizTamilMCQ: React.FC = () => {
   const currentQuestion = activeQuestions[currentIndex] as any;
   const currentAnswer = answers[currentIndex]?.selectedOptionId ?? null;
 
-  // Reset per-question timer whenever the question changes
+  // Reset per-question timer when the user navigates between questions (but DO NOT
+  // overwrite a restored `questionStartTime` during session restore).
   useEffect(() => {
-    // only start per-question timer when quiz timer has started (first question is visible)
+    if (restoringSession) return; // keep restored questionStartTime intact
+    // clear the per-question start so the next effect can set a fresh timestamp
+    setQuestionStartTime(null);
+  }, [currentIndex, restoringSession]);
+
+  // Start per-question timer when a question becomes visible. Do nothing if we're
+  // restoring a session or if the question already has a recorded `secondsTaken` or
+  // an existing `questionStartTime` (prevents override of restored value).
+  useEffect(() => {
     if (!quizStartTime) return;
+    if (restoringSession) return;
+    if (typeof questionStartTime === "number") return; // already set (maybe restored)
     if (!answers[currentIndex]?.secondsTaken) {
       setQuestionStartTime(Date.now());
     }
-  }, [currentIndex, quizStartTime]);
+  }, [currentIndex, quizStartTime, restoringSession, answers, questionStartTime]);
 
   // Start the overall quiz timer only when the first question card is visible to the user
   useEffect(() => {
@@ -300,7 +317,7 @@ const QuizTamilMCQ: React.FC = () => {
   const BONUS_MAX = 60;
   const _takenForBonus =
     answers[currentIndex]?.secondsTaken ??
-    Math.floor((Date.now() - questionStartTime) / 1000);
+    (questionStartTime ? Math.floor((Date.now() - questionStartTime) / 1000) : 0);
   // Bonus decreases linearly from 60 -> 0 across the first 60s; clamp to 0 afterwards
   const _bonusRemaining = clamp(BONUS_MAX - _takenForBonus, 0, BONUS_MAX);
   const bonusProgressPct = Math.round((_bonusRemaining / BONUS_MAX) * 100);
@@ -333,11 +350,127 @@ const QuizTamilMCQ: React.FC = () => {
 
   // ---------- Restore session if URL has school ----------
   useEffect(() => {
-    if (!dbQuestions.length) return;
     if (!schoolName) return;
 
     const savedSession = getQuizSession(schoolName);
-    if (savedSession && savedSession.schoolName === schoolName) {
+    if (!savedSession || savedSession.schoolName !== schoolName) return;
+
+    (async () => {
+      // --- 1) If the saved session was created from a password-based quiz, restore that specific quiz ---
+      if (savedSession.quizPasswordId) {
+        setRestoringSession(true);
+        try {
+          const pwdId = savedSession.quizPasswordId;
+
+          // fetch quiz password metadata (duration / mode)
+          const { data: pwdData } = await supabase
+            .from("quiz_passwords" as any)
+            .select("id, duration_minutes, is_test, is_quiz")
+            .eq("id", pwdId)
+            .maybeSingle();
+
+          // fetch only the questions for this quiz_password_id
+          const { data: questionsData, error: questionsError } = await supabase
+            .from("quiz_mcq" as any)
+            .select("*")
+            .eq("quiz_password_id", pwdId)
+            .order("created_at", { ascending: true });
+
+          if (questionsError || !questionsData || questionsData.length === 0) {
+            // nothing to restore
+            clearQuizSession(schoolName);
+            setRestoringSession(false);
+            return;
+          }
+
+          // format questions (same structure as handleStartQuiz)
+          const formattedQuestions = (questionsData as any[]).map((q: any) => ({
+            id: q.id.toString(),
+            question: q.question_text,
+            options: [
+              { id: "a", text: q.option_a },
+              { id: "b", text: q.option_b },
+              { id: "c", text: q.option_c },
+              { id: "d", text: q.option_d },
+            ],
+            correctOptionId: q.correct_answer,
+            image_path: q.image_path ?? null,
+            imageUrl: q.image_path
+              ? supabase.storage
+                  .from("quiz-question-images")
+                  .getPublicUrl(q.image_path).data.publicUrl
+              : null,
+          }));
+
+          setQuizQuestions(formattedQuestions);
+
+          // determine configured duration (prefer savedSession if present)
+          const durationFromPwd = (pwdData as any)?.duration_minutes && typeof (pwdData as any).duration_minutes === "number" && (pwdData as any).duration_minutes > 0
+            ? (pwdData as any).duration_minutes * 60
+            : undefined;
+          const durationSeconds = savedSession.quizDurationSeconds ?? durationFromPwd ?? 60;
+
+          const elapsed = typeof savedSession.startTime === "number"
+            ? Math.floor((Date.now() - savedSession.startTime) / 1000)
+            : Number.POSITIVE_INFINITY;
+          const remaining = Math.max(0, durationSeconds - elapsed);
+
+          // only restore if quiz hasn't expired yet
+          if (elapsed < durationSeconds) {
+            setShowSchoolDialog(false);
+            setShowSchoolInput(false);
+            setQuizStarted(true);
+            setQuizStartTime(savedSession.startTime);
+            // restore per-question visible start so bonus bar keeps its state
+            if (typeof savedSession.questionStartTime === "number") {
+              setQuestionStartTime(savedSession.questionStartTime);
+            }
+            setQuizPasswordId(pwdId);
+            setPasswordIsTest(Boolean((pwdData as any)?.is_test));
+            setPasswordIsQuiz(Boolean((pwdData as any)?.is_quiz));
+            setQuizDurationSeconds(durationSeconds);
+            setTimeRemaining(remaining);
+            setCanViewReview(elapsed >= 60);
+
+            // restore answers (validate length)
+            const restoredAnswers = Array.isArray(savedSession.answers) ? savedSession.answers : [];
+            setAnswers(
+              restoredAnswers.length === formattedQuestions.length
+                ? restoredAnswers
+                : Array.from({ length: formattedQuestions.length }, () => ({ selectedOptionId: null })),
+            );
+
+            const targetIndex = clamp(
+              savedSession.currentIndex ?? desiredIndexFromUrl,
+              0,
+              formattedQuestions.length - 1,
+            );
+
+            // ensure URL matches saved index (covers cases where URL lacked qNo)
+            setUrl(targetIndex + 1, schoolName, true);
+            setCurrentIndex(targetIndex);
+
+            if (remaining === 0) {
+              setIsFinished(true);
+              setCanViewReview(true);
+            }
+
+            toast.info(language === "ta" ? "வினாடிவினா மீட்டெடுக்கப்பட்டது" : "Quiz session restored");
+          } else {
+            clearQuizSession(schoolName);
+          }
+
+          setRestoringSession(false);
+          return;
+        } catch (err) {
+          console.error("Error restoring password quiz session:", err);
+          clearQuizSession(schoolName);
+          setRestoringSession(false);
+          return;
+        }
+      }
+
+      // --- 2) fallback: existing restore logic for non-password (quizNo) sessions ---
       const restoredQuizNo = savedSession.quizNo ?? null;
       if (restoredQuizNo) setSelectedQuizNo(restoredQuizNo);
 
@@ -353,15 +486,23 @@ const QuizTamilMCQ: React.FC = () => {
       // ensure URL matches saved index (covers cases where URL lacked qNo)
       setUrl(targetIndex + 1, schoolName, true);
 
-      const elapsed = Math.floor((Date.now() - savedSession.startTime) / 1000);
-      const remainingTime = Math.max(0, quizDurationSeconds - elapsed);
+      // prefer duration saved in session (if any), otherwise fall back to state value
+      const sessionDuration = savedSession.quizDurationSeconds ?? quizDurationSeconds;
+      const elapsed = typeof savedSession.startTime === "number" ? Math.floor((Date.now() - savedSession.startTime) / 1000) : Number.POSITIVE_INFINITY;
+      const remainingTime = Math.max(0, sessionDuration - elapsed);
 
-      if (elapsed < 120) {
+      // restore while quiz not expired; previously used a 120s hard cutoff — use configured duration instead
+      if (elapsed < sessionDuration) {
         setRestoringSession(true);
         setShowSchoolDialog(false);
         setShowSchoolInput(false);
         setQuizStarted(true);
         setQuizStartTime(savedSession.startTime);
+        // restore per-question visible start so bonus bar keeps its state
+        if (typeof savedSession.questionStartTime === "number") {
+          setQuestionStartTime(savedSession.questionStartTime);
+        }
+        setQuizDurationSeconds(sessionDuration);
         setTimeRemaining(remainingTime);
         setCanViewReview(elapsed >= 60);
 
@@ -392,8 +533,9 @@ const QuizTamilMCQ: React.FC = () => {
       } else {
         clearQuizSession(schoolName);
       }
-    }
-    setRestoringSession(false);
+
+      setRestoringSession(false);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbQuestions.length, schoolName]);
 
@@ -666,11 +808,10 @@ const QuizTamilMCQ: React.FC = () => {
       setTimeRemaining(initialSeconds);
       setCanViewReview(false);
       setCurrentIndex(0);
-      setAnswers(
-        Array.from({ length: formattedQuestions.length }, () => ({
-          selectedOptionId: null,
-        })),
-      );
+      const initialAnswers = Array.from({ length: formattedQuestions.length }, () => ({ selectedOptionId: null }));
+      setAnswers(initialAnswers);
+      // persist session immediately so refresh during the landing -> first-question transition restores correctly
+      if (schoolName) saveQuizSession(0, initialAnswers, Date.now());
       setSelectedQuizNo(null); // Not needed for this logic
       toast.success(
         language === "ta" ? "வினாடிவினா தொடங்குகிறது!" : "Quiz starting!",
