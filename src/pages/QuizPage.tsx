@@ -1468,12 +1468,19 @@ const QuizTamilMCQ: React.FC = () => {
                         <div className="grid grid-cols-3 gap-2 py-1">
                           {Array.from({ length: totalQuestions }).map((_, i) => {
                             const isActive = i === currentIndex;
+                            const isVisited = i <= currentIndex;
                             return (
                               <button
                                 key={i}
                                 type="button"
                                 disabled
-                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent'}`}
+                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${
+                                  isActive
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : isVisited
+                                    ? 'bg-primary/20 text-primary border-primary/20'
+                                    : 'bg-card/20 text-foreground/60 border-transparent'
+                                }`}
                                 aria-current={isActive ? 'true' : undefined}
                                 aria-disabled="true"
                               >
@@ -1537,12 +1544,19 @@ const QuizTamilMCQ: React.FC = () => {
                             <div className="grid grid-cols-3 gap-2 py-1">
                               {Array.from({ length: totalQuestions }).map((_, i) => {
                                 const isActive = i === currentIndex;
+                                const isVisited = i <= currentIndex;
                                 return (
                                   <button
                                     key={i}
                                     type="button"
                                     disabled
-                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent'}`}
+                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${
+                                      isActive
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : isVisited
+                                        ? 'bg-primary/20 text-primary border-primary/20'
+                                        : 'bg-card/20 text-foreground/60 border-transparent'
+                                    }`}
                                     aria-current={isActive ? 'true' : undefined}
                                     aria-disabled="true"
                                   >
