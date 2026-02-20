@@ -1566,14 +1566,14 @@ const QuizTamilMCQ: React.FC = () => {
                           </div>
 
                           {/* Question row (starts on the next line) */}
-                          <div className="flex gap-4 mt-2 items-start">
+                          <div className="flex gap-2 mt-2 items-start">
                             {/* fixed-width question number column so wrapped lines align */}
-                            <div className="flex-shrink-0 w1-1031 text-2xl md:text-3xl font-bold text-foreground mt-4 text-right mr-3 select-none">
+                            <div className="flex-shrink-0 w1-1031 text-2xl md:text-3xl font-bold text-foreground mt-4 text-right  select-none">
                               {currentIndex + 1}⟩
                             </div>
 
                             <p
-                              className="flex-1 text-2xl md:text-3xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
+                              className="flex-1 text-2xl md:text-2.5xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
                                 userSelect: "none",
                                 WebkitUserSelect: "none",
