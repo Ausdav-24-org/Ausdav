@@ -22,6 +22,12 @@ import { useQuizQuestions } from "@/hooks/useQuizQuestions";
 import { supabase } from "@/integrations/supabase/client";
 import { renderCyanTail } from "@/utils/text";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
+
+// Markdown + KaTeX for rendering math equations in questions/options
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import PentathlonCard from "@/assets/Exam/pentathlon-card.jpg";
 import PartyConfetti from "@/components/PartyConfetti";
 
@@ -1573,8 +1579,8 @@ const QuizTamilMCQ: React.FC = () => {
                               {currentIndex + 1}⟩
                             </div>
 
-                            <p
-                              className="flex-1 text-2xl md:text-2.5xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
+                            <div
+                              className="flex-1 prose max-w-none text-2xl md:text-2.5xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
                                 userSelect: "none",
                                 WebkitUserSelect: "none",
@@ -1584,8 +1590,10 @@ const QuizTamilMCQ: React.FC = () => {
                                 punishCopyAttempt();
                               }}
                             >
-                              {displayedQuestion}
-                            </p>
+                              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                {displayedQuestion}
+                              </ReactMarkdown>
+                            </div>
 
                             {/* Display question image in top right corner if exists */}
                             {currentQuestion?.imageUrl && (
@@ -1625,8 +1633,10 @@ const QuizTamilMCQ: React.FC = () => {
                                   >
                                     {String.fromCharCode(65 + idx)}
                                   </div>
-                                  <span className="text-foreground font-medium text-lg md:text-xl select-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
-                                    {opt.text}
+                                  <span className="text-foreground font-medium text-lg md:text-xl select-none prose max-w-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
+                                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                      {opt.text}
+                                    </ReactMarkdown>
                                   </span>
                                 </motion.button>
                               );

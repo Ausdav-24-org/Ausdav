@@ -8,6 +8,12 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Markdown + KaTeX for question rendering
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+
 type QuizQuestion = {
   id: number;
   question_text: string;
@@ -345,7 +351,11 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
                                 Q{index + 1}
                               </div>
                               <div className="flex-1">
-                                <p className="font-semibold text-base">{question.question_text}</p>
+                                <div className="font-semibold text-base prose max-w-none">
+                                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                  {question.question_text}
+                                </ReactMarkdown>
+                              </div>
                               </div>
                               <div className="flex-shrink-0">
                                 {statusData.status === "correct" ? (
@@ -406,7 +416,9 @@ const QuizAttemptDetailsModal: React.FC<QuizAttemptDetailsModalProps> = ({
                                       >
                                         {optionLetter.toUpperCase()}
                                       </span>
-                                      <span className="text-sm">{optionText}</span>
+                                      <span className="text-sm prose max-w-none">
+                                        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{optionText}</ReactMarkdown>
+                                      </span>
                                       <div className="ml-auto text-xs font-semibold">
                                         {isCorrect && (
                                           <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
