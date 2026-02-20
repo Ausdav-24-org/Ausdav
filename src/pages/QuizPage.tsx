@@ -272,6 +272,13 @@ const QuizTamilMCQ: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   // Toggle for question index panel (shows small card with question numbers)
   const [showQuestionPanel, setShowQuestionPanel] = useState(false);
+
+  // open panel automatically on desktop when questions exist (prevents need to toggle)
+  useEffect(() => {
+    if (totalQuestions > 1 && typeof window !== 'undefined' && window.innerWidth >= 768) {
+      setShowQuestionPanel(true);
+    }
+  }, [totalQuestions]);
   // Show a one-click warning when user presses Next without answering —
   // user must press Next again to confirm moving on (question marked unanswered)
   const [showUnansweredWarning, setShowUnansweredWarning] = useState(false);
