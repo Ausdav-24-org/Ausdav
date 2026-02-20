@@ -1568,8 +1568,8 @@ const QuizTamilMCQ: React.FC = () => {
                           {/* Question row (starts on the next line) */}
                           <div className="flex gap-4 mt-2 items-start">
                             {/* fixed-width question number column so wrapped lines align */}
-                            <div className="flex-shrink-0 w-10 text-2xl md:text-3xl font-bold text-foreground mt-4 text-right mr-3 select-none">
-                              {currentIndex + 1}.
+                            <div className="flex-shrink-0 w1-1031 text-2xl md:text-3xl font-bold text-foreground mt-4 text-right mr-3 select-none">
+                              {currentIndex + 1}⟩
                             </div>
 
                             <p
