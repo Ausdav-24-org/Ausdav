@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Plus, Minus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload, Loader2 } from "lucide-react";
+import { Plus, Minus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload, Loader2, Copy } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LabelList } from "recharts";
+// Markdown + KaTeX (used by the LaTeX helper preview)
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
@@ -172,6 +177,23 @@ const AdminQuizPage: React.FC = () => {
     correct_answer: "a",
     image_path: null,
   });
+
+  // LaTeX helper state (shared between Add and Edit forms)
+  const [showLatexHelper, setShowLatexHelper] = useState(false);
+  const [latexInput, setLatexInput] = useState("");
+
+  const latexPresets: { label: string; latex: string }[] = [
+    { label: 'Fractions', latex: '\\frac{x}{2}' },
+    { label: 'Square roots', latex: '\\sqrt{x+9}' },
+    { label: 'Powers', latex: 'x^2' },
+    { label: 'Logs', latex: '\\log_2 x' },
+    { label: 'Trigonometry', latex: '\\sin x' },
+    { label: 'Integration', latex: '\\int 2x \\, dx = x^2 + C' },
+    { label: 'Differentiation', latex: '\\frac{d}{dx}(3x^2+5x)' },
+    { label: 'Matrices', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
+    { label: 'Inequalities', latex: '2x + 5 > 9' },
+    { label: 'Absolute value', latex: '|x-4| = 6' },
+  ];
 
   // Role / permission (members with 'quiz' grant get restricted view)
   const { role, isAdmin, isSuperAdmin } = useAdminAuth();
@@ -778,7 +800,14 @@ const AdminQuizPage: React.FC = () => {
     }
   }, [quizFilter, showAddForm, editingId]);
 
-
+  const insertLatexIntoQuestion = () => {
+    if (!latexInput || !latexInput.trim()) { toast.error('Enter LaTeX'); return; }
+    const wrapped = latexInput.includes('$') ? latexInput : `$${latexInput}$`;
+    setFormData(f => ({ ...f, question_text: (f.question_text ? f.question_text + '\n' : '') + wrapped }));
+    setShowLatexHelper(false);
+    setLatexInput('');
+    toast.success('Inserted into question');
+  };
 
   const filteredQuestions = useMemo(() => {
     if (quizFilter === "all") return questions;
@@ -1477,6 +1506,43 @@ const AdminQuizPage: React.FC = () => {
                       placeholder="Enter question"
                       rows={3}
                     />
+
+                    <div className="mt-2 flex items-start gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setShowLatexHelper(s => !s)} className="gap-2">
+                        <Copy className="w-4 h-4" /> LaTeX helper
+                      </Button>
+                      {showLatexHelper && (
+                        <div className="flex-1 p-3 border rounded bg-muted/10">
+                          <Label className="text-sm">LaTeX (no $)</Label>
+
+                          <div className="mb-2 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                            {latexPresets.map(p => (
+                              <button
+                                key={p.label}
+                                type="button"
+                                className="text-xs px-2 py-1 bg-muted/20 rounded hover:bg-muted/30"
+                                onClick={() => setLatexInput(p.latex)}
+                              >
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          <Input value={latexInput} onChange={e => setLatexInput(e.target.value)} placeholder="e.g. 2x + 5 > 9" />
+
+                          <div className="prose max-w-none mt-2 p-2 border rounded bg-muted">
+                            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              {latexInput ? `$${latexInput}$` : ''}
+                            </ReactMarkdown>
+                          </div>
+
+                          <div className="mt-2 flex gap-2 justify-end">
+                            <Button size="sm" variant="outline" onClick={() => { setShowLatexHelper(false); setLatexInput(''); }}>Cancel</Button>
+                            <Button size="sm" onClick={insertLatexIntoQuestion}>Insert into question</Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1722,6 +1788,43 @@ const AdminQuizPage: React.FC = () => {
                             placeholder="Enter question"
                             rows={3}
                           />
+
+                          <div className="mt-2 flex items-start gap-2">
+                            <Button size="sm" variant="outline" onClick={() => setShowLatexHelper(s => !s)} className="gap-2">
+                              <Copy className="w-4 h-4" /> LaTeX helper
+                            </Button>
+                            {showLatexHelper && (
+                              <div className="flex-1 p-3 border rounded bg-muted/10">
+                                <Label className="text-sm">LaTeX (no $)</Label>
+
+                                <div className="mb-2 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                  {latexPresets.map(p => (
+                                    <button
+                                      key={p.label}
+                                      type="button"
+                                      className="text-xs px-2 py-1 bg-muted/20 rounded hover:bg-muted/30"
+                                      onClick={() => setLatexInput(p.latex)}
+                                    >
+                                      {p.label}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                <Input value={latexInput} onChange={e => setLatexInput(e.target.value)} placeholder="e.g. 2x + 5 > 9" />
+
+                                <div className="prose max-w-none mt-2 p-2 border rounded bg-muted">
+                                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                    {latexInput ? `$${latexInput}$` : ''}
+                                  </ReactMarkdown>
+                                </div>
+
+                                <div className="mt-2 flex gap-2 justify-end">
+                                  <Button size="sm" variant="outline" onClick={() => { setShowLatexHelper(false); setLatexInput(''); }}>Cancel</Button>
+                                  <Button size="sm" onClick={insertLatexIntoQuestion}>Insert into question</Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1863,6 +1966,7 @@ const AdminQuizPage: React.FC = () => {
                             onClick={() => {
                               setEditingId(null);
                               setImagePreview(null);
+                              setShowAddForm(false);
                             }}
                           >
                             Cancel
@@ -1935,7 +2039,7 @@ const AdminQuizPage: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        {isAdminView && (
+                        {(isAdminView || isMemberWithQuizGrant) && (
                           <div className="flex gap-2">
                             <Button
                               variant="outline"
@@ -1946,15 +2050,18 @@ const AdminQuizPage: React.FC = () => {
                               <Edit2 className="w-4 h-4" />
                               Edit
                             </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteQuestion(question.id)}
-                              className="gap-2"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </Button>
+
+                            {isAdminView && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDeleteQuestion(question.id)}
+                                className="gap-2"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>

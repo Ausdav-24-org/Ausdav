@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   List,
+  Star,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,7 @@ import { useQuizQuestions } from "@/hooks/useQuizQuestions";
 import { supabase } from "@/integrations/supabase/client";
 import { renderCyanTail } from "@/utils/text";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
+import PentathlonCard from "@/assets/Exam/pentathlon-card.jpg";
 import PartyConfetti from "@/components/PartyConfetti";
 
 // ✅ IMPORTANT: add router imports
@@ -148,13 +150,24 @@ const QuizTamilMCQ: React.FC = () => {
     currentIdx: number,
     savedAnswers: AnswerState[],
     startTime: number,
+    // optional override so callers can persist an immediately-set questionStartTime
+    overrideQuestionStartTime?: number | null,
   ) => {
-    const session = {
+    const session: any = {
       schoolName,
       currentIndex: currentIdx,
       answers: savedAnswers,
       startTime: startTime,
       quizNo: selectedQuizNo,
+      // persist password-based quiz info so refresh restores the same quiz
+      quizPasswordId: quizPasswordId ?? null,
+      quizDurationSeconds: quizDurationSeconds ?? null,
+      quizStarted: quizStarted ?? false,
+      // persist per-question visible start so time-bonus doesn't reset on refresh
+      questionStartTime:
+        typeof overrideQuestionStartTime === "number"
+          ? overrideQuestionStartTime
+          : questionStartTime ?? null,
       savedAt: Date.now(),
     };
     localStorage.setItem(`quiz_session_${schoolName}`, JSON.stringify(session));
@@ -253,8 +266,13 @@ const QuizTamilMCQ: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   // Toggle for question index panel (shows small card with question numbers)
   const [showQuestionPanel, setShowQuestionPanel] = useState(false);
+  // Show a one-click warning when user presses Next without answering —
+  // user must press Next again to confirm moving on (question marked unanswered)
+  const [showUnansweredWarning, setShowUnansweredWarning] = useState(false);
 
-  // Resize answers when question count changes
+  // Resize answers only when the question *count* changes —
+  // do NOT reset answers when `desiredIndexFromUrl` changes (prevents
+  // wiping stored per-question timestamps when navigating between questions).
   useEffect(() => {
     if (restoringSession) return;
     setAnswers(
@@ -262,24 +280,40 @@ const QuizTamilMCQ: React.FC = () => {
         selectedOptionId: null,
       })),
     );
-    setCurrentIndex(desiredIndexFromUrl);
+    // currentIndex is updated from the URL in a separate effect; do not touch it here
     setIsFinished(false);
     setCompromised(false);
     setCopyAttempts(0);
     setPrivacyBlur(false);
-  }, [totalQuestions, desiredIndexFromUrl, restoringSession]);
+  }, [totalQuestions, restoringSession]);
 
   const currentQuestion = activeQuestions[currentIndex] as any;
   const currentAnswer = answers[currentIndex]?.selectedOptionId ?? null;
 
-  // Reset per-question timer whenever the question changes
+  // Reset per-question timer when the user navigates between questions (but DO NOT
+  // overwrite a restored `questionStartTime` during session restore).
+  // NOTE: depend only on `currentIndex` so toggling `restoringSession` does not
+  // re-run this effect and accidentally clear a restored timestamp.
   useEffect(() => {
-    // only start per-question timer when quiz timer has started (first question is visible)
+    if (restoringSession) return; // keep restored questionStartTime intact
+    // clear the per-question start so the next effect can set a fresh timestamp
+    setQuestionStartTime(null);
+  }, [currentIndex]);
+
+  // Start per-question timer when a question becomes visible. Do nothing if we're
+  // restoring a session or if the question already has a recorded `secondsTaken` or
+  // an existing `questionStartTime` (prevents override of restored value).
+  useEffect(() => {
     if (!quizStartTime) return;
+    if (restoringSession) return;
+    if (typeof questionStartTime === "number") return; // already set (maybe restored)
     if (!answers[currentIndex]?.secondsTaken) {
-      setQuestionStartTime(Date.now());
+      const ts = Date.now();
+      setQuestionStartTime(ts);
+      // persist immediately so a refresh RIGHT AFTER this will still have the timestamp
+      if (schoolName) saveQuizSession(currentIndex, answers, quizStartTime ?? Date.now(), ts);
     }
-  }, [currentIndex, quizStartTime]);
+  }, [currentIndex, quizStartTime, restoringSession, answers, questionStartTime, schoolName]);
 
   // Start the overall quiz timer only when the first question card is visible to the user
   useEffect(() => {
@@ -299,7 +333,7 @@ const QuizTamilMCQ: React.FC = () => {
   const BONUS_MAX = 60;
   const _takenForBonus =
     answers[currentIndex]?.secondsTaken ??
-    Math.floor((Date.now() - questionStartTime) / 1000);
+    (questionStartTime ? Math.floor((Date.now() - questionStartTime) / 1000) : 0);
   // Bonus decreases linearly from 60 -> 0 across the first 60s; clamp to 0 afterwards
   const _bonusRemaining = clamp(BONUS_MAX - _takenForBonus, 0, BONUS_MAX);
   const bonusProgressPct = Math.round((_bonusRemaining / BONUS_MAX) * 100);
@@ -323,6 +357,16 @@ const QuizTamilMCQ: React.FC = () => {
     setCurrentIndex(desiredIndexFromUrl);
   }, [desiredIndexFromUrl, hasQuestions]);
 
+  // Auto-hide the unanswered-warning when the user selects an answer or when
+  // the question changes.
+  useEffect(() => {
+    if (showUnansweredWarning && currentAnswer !== null) setShowUnansweredWarning(false);
+  }, [currentAnswer, showUnansweredWarning]);
+
+  useEffect(() => {
+    if (showUnansweredWarning) setShowUnansweredWarning(false);
+  }, [currentIndex]);
+
   // Restore scroll position after question changes to avoid jumping to top
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -332,11 +376,127 @@ const QuizTamilMCQ: React.FC = () => {
 
   // ---------- Restore session if URL has school ----------
   useEffect(() => {
-    if (!dbQuestions.length) return;
     if (!schoolName) return;
 
     const savedSession = getQuizSession(schoolName);
-    if (savedSession && savedSession.schoolName === schoolName) {
+    if (!savedSession || savedSession.schoolName !== schoolName) return;
+
+    (async () => {
+      // --- 1) If the saved session was created from a password-based quiz, restore that specific quiz ---
+      if (savedSession.quizPasswordId) {
+        setRestoringSession(true);
+        try {
+          const pwdId = savedSession.quizPasswordId;
+
+          // fetch quiz password metadata (duration / mode)
+          const { data: pwdData } = await supabase
+            .from("quiz_passwords" as any)
+            .select("id, duration_minutes, is_test, is_quiz")
+            .eq("id", pwdId)
+            .maybeSingle();
+
+          // fetch only the questions for this quiz_password_id
+          const { data: questionsData, error: questionsError } = await supabase
+            .from("quiz_mcq" as any)
+            .select("*")
+            .eq("quiz_password_id", pwdId)
+            .order("created_at", { ascending: true });
+
+          if (questionsError || !questionsData || questionsData.length === 0) {
+            // nothing to restore
+            clearQuizSession(schoolName);
+            setRestoringSession(false);
+            return;
+          }
+
+          // format questions (same structure as handleStartQuiz)
+          const formattedQuestions = (questionsData as any[]).map((q: any) => ({
+            id: q.id.toString(),
+            question: q.question_text,
+            options: [
+              { id: "a", text: q.option_a },
+              { id: "b", text: q.option_b },
+              { id: "c", text: q.option_c },
+              { id: "d", text: q.option_d },
+            ],
+            correctOptionId: q.correct_answer,
+            image_path: q.image_path ?? null,
+            imageUrl: q.image_path
+              ? supabase.storage
+                  .from("quiz-question-images")
+                  .getPublicUrl(q.image_path).data.publicUrl
+              : null,
+          }));
+
+          setQuizQuestions(formattedQuestions);
+
+          // determine configured duration (prefer savedSession if present)
+          const durationFromPwd = (pwdData as any)?.duration_minutes && typeof (pwdData as any).duration_minutes === "number" && (pwdData as any).duration_minutes > 0
+            ? (pwdData as any).duration_minutes * 60
+            : undefined;
+          const durationSeconds = savedSession.quizDurationSeconds ?? durationFromPwd ?? 60;
+
+          const elapsed = typeof savedSession.startTime === "number"
+            ? Math.floor((Date.now() - savedSession.startTime) / 1000)
+            : Number.POSITIVE_INFINITY;
+          const remaining = Math.max(0, durationSeconds - elapsed);
+
+          // only restore if quiz hasn't expired yet
+          if (elapsed < durationSeconds) {
+            setShowSchoolDialog(false);
+            setShowSchoolInput(false);
+            setQuizStarted(true);
+            setQuizStartTime(savedSession.startTime);
+            // restore per-question visible start so bonus bar keeps its state
+            if (typeof savedSession.questionStartTime === "number") {
+              setQuestionStartTime(savedSession.questionStartTime);
+            }
+            setQuizPasswordId(pwdId);
+            setPasswordIsTest(Boolean((pwdData as any)?.is_test));
+            setPasswordIsQuiz(Boolean((pwdData as any)?.is_quiz));
+            setQuizDurationSeconds(durationSeconds);
+            setTimeRemaining(remaining);
+            setCanViewReview(elapsed >= 60);
+
+            // restore answers (validate length)
+            const restoredAnswers = Array.isArray(savedSession.answers) ? savedSession.answers : [];
+            setAnswers(
+              restoredAnswers.length === formattedQuestions.length
+                ? restoredAnswers
+                : Array.from({ length: formattedQuestions.length }, () => ({ selectedOptionId: null })),
+            );
+
+            const targetIndex = clamp(
+              savedSession.currentIndex ?? desiredIndexFromUrl,
+              0,
+              formattedQuestions.length - 1,
+            );
+
+            // ensure URL matches saved index (covers cases where URL lacked qNo)
+            setUrl(targetIndex + 1, schoolName, true);
+            setCurrentIndex(targetIndex);
+
+            if (remaining === 0) {
+              setIsFinished(true);
+              setCanViewReview(true);
+            }
+
+            toast.info(language === "ta" ? "வினாடிவினா மீட்டெடுக்கப்பட்டது" : "Quiz session restored");
+          } else {
+            clearQuizSession(schoolName);
+          }
+
+          setRestoringSession(false);
+          return;
+        } catch (err) {
+          console.error("Error restoring password quiz session:", err);
+          clearQuizSession(schoolName);
+          setRestoringSession(false);
+          return;
+        }
+      }
+
+      // --- 2) fallback: existing restore logic for non-password (quizNo) sessions ---
       const restoredQuizNo = savedSession.quizNo ?? null;
       if (restoredQuizNo) setSelectedQuizNo(restoredQuizNo);
 
@@ -352,15 +512,23 @@ const QuizTamilMCQ: React.FC = () => {
       // ensure URL matches saved index (covers cases where URL lacked qNo)
       setUrl(targetIndex + 1, schoolName, true);
 
-      const elapsed = Math.floor((Date.now() - savedSession.startTime) / 1000);
-      const remainingTime = Math.max(0, quizDurationSeconds - elapsed);
+      // prefer duration saved in session (if any), otherwise fall back to state value
+      const sessionDuration = savedSession.quizDurationSeconds ?? quizDurationSeconds;
+      const elapsed = typeof savedSession.startTime === "number" ? Math.floor((Date.now() - savedSession.startTime) / 1000) : Number.POSITIVE_INFINITY;
+      const remainingTime = Math.max(0, sessionDuration - elapsed);
 
-      if (elapsed < 120) {
+      // restore while quiz not expired; previously used a 120s hard cutoff — use configured duration instead
+      if (elapsed < sessionDuration) {
         setRestoringSession(true);
         setShowSchoolDialog(false);
         setShowSchoolInput(false);
         setQuizStarted(true);
         setQuizStartTime(savedSession.startTime);
+        // restore per-question visible start so bonus bar keeps its state
+        if (typeof savedSession.questionStartTime === "number") {
+          setQuestionStartTime(savedSession.questionStartTime);
+        }
+        setQuizDurationSeconds(sessionDuration);
         setTimeRemaining(remainingTime);
         setCanViewReview(elapsed >= 60);
 
@@ -391,8 +559,9 @@ const QuizTamilMCQ: React.FC = () => {
       } else {
         clearQuizSession(schoolName);
       }
-    }
-    setRestoringSession(false);
+
+      setRestoringSession(false);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbQuestions.length, schoolName]);
 
@@ -405,9 +574,9 @@ const QuizTamilMCQ: React.FC = () => {
       const remaining = Math.max(0, quizDurationSeconds - elapsed);
       setTimeRemaining(remaining);
 
-      // save every second so refresh returns to same URL question
+        // save every second so refresh returns to same URL question
       if (schoolName && !isFinished) {
-        saveQuizSession(currentIndex, answers, quizStartTime);
+        saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
       }
 
       if (remaining === 0 && !isFinished) {
@@ -434,12 +603,14 @@ const QuizTamilMCQ: React.FC = () => {
   // Persist current position immediately when it changes so refresh stays on the same question
   useEffect(() => {
     if (!quizStarted || !quizStartTime || !schoolName) return;
-    saveQuizSession(currentIndex, answers, quizStartTime);
-  }, [currentIndex, quizStarted, quizStartTime, schoolName, answers]);
+    saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
+  }, [currentIndex, quizStarted, quizStartTime, schoolName, answers, questionStartTime]);
 
   // ---------- Select / clear option ----------
-  // NOTE: once a question records `secondsTaken` we preserve it so the time bonus
-  // is applied only once for that question (subsequent selections/clears don't reset it).
+  // NOTE: selecting an option records the per-question elapsed time for *that selection*.
+  // We overwrite `secondsTaken` on every selection so the UI shows the time-bonus for
+  // the most recent selection. Clearing an answer removes the recorded `secondsTaken`
+  // so the live per-question timer (based on `questionStartTime`) continues to run.
   const selectOption = (optionId: string) => {
     if (isFinished) return;
     // Per-question elapsed time (seconds since this question was shown)
@@ -447,12 +618,10 @@ const QuizTamilMCQ: React.FC = () => {
 
     setAnswers((prev) => {
       const next = [...prev];
-      const existing = next[currentIndex] || { selectedOptionId: null, secondsTaken: undefined };
+      // overwrite secondsTaken for this question each time the user selects an option
       next[currentIndex] = {
-        // always update selectedOptionId so user can change their choice
         selectedOptionId: optionId,
-        // preserve previously recorded secondsTaken if present; otherwise record elapsed now
-        secondsTaken: typeof existing.secondsTaken === "number" ? existing.secondsTaken : elapsed,
+        secondsTaken: elapsed,
       };
       return next;
     });
@@ -462,12 +631,11 @@ const QuizTamilMCQ: React.FC = () => {
     if (isFinished) return;
     setAnswers((prev) => {
       const next = [...prev];
-      const existing = next[currentIndex] || { selectedOptionId: null, secondsTaken: undefined };
+      // Remove any recorded `secondsTaken` when the user clears their selection so
+      // the live per-question timer continues to run and the time-bonus keeps decreasing.
       next[currentIndex] = {
-        // clear only the selected option but DO NOT remove an existing secondsTaken —
-        // preserving it ensures the time bonus cannot be re-earned by re-answering.
         selectedOptionId: null,
-        secondsTaken: typeof existing.secondsTaken === "number" ? existing.secondsTaken : undefined,
+        secondsTaken: undefined,
       };
       return next;
     });
@@ -517,6 +685,21 @@ const QuizTamilMCQ: React.FC = () => {
   const goNext = () => {
     if (isFinished) return;
 
+    // If unanswered, show a one-click warning first (do not navigate).
+    if (currentAnswer === null) {
+      if (!showUnansweredWarning) {
+        setShowUnansweredWarning(true);
+        return; // block first click
+      }
+
+      // second click: persist unanswered state (defensive) and continue
+      if (schoolName && quizStartTime) {
+        saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
+      }
+      // reset the warning so it doesn't linger on the next question
+      setShowUnansweredWarning(false);
+    }
+
     if (!isLast) {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
@@ -528,7 +711,7 @@ const QuizTamilMCQ: React.FC = () => {
     setIsFinished(true);
     setCanViewReview(true);
     saveQuizResults();
-  };
+  }; 
 
   const resetQuiz = () => {
     const schoolToReset = schoolName;
@@ -665,11 +848,10 @@ const QuizTamilMCQ: React.FC = () => {
       setTimeRemaining(initialSeconds);
       setCanViewReview(false);
       setCurrentIndex(0);
-      setAnswers(
-        Array.from({ length: formattedQuestions.length }, () => ({
-          selectedOptionId: null,
-        })),
-      );
+      const initialAnswers = Array.from({ length: formattedQuestions.length }, () => ({ selectedOptionId: null }));
+      setAnswers(initialAnswers);
+      // persist session immediately so refresh during the landing -> first-question transition restores correctly
+      if (schoolName) saveQuizSession(0, initialAnswers, Date.now());
       setSelectedQuizNo(null); // Not needed for this logic
       toast.success(
         language === "ta" ? "வினாடிவினா தொடங்குகிறது!" : "Quiz starting!",
@@ -1028,8 +1210,8 @@ const QuizTamilMCQ: React.FC = () => {
                         {/* Image on the left (stacks on small screens) */}
                         <div className="w-full md:w-1/2 overflow-hidden bg-black/10 rounded-t-2xl md:rounded-l-2xl md:rounded-tr-none">
                           <img
-                            src={BG1}
-                            alt="Pentathlon banner"
+                            src={PentathlonCard}
+                            alt="Pentathlon card"
                             className="w-full h-44 md:h-full object-cover md:min-h-[220px] md:max-h-[360px] rounded-t-2xl md:rounded-l-2xl"
                           />
                         </div>
@@ -1040,11 +1222,23 @@ const QuizTamilMCQ: React.FC = () => {
                             <h2 className="text-2xl md:text-3xl font-sans font-bold text-foreground">
                               Pentathlon 3.0
                             </h2>
-                            <p className="text-muted-foreground mt-2">
-                              {language === "ta"
-                                ? "விண்ணப்ப படிவத்தை நிரப்பி நுழைவு தேர்விற்கு பதிவு செய்யுங்கள்"
-                                : "Enter your school name and the provided password to join the competition."}
-                            </p>
+
+
+                            {!showSchoolInput ? (
+                              <p className="text-sm text-muted-foreground mt-4">
+                                {language === "ta"
+                                  ? "முன்னதாக குறிப்பிடப்பட்டுள்ள வினாடிவினா விதிமுறைகள் மற்றும் நெறிமுறைகளை கடுமையாகப் பின்பற்றவும், உங்கள் திறமைகளைப் பயன்படுத்தி இந்த வினாடிவினாவை எளிதாக்குங்கள்."
+                                  : "Strictly follow the rules and regulations of the quiz as mentioned before, and use your skills to make this quiz easier."}
+                              </p>
+                            ) : null}
+
+                            {showSchoolInput ? (
+                              <p className="text-muted-foreground mt-2">
+                                {language === "ta"
+                                  ? "விண்ணப்ப படிவத்தை நிரப்பி நுழைவு தேர்விற்கு பதிவு செய்யுங்கள்"
+                                  : "Enter your school name and the provided password to join the competition."}
+                              </p>
+                            ) : null}
                           </div>
 
                           {/* Start Quiz button (visible by default) */}
@@ -1257,10 +1451,6 @@ const QuizTamilMCQ: React.FC = () => {
                     {/* Question index panel (non-overlapping, appears below progress on mobile) */}
                     {showQuestionPanel && totalQuestions > 1 && (
                       <div className="mt-3 p-3 bg-muted/30 border border-primary/10 rounded-lg md:hidden">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-xs text-foreground/70">Questions: {totalQuestions}</div>
-                          <div className="text-xs text-foreground/60">Current: {currentIndex + 1}</div>
-                        </div>
 
                         <div className="grid grid-cols-3 gap-2 py-1">
                           {Array.from({ length: totalQuestions }).map((_, i) => {
@@ -1268,13 +1458,11 @@ const QuizTamilMCQ: React.FC = () => {
                             return (
                               <button
                                 key={i}
-                                onClick={() => {
-                                  setCurrentIndex(i);
-                                  setUrl(i + 1, schoolName, false);
-                                }}
-                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent hover:bg-primary/5'}`}
+                                type="button"
+                                disabled
+                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent'}`}
                                 aria-current={isActive ? 'true' : undefined}
-                                aria-label={`Go to question ${i + 1}`}
+                                aria-disabled="true"
                               >
                                 {i + 1}
                               </button>
@@ -1331,10 +1519,6 @@ const QuizTamilMCQ: React.FC = () => {
                           <div
                             className={`hidden md:block fixed right-14 top-[20%] -translate-y-1/2 z-30 w-auto max-w-[420px] p-3 bg-muted/90 border border-primary/10 rounded-lg shadow-lg transition-transform duration-200 ${showQuestionPanel ? 'translate-x-0' : 'translate-x-6 opacity-0 pointer-events-none'}`}
                           >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="text-xs text-foreground/70">Questions: {totalQuestions}</div>
-                              <div className="text-xs text-foreground/60">Current: {currentIndex + 1}</div>
-                            </div>
 
                             <div className="grid grid-cols-3 gap-2 py-1">
                               {Array.from({ length: totalQuestions }).map((_, i) => {
@@ -1342,13 +1526,11 @@ const QuizTamilMCQ: React.FC = () => {
                                 return (
                                   <button
                                     key={i}
-                                    onClick={() => {
-                                      setCurrentIndex(i);
-                                      setUrl(i + 1, schoolName, false);
-                                    }}
-                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent hover:bg-primary/5'}`}
+                                    type="button"
+                                    disabled
+                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent'}`}
                                     aria-current={isActive ? 'true' : undefined}
-                                    aria-label={`Go to question ${i + 1}`}
+                                    aria-disabled="true"
                                   >
                                     {i + 1}
                                   </button>
@@ -1366,25 +1548,33 @@ const QuizTamilMCQ: React.FC = () => {
                       >
                         <Watermark />
 
-                        <div className="absolute top-4 right-4 z-10">
-                          <div
-                            className={`px-4 py-2 rounded-lg font-bold text-lg ${
-                              timeRemaining <= 10
-                                ? "bg-red-500/20 text-red-500 animate-pulse"
-                                : timeRemaining <= 30
-                                  ? "bg-yellow-500/20 text-yellow-600"
-                                  : "bg-primary/20 text-primary"
-                            }`}
-                          >
-                            {Math.floor(timeRemaining / 60)}:
-                            {(timeRemaining % 60).toString().padStart(2, "0")}
-                          </div>
-                        </div>
-
                         <CardHeader className="border-b border-primary/10">
-                          <div className="flex gap-4">
+                          {/* Timer on its own first row */}
+                          <div className="flex justify-end">
+                            <div
+                              className={`px-4 py-2 rounded-lg font-bold text-lg ${
+                                timeRemaining <= 10
+                                  ? "bg-red-500/20 text-red-500 animate-pulse"
+                                  : timeRemaining <= 30
+                                    ? "bg-yellow-500/20 text-yellow-600"
+                                    : "bg-primary/20 text-primary"
+                              }`}
+                              aria-live="polite"
+                            >
+                              {Math.floor(timeRemaining / 60)}:
+                              {(timeRemaining % 60).toString().padStart(2, "0")}
+                            </div>
+                          </div>
+
+                          {/* Question row (starts on the next line) */}
+                          <div className="flex gap-2 mt-2 items-start">
+                            {/* fixed-width question number column so wrapped lines align */}
+                            <div className="flex-shrink-0 w1-1031 text-2xl md:text-3xl font-bold text-foreground mt-4 text-right  select-none">
+                              {currentIndex + 1}⟩
+                            </div>
+
                             <p
-                              className="flex-1 text-2xl md:text-3xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
+                              className="flex-1 text-2xl md:text-2.5xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
                                 userSelect: "none",
                                 WebkitUserSelect: "none",
@@ -1394,9 +1584,6 @@ const QuizTamilMCQ: React.FC = () => {
                                 punishCopyAttempt();
                               }}
                             >
-                              <span className="font-bold">
-                                {currentIndex + 1}.{" "}
-                              </span>
                               {displayedQuestion}
                             </p>
 
@@ -1448,6 +1635,14 @@ const QuizTamilMCQ: React.FC = () => {
 
                           {/* progress bar removed — progressValue no longer used */}
 
+                          {showUnansweredWarning && (
+                            <p role="alert" className="w-full mb-2 text-sm text-red-500">
+                              {language === "ta"
+                                ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Next அழுத்தவும்; இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
+                                : "You haven't selected an answer for this question. Click Next again to continue — this will be marked as unanswered."}
+                            </p>
+                          )}
+
                           <div className="flex justify-between items-center gap-4">
                             <Button
                               variant="outline"
@@ -1460,15 +1655,13 @@ const QuizTamilMCQ: React.FC = () => {
                             </Button>
 
                             <div className="flex-1 text-center">
-                              <p className="text-sm text-foreground/70">
-                                {isLast
-                                  ? language === "ta"
-                                    ? "கடைசி கேள்வி"
-                                    : "Last"
-                                  : language === "ta"
-                                    ? "தொடர்க"
-                                    : "Continue"}
-                              </p>
+                              {isLast ? (
+                                <p className="text-sm text-foreground/70">
+                                  {language === "ta" ? "கடைசி கேள்வி" : "Last"}
+                                </p>
+                              ) : (
+                                <div />
+                              )}
                             </div>
 
                             <Button
@@ -1498,7 +1691,9 @@ const QuizTamilMCQ: React.FC = () => {
                             animate={{ scale: 1, opacity: 1 }}
                             transition={{ duration: 0.6, ease: "easeOut" }}
                           >
-                            <div className="text-6xl mb-6">🎉</div>
+                            <div className="text-6xl mb-6">
+                              🎉
+                            </div>
                             <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-cyan-400 to-primary/60 bg-clip-text text-transparent mb-4">
                               {language === "ta" ? "வாழ்த்துக்கள்!" : "Congratulations!"}
                             </h2>
@@ -1536,8 +1731,14 @@ const QuizTamilMCQ: React.FC = () => {
                       </CardHeader>
 
                       <CardContent className="pt-8">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                           {[
+                            {
+                              label: language === "ta" ? "மொத்த மதிப்பெண்" : "Score",
+                              value: result.score,
+                              icon: Star,
+                              cls: "text-yellow-500",
+                            },
                             {
                               label: language === "ta" ? "சரி" : "Correct",
                               value: result.correct,
@@ -1655,6 +1856,71 @@ const QuizTamilMCQ: React.FC = () => {
                                           </span>
                                         </div>
                                       )}
+
+                                      {/* per-question scoring breakdown */}
+                                      {(() => {
+                                        // compute same way as computeResult
+                                        let baseScore = 0;
+                                        let bonusScore = 0;
+
+                                        if (picked !== null) {
+                                          if (picked === q.correctOptionId) {
+                                            baseScore = 100;
+                                            const secondsTaken =
+                                              typeof answers[idx]?.secondsTaken === 'number'
+                                                ? answers[idx]!
+                                                    .secondsTaken!
+                                                : null;
+                                            const BONUS_CAP = 60;
+                                            bonusScore =
+                                              secondsTaken == null
+                                                ? 0
+                                                : Math.max(
+                                                    0,
+                                                    BONUS_CAP - secondsTaken,
+                                                  );
+                                          } else {
+                                            // wrong answer gets penalty
+                                            baseScore = -50;
+                                            bonusScore = 0;
+                                          }
+                                        }
+
+                                        const totalScore = baseScore + bonusScore;
+
+                                        return (
+                                          <div className="mt-2 text-sm text-foreground/80">
+                                            <div className="flex flex-wrap gap-4 items-center">
+                                              <span>
+                                                {language === 'ta'
+                                                  ? 'வினா மதிப்பெண்கள்:'
+                                                  : 'Question points:'}{' '}
+                                                <span className="font-semibold">
+                                                  {baseScore}
+                                                </span>
+                                              </span>
+
+                                              <span>
+                                                {language === 'ta'
+                                                  ? 'நேர போனஸ்:'
+                                                  : 'Time bonus:'}{' '}
+                                                <span className="font-semibold">
+                                                  {bonusScore}
+                                                </span>
+                                              </span>
+
+                                              <span>
+                                                {language === 'ta'
+                                                  ? 'மொத்தம்:'
+                                                  : 'Total:'}{' '}
+                                                <span className="font-semibold">
+                                                  {totalScore}
+                                                </span>
+                                              </span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 );
