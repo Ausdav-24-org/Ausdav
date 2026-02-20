@@ -1430,6 +1430,7 @@ const QuizTamilMCQ: React.FC = () => {
                   </motion.div>
 
                   {/* Per-question time-bonus (moved above question card) */}
+                  {!isFinished && (
                   <div className="mb-8" aria-live="polite">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm text-foreground/70">Time bonus</div>
@@ -1463,8 +1464,7 @@ const QuizTamilMCQ: React.FC = () => {
 
                     {/* Question index panel (non-overlapping, appears below progress on mobile) */}
                     {showQuestionPanel && totalQuestions > 1 && (
-                      <div className="mt-3 p-3 bg-muted/30 border border-primary/10 rounded-lg md:hidden">
-
+                      <div className="mt-3 md:hidden">
                         <div className="grid grid-cols-3 gap-2 py-1">
                           {Array.from({ length: totalQuestions }).map((_, i) => {
                             const isActive = i === currentIndex;
@@ -1485,6 +1485,7 @@ const QuizTamilMCQ: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  )}
 
                   {questionsLoading ? (
                     <Card className="border-primary/20 shadow-lg mb-8">
