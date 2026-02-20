@@ -1635,11 +1635,11 @@ const QuizTamilMCQ: React.FC = () => {
                           {/* progress bar removed — progressValue no longer used */}
 
                           {showUnansweredWarning && (
-                            <div role="alert" className="w-full mb-3 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-600">
+                            <p role="alert" className="w-full mb-2 text-sm text-red-500">
                               {language === "ta"
                                 ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Next அழுத்தவும்; இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
                                 : "You haven't selected an answer for this question. Click Next again to continue — this will be marked as unanswered."}
-                            </div>
+                            </p>
                           )}
 
                           <div className="flex justify-between items-center gap-4">
