@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   List,
+  Star,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1730,8 +1731,14 @@ const QuizTamilMCQ: React.FC = () => {
                       </CardHeader>
 
                       <CardContent className="pt-8">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                           {[
+                            {
+                              label: language === "ta" ? "மொத்த மதிப்பெண்" : "Score",
+                              value: result.score,
+                              icon: Star,
+                              cls: "text-yellow-500",
+                            },
                             {
                               label: language === "ta" ? "சரி" : "Correct",
                               value: result.correct,
@@ -1849,6 +1856,71 @@ const QuizTamilMCQ: React.FC = () => {
                                           </span>
                                         </div>
                                       )}
+
+                                      {/* per-question scoring breakdown */}
+                                      {(() => {
+                                        // compute same way as computeResult
+                                        let baseScore = 0;
+                                        let bonusScore = 0;
+
+                                        if (picked !== null) {
+                                          if (picked === q.correctOptionId) {
+                                            baseScore = 100;
+                                            const secondsTaken =
+                                              typeof answers[idx]?.secondsTaken === 'number'
+                                                ? answers[idx]!
+                                                    .secondsTaken!
+                                                : null;
+                                            const BONUS_CAP = 60;
+                                            bonusScore =
+                                              secondsTaken == null
+                                                ? 0
+                                                : Math.max(
+                                                    0,
+                                                    BONUS_CAP - secondsTaken,
+                                                  );
+                                          } else {
+                                            // wrong answer gets penalty
+                                            baseScore = -50;
+                                            bonusScore = 0;
+                                          }
+                                        }
+
+                                        const totalScore = baseScore + bonusScore;
+
+                                        return (
+                                          <div className="mt-2 text-sm text-foreground/80">
+                                            <div className="flex flex-wrap gap-4 items-center">
+                                              <span>
+                                                {language === 'ta'
+                                                  ? 'வினா மதிப்பெண்கள்:'
+                                                  : 'Question points:'}{' '}
+                                                <span className="font-semibold">
+                                                  {baseScore}
+                                                </span>
+                                              </span>
+
+                                              <span>
+                                                {language === 'ta'
+                                                  ? 'நேர போனஸ்:'
+                                                  : 'Time bonus:'}{' '}
+                                                <span className="font-semibold">
+                                                  {bonusScore}
+                                                </span>
+                                              </span>
+
+                                              <span>
+                                                {language === 'ta'
+                                                  ? 'மொத்தம்:'
+                                                  : 'Total:'}{' '}
+                                                <span className="font-semibold">
+                                                  {totalScore}
+                                                </span>
+                                              </span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
                                 );
