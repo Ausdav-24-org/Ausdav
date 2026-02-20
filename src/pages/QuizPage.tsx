@@ -265,6 +265,9 @@ const QuizTamilMCQ: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   // Toggle for question index panel (shows small card with question numbers)
   const [showQuestionPanel, setShowQuestionPanel] = useState(false);
+  // Show a one-click warning when user presses Next without answering —
+  // user must press Next again to confirm moving on (question marked unanswered)
+  const [showUnansweredWarning, setShowUnansweredWarning] = useState(false);
 
   // Resize answers only when the question *count* changes —
   // do NOT reset answers when `desiredIndexFromUrl` changes (prevents
@@ -352,6 +355,16 @@ const QuizTamilMCQ: React.FC = () => {
     if (!hasQuestions) return;
     setCurrentIndex(desiredIndexFromUrl);
   }, [desiredIndexFromUrl, hasQuestions]);
+
+  // Auto-hide the unanswered-warning when the user selects an answer or when
+  // the question changes.
+  useEffect(() => {
+    if (showUnansweredWarning && currentAnswer !== null) setShowUnansweredWarning(false);
+  }, [currentAnswer, showUnansweredWarning]);
+
+  useEffect(() => {
+    if (showUnansweredWarning) setShowUnansweredWarning(false);
+  }, [currentIndex]);
 
   // Restore scroll position after question changes to avoid jumping to top
   useEffect(() => {
@@ -671,6 +684,21 @@ const QuizTamilMCQ: React.FC = () => {
   const goNext = () => {
     if (isFinished) return;
 
+    // If unanswered, show a one-click warning first (do not navigate).
+    if (currentAnswer === null) {
+      if (!showUnansweredWarning) {
+        setShowUnansweredWarning(true);
+        return; // block first click
+      }
+
+      // second click: persist unanswered state (defensive) and continue
+      if (schoolName && quizStartTime) {
+        saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
+      }
+      // reset the warning so it doesn't linger on the next question
+      setShowUnansweredWarning(false);
+    }
+
     if (!isLast) {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
@@ -682,7 +710,7 @@ const QuizTamilMCQ: React.FC = () => {
     setIsFinished(true);
     setCanViewReview(true);
     saveQuizResults();
-  };
+  }; 
 
   const resetQuiz = () => {
     const schoolToReset = schoolName;
@@ -1605,6 +1633,14 @@ const QuizTamilMCQ: React.FC = () => {
                           </div>
 
                           {/* progress bar removed — progressValue no longer used */}
+
+                          {showUnansweredWarning && (
+                            <div role="alert" className="w-full mb-3 p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-600">
+                              {language === "ta"
+                                ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Next அழுத்தவும்; இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
+                                : "You haven't selected an answer for this question. Click Next again to continue — this will be marked as unanswered."}
+                            </div>
+                          )}
 
                           <div className="flex justify-between items-center gap-4">
                             <Button
