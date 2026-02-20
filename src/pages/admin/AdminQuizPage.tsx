@@ -1935,7 +1935,7 @@ const AdminQuizPage: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        {isAdminView && (
+                        {(isAdminView || isMemberWithQuizGrant) && (
                           <div className="flex gap-2">
                             <Button
                               variant="outline"
@@ -1946,15 +1946,18 @@ const AdminQuizPage: React.FC = () => {
                               <Edit2 className="w-4 h-4" />
                               Edit
                             </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteQuestion(question.id)}
-                              className="gap-2"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </Button>
+
+                            {isAdminView && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDeleteQuestion(question.id)}
+                                className="gap-2"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>
