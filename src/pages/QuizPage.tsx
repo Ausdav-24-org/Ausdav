@@ -266,7 +266,9 @@ const QuizTamilMCQ: React.FC = () => {
   // Toggle for question index panel (shows small card with question numbers)
   const [showQuestionPanel, setShowQuestionPanel] = useState(false);
 
-  // Resize answers when question count changes
+  // Resize answers only when the question *count* changes —
+  // do NOT reset answers when `desiredIndexFromUrl` changes (prevents
+  // wiping stored per-question timestamps when navigating between questions).
   useEffect(() => {
     if (restoringSession) return;
     setAnswers(
@@ -274,12 +276,12 @@ const QuizTamilMCQ: React.FC = () => {
         selectedOptionId: null,
       })),
     );
-    setCurrentIndex(desiredIndexFromUrl);
+    // currentIndex is updated from the URL in a separate effect; do not touch it here
     setIsFinished(false);
     setCompromised(false);
     setCopyAttempts(0);
     setPrivacyBlur(false);
-  }, [totalQuestions, desiredIndexFromUrl, restoringSession]);
+  }, [totalQuestions, restoringSession]);
 
   const currentQuestion = activeQuestions[currentIndex] as any;
   const currentAnswer = answers[currentIndex]?.selectedOptionId ?? null;
@@ -1652,7 +1654,9 @@ const QuizTamilMCQ: React.FC = () => {
                             animate={{ scale: 1, opacity: 1 }}
                             transition={{ duration: 0.6, ease: "easeOut" }}
                           >
-                            <div className="text-6xl mb-6">🎉</div>
+                            <div className="text-6xl mb-6">
+                              🎉
+                            </div>
                             <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-cyan-400 to-primary/60 bg-clip-text text-transparent mb-4">
                               {language === "ta" ? "வாழ்த்துக்கள்!" : "Congratulations!"}
                             </h2>
