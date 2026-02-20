@@ -21,6 +21,7 @@ import { useQuizQuestions } from "@/hooks/useQuizQuestions";
 import { supabase } from "@/integrations/supabase/client";
 import { renderCyanTail } from "@/utils/text";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
+import PentathlonCard from "@/assets/Exam/pentathlon-card.jpg";
 import PartyConfetti from "@/components/PartyConfetti";
 
 // ✅ IMPORTANT: add router imports
@@ -1028,8 +1029,8 @@ const QuizTamilMCQ: React.FC = () => {
                         {/* Image on the left (stacks on small screens) */}
                         <div className="w-full md:w-1/2 overflow-hidden bg-black/10 rounded-t-2xl md:rounded-l-2xl md:rounded-tr-none">
                           <img
-                            src={BG1}
-                            alt="Pentathlon banner"
+                            src={PentathlonCard}
+                            alt="Pentathlon card"
                             className="w-full h-44 md:h-full object-cover md:min-h-[220px] md:max-h-[360px] rounded-t-2xl md:rounded-l-2xl"
                           />
                         </div>
@@ -1040,11 +1041,23 @@ const QuizTamilMCQ: React.FC = () => {
                             <h2 className="text-2xl md:text-3xl font-sans font-bold text-foreground">
                               Pentathlon 3.0
                             </h2>
-                            <p className="text-muted-foreground mt-2">
-                              {language === "ta"
-                                ? "விண்ணப்ப படிவத்தை நிரப்பி நுழைவு தேர்விற்கு பதிவு செய்யுங்கள்"
-                                : "Enter your school name and the provided password to join the competition."}
-                            </p>
+
+
+                            {!showSchoolInput ? (
+                              <p className="text-sm text-muted-foreground mt-4">
+                                {language === "ta"
+                                  ? "முன்னதாக குறிப்பிடப்பட்டுள்ள வினாடிவினா விதிமுறைகள் மற்றும் நெறிமுறைகளை கடுமையாகப் பின்பற்றவும், உங்கள் திறமைகளைப் பயன்படுத்தி இந்த வினாடிவினாவை எளிதாக்குங்கள்."
+                                  : "Strictly follow the rules and regulations of the quiz as mentioned before, and use your skills to make this quiz easier."}
+                              </p>
+                            ) : null}
+
+                            {showSchoolInput ? (
+                              <p className="text-muted-foreground mt-2">
+                                {language === "ta"
+                                  ? "விண்ணப்ப படிவத்தை நிரப்பி நுழைவு தேர்விற்கு பதிவு செய்யுங்கள்"
+                                  : "Enter your school name and the provided password to join the competition."}
+                              </p>
+                            ) : null}
                           </div>
 
                           {/* Start Quiz button (visible by default) */}
@@ -1257,10 +1270,6 @@ const QuizTamilMCQ: React.FC = () => {
                     {/* Question index panel (non-overlapping, appears below progress on mobile) */}
                     {showQuestionPanel && totalQuestions > 1 && (
                       <div className="mt-3 p-3 bg-muted/30 border border-primary/10 rounded-lg md:hidden">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-xs text-foreground/70">Questions: {totalQuestions}</div>
-                          <div className="text-xs text-foreground/60">Current: {currentIndex + 1}</div>
-                        </div>
 
                         <div className="grid grid-cols-3 gap-2 py-1">
                           {Array.from({ length: totalQuestions }).map((_, i) => {
@@ -1268,13 +1277,11 @@ const QuizTamilMCQ: React.FC = () => {
                             return (
                               <button
                                 key={i}
-                                onClick={() => {
-                                  setCurrentIndex(i);
-                                  setUrl(i + 1, schoolName, false);
-                                }}
-                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent hover:bg-primary/5'}`}
+                                type="button"
+                                disabled
+                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent'}`}
                                 aria-current={isActive ? 'true' : undefined}
-                                aria-label={`Go to question ${i + 1}`}
+                                aria-disabled="true"
                               >
                                 {i + 1}
                               </button>
@@ -1331,10 +1338,6 @@ const QuizTamilMCQ: React.FC = () => {
                           <div
                             className={`hidden md:block fixed right-14 top-[20%] -translate-y-1/2 z-30 w-auto max-w-[420px] p-3 bg-muted/90 border border-primary/10 rounded-lg shadow-lg transition-transform duration-200 ${showQuestionPanel ? 'translate-x-0' : 'translate-x-6 opacity-0 pointer-events-none'}`}
                           >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="text-xs text-foreground/70">Questions: {totalQuestions}</div>
-                              <div className="text-xs text-foreground/60">Current: {currentIndex + 1}</div>
-                            </div>
 
                             <div className="grid grid-cols-3 gap-2 py-1">
                               {Array.from({ length: totalQuestions }).map((_, i) => {
@@ -1342,13 +1345,11 @@ const QuizTamilMCQ: React.FC = () => {
                                 return (
                                   <button
                                     key={i}
-                                    onClick={() => {
-                                      setCurrentIndex(i);
-                                      setUrl(i + 1, schoolName, false);
-                                    }}
-                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent hover:bg-primary/5'}`}
+                                    type="button"
+                                    disabled
+                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent'}`}
                                     aria-current={isActive ? 'true' : undefined}
-                                    aria-label={`Go to question ${i + 1}`}
+                                    aria-disabled="true"
                                   >
                                     {i + 1}
                                   </button>
@@ -1366,23 +1367,31 @@ const QuizTamilMCQ: React.FC = () => {
                       >
                         <Watermark />
 
-                        <div className="absolute top-4 right-4 z-10">
-                          <div
-                            className={`px-4 py-2 rounded-lg font-bold text-lg ${
-                              timeRemaining <= 10
-                                ? "bg-red-500/20 text-red-500 animate-pulse"
-                                : timeRemaining <= 30
-                                  ? "bg-yellow-500/20 text-yellow-600"
-                                  : "bg-primary/20 text-primary"
-                            }`}
-                          >
-                            {Math.floor(timeRemaining / 60)}:
-                            {(timeRemaining % 60).toString().padStart(2, "0")}
-                          </div>
-                        </div>
-
                         <CardHeader className="border-b border-primary/10">
-                          <div className="flex gap-4">
+                          {/* Timer on its own first row */}
+                          <div className="flex justify-end">
+                            <div
+                              className={`px-4 py-2 rounded-lg font-bold text-lg ${
+                                timeRemaining <= 10
+                                  ? "bg-red-500/20 text-red-500 animate-pulse"
+                                  : timeRemaining <= 30
+                                    ? "bg-yellow-500/20 text-yellow-600"
+                                    : "bg-primary/20 text-primary"
+                              }`}
+                              aria-live="polite"
+                            >
+                              {Math.floor(timeRemaining / 60)}:
+                              {(timeRemaining % 60).toString().padStart(2, "0")}
+                            </div>
+                          </div>
+
+                          {/* Question row (starts on the next line) */}
+                          <div className="flex gap-4 mt-2 items-start">
+                            {/* fixed-width question number column so wrapped lines align */}
+                            <div className="flex-shrink-0 w-10 text-2xl md:text-3xl font-bold text-foreground mt-4 text-right mr-3 select-none">
+                              {currentIndex + 1}.
+                            </div>
+
                             <p
                               className="flex-1 text-2xl md:text-3xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
@@ -1394,9 +1403,6 @@ const QuizTamilMCQ: React.FC = () => {
                                 punishCopyAttempt();
                               }}
                             >
-                              <span className="font-bold">
-                                {currentIndex + 1}.{" "}
-                              </span>
                               {displayedQuestion}
                             </p>
 
@@ -1460,15 +1466,13 @@ const QuizTamilMCQ: React.FC = () => {
                             </Button>
 
                             <div className="flex-1 text-center">
-                              <p className="text-sm text-foreground/70">
-                                {isLast
-                                  ? language === "ta"
-                                    ? "கடைசி கேள்வி"
-                                    : "Last"
-                                  : language === "ta"
-                                    ? "தொடர்க"
-                                    : "Continue"}
-                              </p>
+                              {isLast ? (
+                                <p className="text-sm text-foreground/70">
+                                  {language === "ta" ? "கடைசி கேள்வி" : "Last"}
+                                </p>
+                              ) : (
+                                <div />
+                              )}
                             </div>
 
                             <Button
