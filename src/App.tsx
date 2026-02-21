@@ -37,6 +37,7 @@ import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
 import AdminPermissionsPage from "@/pages/admin/AdminPermissionsPage";
 import AdminEventsPage from "@/pages/admin/AdminEventsPage";
 import AdminFeedbackPage from "@/pages/admin/AdminFeedbackPage";
+import UpdatePasswordPage from "@/pages/UpdatePasswordPage";
 import ContactSettingsPage from "@/pages/admin/ContactSettingsPage";
 import FinanceSubmitPage from "@/pages/admin/finance/FinanceSubmitPage";
 import FinanceVerifyPage from "@/pages/admin/finance/FinanceVerifyPage";
@@ -217,6 +218,14 @@ const App = () => {
                     element={
                       <Layout>
                         <LoginPage />
+                      </Layout>
+                    }
+                  />
+                  <Route
+                    path="/account/update-password"
+                    element={
+                      <Layout>
+                        <UpdatePasswordPage />
                       </Layout>
                     }
                   />

@@ -29,6 +29,9 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allowSignup, setAllowSignup] = useState<boolean | null>(null);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
     // Check if already logged in
@@ -147,6 +150,29 @@ const LoginPage: React.FC = () => {
     }
   };
 
+  const sendReset = async () => {
+    setError(null);
+    setResetSent(false);
+    if (!resetEmail) {
+      setError(language === 'en' ? 'Enter your email' : 'மின்னஞ்சலை உள்ளிடவும்');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const redirect = import.meta.env.VITE_RESET_REDIRECT || 'http://localhost:8080/account/update-password';
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: redirect,
+      });
+      if (resetErr) throw resetErr;
+      setResetSent(true);
+      toast.success(language === 'en' ? 'Reset email sent' : 'மறுசீரமைப்பு மின்னஞ்சல் அனுப்பப்பட்டது');
+    } catch (e: any) {
+      setError(e.message || 'Unable to send reset email');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12">
       {/* Background effects */}
@@ -195,9 +221,10 @@ const LoginPage: React.FC = () => {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
+          {!resetMode ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
                 {language === 'en' ? 'Email' : 'மின்னஞ்சல்'}
               </label>
               <div className="relative">
@@ -248,7 +275,72 @@ const LoginPage: React.FC = () => {
                 </span>
               )}
             </Button>
+            <div className="text-center mt-2">
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => {
+                  setResetMode(true);
+                  setError(null);
+                }}
+              >
+                {language === 'en' ? 'Forgot password?' : 'கடவுச்சொல்லை மறந்துவிட்டீர்கள்?'}
+              </button>
+            </div>
           </form>
+          ) : (
+            <form className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {language === 'en' ? 'Email' : 'மின்னஞ்சல்'}
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="pl-10 bg-background/50"
+                    placeholder="member@ausdav.org"
+                  />
+                </div>
+              </div>
+              <Button
+                type="button"
+                className="w-full"
+                disabled={isLoading}
+                onClick={sendReset}
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    {language === 'en' ? 'Sending…' : 'அனுப்புகிறது…'}
+                  </span>
+                ) : (
+                  language === 'en' ? 'Send reset email' : 'மறுசீரமைப்பு மின்னஞ்சல் அனுப்பவும்'
+                )}
+              </Button>
+              {resetSent && (
+                <p className="text-center text-sm text-green-500 mt-2">
+                  {language === 'en'
+                    ? 'Check your inbox for a link.'
+                    : 'இன்ஸ்பாக்ஸை சரிபார்க்கவும்.'}
+                </p>
+              )}
+              <div className="text-center mt-2">
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => {
+                    setResetMode(false);
+                    setError(null);
+                  }}
+                >
+                  {language === 'en' ? 'Back to login' : 'உள்நுழைய திரும்ப'}
+                </button>
+              </div>
+            </form>
+          )}
 
           <div className="mt-6 pt-6 border-t border-border/30">
             <p className="text-center text-sm text-muted-foreground">
