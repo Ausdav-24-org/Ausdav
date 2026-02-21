@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Lock, LogIn, Eye, EyeOff, ArrowLeft, Sparkles } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ const loginSchema = z.object({
 const LoginPage: React.FC = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +35,17 @@ const LoginPage: React.FC = () => {
   const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
+    // if callback returned an error parameter, show it
+    const params = new URLSearchParams(location.search);
+    const err = params.get('error');
+    if (err === 'not_member') {
+      setError(language === 'en' ? 'Your Google account is not registered.' : 'உங்கள் Google கணக்கை பதிவுயார்செய்யப்படவில்லை.');
+    } else if (err === 'auth_failed') {
+      setError(language === 'en' ? 'Authentication failed. Please try again.' : 'அங்கீகாரம் தோல்வியுற்றது. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.');
+    } else if (err === 'email_mismatch') {
+      setError(language === 'en' ? 'Google returned a different email address.' : 'கூகிள் வேறொரு மின்னஞ்சல் முகவரியை வழங்கியது.');
+    }
+
     // Check if already logged in
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -42,7 +54,7 @@ const LoginPage: React.FC = () => {
       }
     };
     checkSession();
-  }, []);
+  }, [location.search]);
 
   useEffect(() => {
     const fetchSignupFlag = async () => {
@@ -174,7 +186,27 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  // Google sign‑in removed; we rely on email/password only.
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setIsLoading(true);
+
+    // store typed email for later validation in the callback page
+    if (form.email) {
+      localStorage.setItem('pendingGoogleEmail', form.email.toLowerCase());
+    }
+
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+    } catch (e: any) {
+      setError(e.message || 'OAuth error');
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12">
@@ -191,9 +223,9 @@ const LoginPage: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md px-4 relative z-10"
+        className="w-full max-w-md sm:max-w-lg md:max-w-xl px-4 sm:px-6 lg:px-8 relative z-10"
       >
-        <div className="glass-card rounded-2xl p-8 border border-border/50">
+        <div className="glass-card rounded-2xl p-6 sm:p-8 md:p-10 border border-border/50">
           {/* Back link */}
           <Link 
             to="/" 
@@ -226,6 +258,20 @@ const LoginPage: React.FC = () => {
 
           {!resetMode ? (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Google login option */}
+              <div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full flex items-center justify-center gap-2 bg-dark-blue hover:bg-blue-800 text-white"
+                  onClick={handleGoogleLogin}
+                  disabled={isLoading || !form.email}
+                >
+                  <img src="/src/assets/logo/google.png" alt="Google" className="w-5 h-5" />
+                  {language === 'en' ? 'Continue with Google' : 'கூகிள் மூலம் தொடரவும்'}
+                </Button>
+              </div>
+              <div className="text-center text-sm text-muted-foreground my-2">— {language === 'en' ? 'or use your email' : 'அல்லது உங்கள் மின்னஞ்சலைப் பயன்படுத்தவும்'} —</div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                 {language === 'en' ? 'Email' : 'மின்னஞ்சல்'}

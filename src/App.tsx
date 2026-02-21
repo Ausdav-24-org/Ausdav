@@ -25,6 +25,7 @@ import LoginPage from "@/pages/LoginPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import SignupPortalPage from "@/pages/SignupPortalPage";
 import ProfilePage from "@/pages/ProfilePage";
+import { AuthCallback } from "@/pages/AuthCallback";
 
 // Admin imports
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -218,6 +219,15 @@ const App = () => {
                     element={
                       <Layout>
                         <LoginPage />
+                      </Layout>
+                    }
+                  />
+                  {/* oauth redirect landing page */}
+                  <Route
+                    path="/auth/callback"
+                    element={
+                      <Layout>
+                        <AuthCallback />
                       </Layout>
                     }
                   />
