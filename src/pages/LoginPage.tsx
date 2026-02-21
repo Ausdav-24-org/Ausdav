@@ -33,6 +33,12 @@ const LoginPage: React.FC = () => {
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
 
+  // keep a local map of members keyed by auth_user_id so we can quickly check
+  // whether a Google identity corresponds to an existing account. Used to
+  // disable the button and show helpful messages.
+  // state for possible future use; no restrictions currently
+  const [isMemberMap, setIsMemberMap] = useState<{ [id: string]: { external_id: string | null } } | null>(null);
+
   useEffect(() => {
     // Check if already logged in
     const checkSession = async () => {
@@ -42,6 +48,21 @@ const LoginPage: React.FC = () => {
       }
     };
     checkSession();
+
+    // optional: still fetch members map for diagnostics but no blocking logic
+    const fetchMap = async () => {
+      const { data } = await supabase
+        .from('members' as any)
+        .select('auth_user_id,external_id');
+      if (data && Array.isArray(data)) {
+        const map: { [id: string]: { external_id: string | null } } = {};
+        (data as any).forEach((m: any) => {
+          if (m.auth_user_id) map[m.auth_user_id] = { external_id: m.external_id };
+        });
+        setIsMemberMap(map);
+      }
+    };
+    fetchMap();
   }, []);
 
   useEffect(() => {
@@ -85,6 +106,7 @@ const LoginPage: React.FC = () => {
         }
       }
 
+      // no special handling for missing member; allow profile-setup to run
       if (!member && !role) {
         navigate('/admin/profile-setup');
         return;
@@ -170,6 +192,18 @@ const LoginPage: React.FC = () => {
       setError(e.message || 'Unable to send reset email');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    const redirect = import.meta.env.VITE_GOOGLE_REDIRECT || window.location.origin + '/';
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: redirect },
+    });
+    if (error) {
+      toast.error(error.message);
+      setError(error.message);
     }
   };
 
@@ -287,6 +321,7 @@ const LoginPage: React.FC = () => {
                 {language === 'en' ? 'Forgot password?' : 'கடவுச்சொல்லை மறந்துவிட்டீர்கள்?'}
               </button>
             </div>
+
           </form>
           ) : (
             <form className="space-y-4">
@@ -348,7 +383,10 @@ const LoginPage: React.FC = () => {
                 ? 'Only registered members can access the portal.' 
                 : 'பதிவு செய்யப்பட்ட உறுப்பினர்கள் மட்டுமே போர்டலை அணுக முடியும்.'}
             </p>
-            <p className="text-center text-xs text-muted-foreground mt-2">
+            <p
+              className="text-center text-xs text-muted-foreground mt-2 cursor-pointer hover:underline"
+              onClick={handleGoogle}
+            >
               {language === 'en' 
                 ? 'Contact admin if you need access' 
                 : 'அணுகல் தேவைப்பட்டால் நிர்வாகியைத் தொடர்பு கொள்ளவும்'}
