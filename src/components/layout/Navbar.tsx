@@ -377,13 +377,11 @@ const Navbar: React.FC = () => {
                     </Link>
                   </DropdownMenuItem>
 
-                  {isAdmin && (
-                    <DropdownMenuItem asChild className="cursor-pointer rounded-md hover:bg-blue-100 dark:hover:bg-blue-950">
-                      <Link to="/admin" className="w-full px-2 py-1.5">
-                        Admin
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
+                  <DropdownMenuItem asChild className="cursor-pointer rounded-md hover:bg-blue-100 dark:hover:bg-blue-950">
+                    <Link to="/admin" className="w-full px-2 py-1.5">
+                      Control Panel
+                    </Link>
+                  </DropdownMenuItem>
 
                   <DropdownMenuItem
                     className="cursor-pointer rounded-md hover:bg-blue-100 dark:hover:bg-blue-950"

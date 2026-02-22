@@ -2015,26 +2015,38 @@ const AdminQuizPage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <p className="font-semibold mb-4">{question.question_text}</p>
+                          <div className="font-semibold mb-4 prose max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              {question.question_text}
+                            </ReactMarkdown>
+                          </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <div className={`flex items-center gap-2 ${question.correct_answer === 'a' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                               <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">A</span>
-                              <span className="text-sm">{question.option_a}</span>
+                              <span className="text-sm prose max-w-none">
+                                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{question.option_a}</ReactMarkdown>
+                              </span>
                               {question.correct_answer === 'a' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                             </div>
                             <div className={`flex items-center gap-2 ${question.correct_answer === 'b' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                               <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">B</span>
-                              <span className="text-sm">{question.option_b}</span>
+                              <span className="text-sm prose max-w-none">
+                                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{question.option_b}</ReactMarkdown>
+                              </span>
                               {question.correct_answer === 'b' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                             </div>
                             <div className={`flex items-center gap-2 ${question.correct_answer === 'c' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                               <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">C</span>
-                              <span className="text-sm">{question.option_c}</span>
+                              <span className="text-sm prose max-w-none">
+                                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{question.option_c}</ReactMarkdown>
+                              </span>
                               {question.correct_answer === 'c' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                             </div>
                             <div className={`flex items-center gap-2 ${question.correct_answer === 'd' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                               <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">D</span>
-                              <span className="text-sm">{question.option_d}</span>
+                              <span className="text-sm prose max-w-none">
+                                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{question.option_d}</ReactMarkdown>
+                              </span>
                               {question.correct_answer === 'd' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                             </div>
                           </div>

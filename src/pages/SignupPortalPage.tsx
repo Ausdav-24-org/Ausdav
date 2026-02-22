@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 import { z } from 'zod';
 
 interface SignupState {
@@ -91,6 +92,20 @@ const SignupPortalPage = () => {
       setError(err.message || 'Unable to create your account. Please try again.');
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    if (!signupOpen) return;
+    const redirect =
+      import.meta.env.VITE_GOOGLE_REDIRECT ||
+      window.location.origin + '/admin/profile-setup';
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: redirect },
+    });
+    if (error) {
+      toast.error(error.message);
     }
   };
 
@@ -235,7 +250,20 @@ const SignupPortalPage = () => {
                     )}
                   </Button>
 
-                  <p className="text-xs text-muted-foreground text-center">
+                  <div className="mt-4">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full flex items-center justify-center gap-2 bg-dark-blue hover:bg-blue-800 text-white"
+                      onClick={handleGoogleSignup}
+                      disabled={!signupOpen}
+                    >
+                      <img src="/src/assets/logo/google.png" alt="Google" className="w-5 h-5" />
+                      Sign up with Google
+                    </Button>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground text-center mt-2">
                     After registration, you'll complete your member profile to join the AUSDAV community.
                   </p>
                 </form>

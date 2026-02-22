@@ -22,6 +22,12 @@ import { useQuizQuestions } from "@/hooks/useQuizQuestions";
 import { supabase } from "@/integrations/supabase/client";
 import { renderCyanTail } from "@/utils/text";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
+
+// Markdown + KaTeX for rendering math equations in questions/options
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import PentathlonCard from "@/assets/Exam/pentathlon-card.jpg";
 import PartyConfetti from "@/components/PartyConfetti";
 
@@ -266,6 +272,13 @@ const QuizTamilMCQ: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   // Toggle for question index panel (shows small card with question numbers)
   const [showQuestionPanel, setShowQuestionPanel] = useState(false);
+
+  // open panel automatically on desktop when questions exist (prevents need to toggle)
+  useEffect(() => {
+    if (totalQuestions > 1 && typeof window !== 'undefined' && window.innerWidth >= 768) {
+      setShowQuestionPanel(true);
+    }
+  }, [totalQuestions]);
   // Show a one-click warning when user presses Next without answering —
   // user must press Next again to confirm moving on (question marked unanswered)
   const [showUnansweredWarning, setShowUnansweredWarning] = useState(false);
@@ -1417,6 +1430,7 @@ const QuizTamilMCQ: React.FC = () => {
                   </motion.div>
 
                   {/* Per-question time-bonus (moved above question card) */}
+                  {!isFinished && (
                   <div className="mb-8" aria-live="polite">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm text-foreground/70">Time bonus</div>
@@ -1450,17 +1464,23 @@ const QuizTamilMCQ: React.FC = () => {
 
                     {/* Question index panel (non-overlapping, appears below progress on mobile) */}
                     {showQuestionPanel && totalQuestions > 1 && (
-                      <div className="mt-3 p-3 bg-muted/30 border border-primary/10 rounded-lg md:hidden">
-
+                      <div className="mt-3 md:hidden">
                         <div className="grid grid-cols-3 gap-2 py-1">
                           {Array.from({ length: totalQuestions }).map((_, i) => {
                             const isActive = i === currentIndex;
+                            const isVisited = i <= currentIndex;
                             return (
                               <button
                                 key={i}
                                 type="button"
                                 disabled
-                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent'}`}
+                                className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${
+                                  isActive
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : isVisited
+                                    ? 'bg-primary/20 text-primary border-primary/20'
+                                    : 'bg-card/20 text-foreground/60 border-transparent'
+                                }`}
                                 aria-current={isActive ? 'true' : undefined}
                                 aria-disabled="true"
                               >
@@ -1472,6 +1492,7 @@ const QuizTamilMCQ: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  )}
 
                   {questionsLoading ? (
                     <Card className="border-primary/20 shadow-lg mb-8">
@@ -1523,12 +1544,19 @@ const QuizTamilMCQ: React.FC = () => {
                             <div className="grid grid-cols-3 gap-2 py-1">
                               {Array.from({ length: totalQuestions }).map((_, i) => {
                                 const isActive = i === currentIndex;
+                                const isVisited = i <= currentIndex;
                                 return (
                                   <button
                                     key={i}
                                     type="button"
                                     disabled
-                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/20 text-foreground/60 border-transparent'}`}
+                                    className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-medium border ${
+                                      isActive
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : isVisited
+                                        ? 'bg-primary/20 text-primary border-primary/20'
+                                        : 'bg-card/20 text-foreground/60 border-transparent'
+                                    }`}
                                     aria-current={isActive ? 'true' : undefined}
                                     aria-disabled="true"
                                   >
@@ -1573,8 +1601,8 @@ const QuizTamilMCQ: React.FC = () => {
                               {currentIndex + 1}⟩
                             </div>
 
-                            <p
-                              className="flex-1 text-2xl md:text-2.5xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
+                            <div
+                              className="flex-1 prose max-w-none text-2xl md:text-2.5xl font-medium text-foreground mt-4 leading-relaxed select-none whitespace-normal break-words"
                               style={{
                                 userSelect: "none",
                                 WebkitUserSelect: "none",
@@ -1584,8 +1612,10 @@ const QuizTamilMCQ: React.FC = () => {
                                 punishCopyAttempt();
                               }}
                             >
-                              {displayedQuestion}
-                            </p>
+                              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                {displayedQuestion}
+                              </ReactMarkdown>
+                            </div>
 
                             {/* Display question image in top right corner if exists */}
                             {currentQuestion?.imageUrl && (
@@ -1625,8 +1655,10 @@ const QuizTamilMCQ: React.FC = () => {
                                   >
                                     {String.fromCharCode(65 + idx)}
                                   </div>
-                                  <span className="text-foreground font-medium text-lg md:text-xl select-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
-                                    {opt.text}
+                                  <span className="text-foreground font-medium text-lg md:text-xl select-none prose max-w-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
+                                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                      {opt.text}
+                                    </ReactMarkdown>
                                   </span>
                                 </motion.button>
                               );

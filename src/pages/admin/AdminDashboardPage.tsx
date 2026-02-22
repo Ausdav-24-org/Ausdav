@@ -24,6 +24,8 @@ import { supabase } from '@/integrations/supabase/client';
 // Use a loose-typed client for queries against tables not present in generated types
 const db = supabase as any;
 import { useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartConfig } from '@/components/ui/chart';
 
 interface DashboardStats {
   totalMembers: number;
@@ -47,16 +49,27 @@ export default function AdminDashboardPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchDashboardStats();
+    (async () => {
+      const batches = await fetchDashboardStats();
+      if (batches.length === 0) {
+        // fallback to direct query only when dashboard function returned nothing
+        await fetchMembersByBatch();
+      }
+    })();
   }, []);
 
   const { session } = useAdminAuth();
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = async (): Promise<{ batch: string; count: number }[]> => {
     try {
       setLoading(true);
       const { data, error } = await invokeFunction('fetch-dashboard-stats', {});
       if (error) throw error;
+
+      // debug: log payload to see if batches are included
+      console.debug('dashboard stats payload', data);
+
+      const batches = Array.isArray(data?.membersByBatch) ? data.membersByBatch : [];
 
       setStats((prev) => ({
         ...prev,
@@ -65,10 +78,13 @@ export default function AdminDashboardPage() {
         monthlyIncome: data?.monthlyIncome || 0,
         monthlyExpense: data?.monthlyExpense || 0,
         pendingSubmissions: data?.pendingSubmissions || 0,
-        membersByBatch: data?.membersByBatch || [],
+        membersByBatch: batches.length ? batches : prev.membersByBatch,
       }));
+
+      return batches;
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -110,6 +126,32 @@ export default function AdminDashboardPage() {
   ];
 
   const { hasPermission, loading: permissionsLoading } = useAdminGrantedPermissions();
+
+  const batchChartConfig: ChartConfig = {
+    count: { label: 'Students', color: '#60A5FA' },
+  };
+
+  // explicit query for members by batch to back up the dashboard function
+  const fetchMembersByBatch = async () => {
+    try {
+      const { data, error } = await db.from('members').select('batch');
+      console.debug('direct batch query result', { data, error });
+      if (error) throw error;
+      const rows = Array.isArray(data) ? data : [];
+      const counts: Record<string, number> = {};
+      rows.forEach((r: any) => {
+        const b = r.batch ?? 'Unknown';
+        counts[b] = (counts[b] || 0) + 1;
+      });
+      const arr = Object.entries(counts)
+        .map(([batch, count]) => ({ batch, count }))
+        .sort((a, b) => b.count - a.count);
+      console.debug('computed batch counts', arr);
+      setStats((prev) => ({ ...prev, membersByBatch: arr }));
+    } catch (e) {
+      console.error('Error fetching members by batch:', e);
+    }
+  };
   const { isAdmin, isSuperAdmin } = useAdminAuth();
 
   const actions = [
@@ -176,27 +218,18 @@ export default function AdminDashboardPage() {
               <CardTitle className="text-lg">Members by Batch</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {stats.membersByBatch.slice(0, 6).map((item) => (
-                  <div key={item.batch} className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{item.batch}</span>
-                    <div className="flex items-center gap-3">
-                      <div className="w-32 h-2 bg-secondary rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full"
-                          style={{
-                            width: `${(item.count / stats.totalMembers) * 100}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-sm font-medium w-8 text-right">{item.count}</span>
-                    </div>
-                  </div>
-                ))}
-                {stats.membersByBatch.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">No members yet</p>
-                )}
-              </div>
+              {stats.membersByBatch.length > 0 ? (
+                <ChartContainer config={batchChartConfig} className="w-full h-[320px]">
+                  <BarChart data={stats.membersByBatch} margin={{ top: 20, right: 20, left: 0, bottom: 20 }} className="w-full">
+                    <XAxis dataKey="batch" tick={{ fill: 'hsl(var(--foreground))' }} />
+                    <YAxis tick={{ fill: 'hsl(var(--foreground))' }} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="count" fill="#60A5FA" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No members yet</p>
+              )}
             </CardContent>
           </Card>
 
