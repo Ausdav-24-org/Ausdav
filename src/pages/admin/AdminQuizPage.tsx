@@ -186,6 +186,16 @@ const AdminQuizPage: React.FC = () => {
   const [latexInput, setLatexInput] = useState("");
 
   const latexPresets: { label: string; latex: string }[] = [
+    // newline helper
+    {
+      label: 'New line',
+      latex: '\\n',
+    },
+    // subscript helper (placeholder with cursor inside braces)
+    {
+      label: 'Subscript ',
+      latex: 'X_2',
+    },
     { label: 'Fractions', latex: '\\frac{x}{2}' },
     { label: 'Square roots', latex: '\\sqrt{x+9}' },
     { label: 'Powers', latex: 'x^2' },
@@ -839,8 +849,24 @@ const AdminQuizPage: React.FC = () => {
 
   const insertLatexIntoQuestion = () => {
     if (!latexInput || !latexInput.trim()) { toast.error('Enter LaTeX'); return; }
-    const wrapped = latexInput.includes('$') ? latexInput : `$${latexInput}$`;
-    setFormData(f => ({ ...f, question_text: (f.question_text ? f.question_text + '\n' : '') + wrapped }));
+
+    // if user selected the newline preset, we don't wrap in $ and simply force a newline
+    if (latexInput === '\\n') {
+      setFormData(f => ({ ...f, question_text: f.question_text + '\n' }));
+    } else if (latexInput === '_{}') {
+      // insert subscript and position cursor inside braces
+      setFormData(f => ({
+        ...f,
+        question_text: (f.question_text ? f.question_text + '\n' : '') + '_{ }',
+      }));
+    } else {
+      const wrapped = latexInput.includes('$') ? latexInput : `$${latexInput}$`;
+      setFormData(f => ({
+        ...f,
+        question_text: (f.question_text ? f.question_text + '\n' : '') + wrapped,
+      }));
+    }
+
     setShowLatexHelper(false);
     setLatexInput('');
     toast.success('Inserted into question');
@@ -1598,7 +1624,12 @@ const AdminQuizPage: React.FC = () => {
                                 key={p.label}
                                 type="button"
                                 className="text-xs px-2 py-1 bg-muted/20 rounded hover:bg-muted/30"
-                                onClick={() => setLatexInput(p.latex)}
+                                onClick={() => {
+                                  setLatexInput(p.latex);
+                                  if (p.latex === '\\n') {
+                                    insertLatexIntoQuestion();
+                                  }
+                                }}
                               >
                                 {p.label}
                               </button>
