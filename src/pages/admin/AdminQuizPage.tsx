@@ -70,8 +70,9 @@ const AdminQuizPage: React.FC = () => {
   const { language } = useLanguage();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [schoolResults, setSchoolResults] = useState<SchoolQuizResult[]>([]);
-  const [scoreRange, setScoreRange] = useState<[number, number]>([0, 4800]);
-  const [pendingScoreRange, setPendingScoreRange] = useState<[number, number]>([0, 4800]);
+  // allow negative scores as low as -1500; upper bound 5000
+  const [scoreRange, setScoreRange] = useState<[number, number]>([-1500, 5000]);
+  const [pendingScoreRange, setPendingScoreRange] = useState<[number, number]>([-1500, 5000]);
   const [sortBy, setSortBy] = useState<'score-desc' | 'score-asc' | 'name-asc' | 'name-desc' | 'time-asc' | 'time-desc'>("score-desc");
   const [resultsQuizFilter, setResultsQuizFilter] = useState<string>("all");
   const [schoolQuizMap, setSchoolQuizMap] = useState<Record<string, number[]>>({});
@@ -114,8 +115,8 @@ const AdminQuizPage: React.FC = () => {
 
   // Auto-apply pending score inputs to the active filter and clamp to 0..5000
   useEffect(() => {
-    const minVal = Math.max(0, Math.min(5000, pendingScoreRange[0]));
-    const maxVal = Math.max(0, Math.min(5000, pendingScoreRange[1]));
+    const minVal = Math.max(-1500, Math.min(5000, pendingScoreRange[0]));
+    const maxVal = Math.max(-1500, Math.min(5000, pendingScoreRange[1]));
     setScoreRange([Math.min(minVal, maxVal), Math.max(minVal, maxVal)]);
   }, [pendingScoreRange]);
 
@@ -139,6 +140,8 @@ const AdminQuizPage: React.FC = () => {
   const [togglingQuiz, setTogglingQuiz] = useState(false);
   const [deletingQuizPasswordId, setDeletingQuizPasswordId] = useState<number | null>(null);
   const [deletingAllResults, setDeletingAllResults] = useState(false);
+  // track which single-school deletion is in progress
+  const [deletingSchoolName, setDeletingSchoolName] = useState<string | null>(null);
   const [isMemberUploadEnabled, setIsMemberUploadEnabled] = useState(false);
   // per-password mode toggling (Test / Quiz)
   const [togglingQuizModeId, setTogglingQuizModeId] = useState<number | null>(null);
@@ -554,6 +557,40 @@ const AdminQuizPage: React.FC = () => {
       toast.error("Failed to delete results. Check console for details.");
     } finally {
       setDeletingAllResults(false);
+    }
+  };
+
+  // delete results and answers belonging to a single school
+  const handleDeleteSchoolResults = async (schoolName: string) => {
+    if (!schoolName) return;
+    if (deletingSchoolName) return;
+    const confirmDelete = window.confirm(
+      `Permanently delete all quiz data for "${schoolName}"? This cannot be undone.`
+    );
+    if (!confirmDelete) return;
+
+    setDeletingSchoolName(schoolName);
+    try {
+      const { error: rErr } = await supabase
+        .from("school_quiz_results")
+        .delete()
+        .eq("school_name", schoolName);
+      if (rErr) throw rErr;
+
+      const { error: aErr } = await supabase
+        .from("school_quiz_answers" as any)
+        .delete()
+        .eq("school_name", schoolName);
+      if (aErr) console.error("Error deleting school answers:", aErr);
+
+      toast.success(`Deleted results for ${schoolName}`);
+      fetchSchoolResults();
+      fetchSchoolAnswersMap().catch(() => {});
+    } catch (err) {
+      console.error("Error deleting school results:", err);
+      toast.error("Failed to delete results for school");
+    } finally {
+      setDeletingSchoolName(null);
     }
   };
 
@@ -1095,13 +1132,13 @@ const AdminQuizPage: React.FC = () => {
                             type="button"
                             aria-label="Decrease min score"
                             className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                            onClick={() => setPendingScoreRange([Math.max(0, pendingScoreRange[0] - 1), pendingScoreRange[1]])}
+                            onClick={() => setPendingScoreRange([Math.max(-1500, pendingScoreRange[0] - 1), pendingScoreRange[1]])}
                           >
                             <Minus className="w-4 h-4" />
                           </button>
                           <Input
                             type="number"
-                            min={0}
+                            min={-1500}
                             max={5000}
                             value={pendingScoreRange[0]}
                             onChange={e => setPendingScoreRange([Number(e.target.value), pendingScoreRange[1]])}
@@ -1122,13 +1159,13 @@ const AdminQuizPage: React.FC = () => {
                             type="button"
                             aria-label="Decrease max score"
                             className="px-2 h-9 flex items-center justify-center text-white hover:bg-white/5"
-                            onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.max(0, pendingScoreRange[1] - 1)])}
+                            onClick={() => setPendingScoreRange([pendingScoreRange[0], Math.max(-1500, pendingScoreRange[1] - 1)])}
                           >
                             <Minus className="w-4 h-4" />
                           </button>
                           <Input
                             type="number"
-                            min={0}
+                            min={-1500}
                             max={5000}
                             value={pendingScoreRange[1]}
                             onChange={e => setPendingScoreRange([pendingScoreRange[0], Number(e.target.value)])}
@@ -1225,6 +1262,26 @@ const AdminQuizPage: React.FC = () => {
                               setShowDetailsModal(true);
                             }}
                           >
+                          {/* delete overlay */}
+                          {isAdminView && (
+                            <div className="absolute top-2 left-2 z-10">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSchoolResults(result.school_name);
+                                }}
+                                disabled={deletingSchoolName === result.school_name}
+                              >
+                                {deletingSchoolName === result.school_name ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4 text-red-600" />
+                                )}
+                              </Button>
+                            </div>
+                          )}
                             <CardContent className="pt-6">
                               {index < 3 && (
                                 <div className="absolute top-2 right-2">
@@ -1353,7 +1410,7 @@ const AdminQuizPage: React.FC = () => {
                             <th className="px-4 py-3 text-left font-semibold">School Name</th>
                             <th className="px-4 py-3 text-right font-semibold">Score</th>
                             <th className="px-4 py-3 text-center font-semibold">Duration</th>
-                            <th className="px-4 py-3 text-center font-semibold">Action</th>
+                            <th className="px-4 py-3 text-center font-semibold">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1365,31 +1422,51 @@ const AdminQuizPage: React.FC = () => {
                                 {formatSeconds(schoolDurations[(result.school_name || '').trim()])}
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={async () => {
-                                    let quizPasswordId = 0;
-                                    try {
-                                      const { data, error } = await (supabase as any)
-                                        .from("school_quiz_answers" as any)
-                                        .select("quiz_password_id")
-                                        .eq("school_name", result.school_name)
-                                        .order("created_at", { ascending: false })
-                                        .limit(1);
-                                      if (data && data.length > 0) {
-                                        quizPasswordId = data[0].quiz_password_id;
+                                <div className="inline-flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={async () => {
+                                      let quizPasswordId = 0;
+                                      try {
+                                        const { data, error } = await (supabase as any)
+                                          .from("school_quiz_answers" as any)
+                                          .select("quiz_password_id")
+                                          .eq("school_name", result.school_name)
+                                          .order("created_at", { ascending: false })
+                                          .limit(1);
+                                        if (data && data.length > 0) {
+                                          quizPasswordId = data[0].quiz_password_id;
+                                        }
+                                      } catch (e) {
+                                        // fallback
                                       }
-                                    } catch (e) {
-                                      // fallback
-                                    }
-                                    setSelectedQuizResult({ ...result, quiz_password_id: quizPasswordId });
-                                    setShowDetailsModal(true);
-                                  }}
-                                  className="text-xs"
-                                >
-                                  View Details
-                                </Button>
+                                      setSelectedQuizResult({ ...result, quiz_password_id: quizPasswordId });
+                                      setShowDetailsModal(true);
+                                    }}
+                                    className="text-xs"
+                                  >
+                                    View Details
+                                  </Button>
+                                  {isAdminView && (
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteSchoolResults(result.school_name);
+                                      }}
+                                      disabled={deletingSchoolName === result.school_name}
+                                    >
+                                      {deletingSchoolName === result.school_name ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="w-4 h-4" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
