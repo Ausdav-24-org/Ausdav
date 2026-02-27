@@ -1304,19 +1304,22 @@ const QuizTamilMCQ: React.FC = () => {
                                     value={schoolName}
                                     onChange={setSchoolName}
                                     options={[
-                                      "Vavuniya Tamil Madhya Maha Vidyalayam",
-                                      "V/Rambaikkulam Girls Maha Vidyalayam",
-                                      "Vipulanantha College Vavuniya",
-                                      "Vavuniya Nelukkulam Kalaimakal Maha Vidyalayam",
-                                      "Vavuniya Muslim Maha Vidyalayam",
-                                      "Saivapragasa Ladies College",
-                                      "Koomankulam Sithivinayakar Vidyalayam",
-                                      "Vavuniya Hindu College",
-                                      "Kanakarayankulam Maha Vidyalayam",
-                                      "V/Puliyankulam Hindu college",
-                                      "Nochchimoddai Junior Secondary Vidyalayam",
-                                      "Omanthai Central College",
-                                      "Panrikkeithakulam school in vavuniya",
+                                      "V/Vavuniya Tamil Madhya Maha Vidyalayam",
+                                      "V/Rambaikulam Girls' Maha Vidyalayam",
+                                      "V/Vipulanantha College",
+                                      "V/Koomankulam Sithivinayakar Vidyalayam",
+                                      "V/Saivapragasa ladies college",
+                                      "V/ Vavuniya Hindu College",
+                                      "V/Nelukkulam Kalaimagal Maha Vidyalayam",
+                                      "V/Velikkulam Junior High Vidyalayam",
+                                      "V/Kanagarayankulam Maha Vidyalayam",
+                                      "V/Nochchimoddai Junior Secondary Vidyalayam",
+                                      "V/Omanthai Central College",
+                                      "V/Puliyankulam Hindu College",
+                                      "V/Panrikkeithakulam Government Tamil Mixed School",
+                                      "V/Puthukkulam Maha Vidyalayam",
+                                      "V/Vavuniya Muslim Maha Vidyalayam",
+
                                     ]}
                                     placeholder={
                                       language === "ta"
