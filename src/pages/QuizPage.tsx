@@ -694,6 +694,35 @@ const QuizTamilMCQ: React.FC = () => {
 
   const result = useMemo(() => computeResult(), [answers, activeQuestions]);
 
+  // Helper: skip current question as unanswered and move forward
+  const skipCurrentQuestion = () => {
+    if (isFinished) return;
+    if (currentAnswer !== null) return;
+
+    // persist unanswered state defensively
+    if (schoolName && quizStartTime) {
+      saveQuizSession(
+        currentIndex,
+        answers,
+        quizStartTime,
+        questionStartTime ?? null,
+      );
+    }
+
+    setShowUnansweredWarning(false);
+
+    if (!isLast) {
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      setUrl(nextIndex + 1, schoolName, false);
+      return;
+    }
+
+    setIsFinished(true);
+    setCanViewReview(true);
+    saveQuizResults();
+  };
+
   // ✅ Next: update URL so each question has different URL
   const goNext = () => {
     if (isFinished) return;
@@ -705,12 +734,9 @@ const QuizTamilMCQ: React.FC = () => {
         return; // block first click
       }
 
-      // second click: persist unanswered state (defensive) and continue
-      if (schoolName && quizStartTime) {
-        saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
-      }
-      // reset the warning so it doesn't linger on the next question
-      setShowUnansweredWarning(false);
+      // If warning already shown (fallback path), treat as confirm skip
+      skipCurrentQuestion();
+      return;
     }
 
     if (!isLast) {
@@ -1414,6 +1440,47 @@ const QuizTamilMCQ: React.FC = () => {
             {/* Quiz */}
             {quizStarted && (
               <div>
+                {/* Centered skip-warning popup */}
+                {showUnansweredWarning && !isFinished && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="max-w-md mx-4 rounded-xl bg-red-600 text-white shadow-2xl p-4 md:p-5 text-center space-y-3">
+                      <h2 className="text-lg md:text-xl font-semibold">
+                        {language === "ta"
+                          ? "பதில் இல்லை எச்சரிக்கை"
+                          : "Unanswered Question"}
+                      </h2>
+                      <p className="text-sm md:text-base">
+                        {language === "ta"
+                          ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Next அழுத்தினால், இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
+                          : "You haven't selected an answer for this question. If you press Next again, it will be marked as not answered."}
+                      </p>
+                      <p className="text-xs md:text-sm opacity-80">
+                        {language === "ta"
+                          ? "தொடர Next பொத்தானை மீண்டும் அழுத்தவும்"
+                          : "Press the Next button again to continue."}
+                      </p>
+
+                      <div className="mt-3 flex justify-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-white/10 border-white/40 text-white hover:bg-white/20 hover:text-white"
+                          onClick={() => setShowUnansweredWarning(false)}
+                        >
+                          {language === "ta" ? "மூடு" : "Close"}
+                        </Button>
+                        <Button
+                          type="button"
+                          className="bg-white text-red-700 hover:bg-slate-100"
+                          onClick={skipCurrentQuestion}
+                        >
+                          {language === "ta" ? "இந்த கேள்வியை தவிர்க்கவும்" : "Skip this question"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div
                   className={
                     privacyBlur ? "blur-xl select-none pointer-events-none" : ""
@@ -1669,14 +1736,6 @@ const QuizTamilMCQ: React.FC = () => {
                           </div>
 
                           {/* progress bar removed — progressValue no longer used */}
-
-                          {showUnansweredWarning && (
-                            <p role="alert" className="w-full mb-2 text-sm text-red-500">
-                              {language === "ta"
-                                ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Next அழுத்தவும்; இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
-                                : "You haven't selected an answer for this question. Click Next again to continue — this will be marked as unanswered."}
-                            </p>
-                          )}
 
                           <div className="flex justify-between items-center gap-4">
                             <Button
