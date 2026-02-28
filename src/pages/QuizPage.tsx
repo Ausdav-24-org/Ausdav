@@ -19,6 +19,7 @@ import { SchoolCombobox } from "@/components/ui/SchoolCombobox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useQuizQuestions } from "@/hooks/useQuizQuestions";
+import { useQuizPresenceTracker } from "@/hooks/useQuizPresence";
 import { supabase } from "@/integrations/supabase/client";
 import { renderCyanTail } from "@/utils/text";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
@@ -270,6 +271,14 @@ const QuizTamilMCQ: React.FC = () => {
   );
 
   const [isFinished, setIsFinished] = useState(false);
+
+  // ---------- Presence tracking for admin live monitor ----------
+  const { updatePresence, untrack: untrackPresence } = useQuizPresenceTracker(
+    quizPasswordId,
+    schoolName,
+    quizStarted && !isFinished,
+  );
+
   // Toggle for question index panel (shows small card with question numbers)
   const [showQuestionPanel, setShowQuestionPanel] = useState(false);
 
@@ -445,14 +454,18 @@ const QuizTamilMCQ: React.FC = () => {
             .eq("id", pwdId)
             .maybeSingle();
 
-          // fetch only the questions for this quiz_password_id
-          const { data: questionsData, error: questionsError } = await supabase
-            .from("quiz_mcq" as any)
-            .select("*")
-            .eq("quiz_password_id", pwdId)
-            .order("created_at", { ascending: true });
+          // fetch questions through server-side cache
+          const { data: cacheResp, error: cacheErr } = await supabase.functions.invoke(
+            "quiz-cache",
+            {
+              body: { quiz_password_id: pwdId },
+              method: "POST",
+            },
+          );
 
-          if (questionsError || !questionsData || questionsData.length === 0) {
+          const questionsData = (cacheResp as any)?.questions;
+
+          if (cacheErr || !questionsData || !Array.isArray(questionsData) || questionsData.length === 0) {
             // nothing to restore
             clearQuizSession(schoolName);
             setRestoringSession(false);
@@ -529,6 +542,24 @@ const QuizTamilMCQ: React.FC = () => {
             if (remaining === 0) {
               setIsFinished(true);
               setCanViewReview(true);
+            } else {
+              // Re-register with live progress tracker so admin sees this participant after page refresh
+              const answeredCount = (Array.isArray(savedSession.answers) ? savedSession.answers : []).filter(
+                (a: any) => a?.selectedOptionId !== null
+              ).length;
+              updatePresence({
+                school_name: schoolName,
+                quiz_password_id: pwdId,
+                quiz_name: '',
+                current_question_index: targetIndex,
+                total_questions: formattedQuestions.length,
+                answered_count: answeredCount,
+                answers: savedSession.answers ?? [],
+                started_at: savedSession.startTime
+                  ? new Date(savedSession.startTime).toISOString()
+                  : new Date().toISOString(),
+                is_finished: false,
+              });
             }
 
             toast.info(language === "ta" ? "வினாடிவினா மீட்டெடுக்கப்பட்டது" : "Quiz session restored");
@@ -673,6 +704,9 @@ const QuizTamilMCQ: React.FC = () => {
         selectedOptionId: optionId,
         secondsTaken: elapsed,
       };
+      // Update presence with new answered count
+      const answeredCount = next.filter((a) => a.selectedOptionId !== null).length;
+      updatePresence({ answered_count: answeredCount, current_question_index: currentIndex, answers });
       return next;
     });
   };
@@ -752,11 +786,17 @@ const QuizTamilMCQ: React.FC = () => {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
       setUrl(nextIndex + 1, schoolName, false);
+      // update presence because we moved to next question without answering
+      const answeredCount = answers.filter((a) => a.selectedOptionId !== null).length;
+      updatePresence({ current_question_index: nextIndex, answered_count: answeredCount, answers });
       return;
     }
 
     setIsFinished(true);
     setCanViewReview(true);
+    // Mark as finished in presence and untrack
+    updatePresence({ is_finished: true, answers });
+    untrackPresence();
     saveQuizResults();
   };
 
@@ -781,11 +821,16 @@ const QuizTamilMCQ: React.FC = () => {
       setCurrentIndex(nextIndex);
       // push url
       setUrl(nextIndex + 1, schoolName, false);
+      // Update presence with new question index
+      updatePresence({ current_question_index: nextIndex, answers });
       return;
     }
 
     setIsFinished(true);
     setCanViewReview(true);
+    // Mark as finished in presence and untrack
+    updatePresence({ is_finished: true, answers });
+    untrackPresence();
     saveQuizResults();
   }; 
 
@@ -880,11 +925,32 @@ const QuizTamilMCQ: React.FC = () => {
         }
       }
 
-      const { data: questionsData, error: questionsError } = await supabase
-        .from("quiz_mcq" as any)
-        .select("*")
-        .eq("quiz_password_id", passwordId);
-      if (questionsError || !questionsData || questionsData.length === 0) {
+      // attempt to preload progress for cross-device resume
+      let preloadIdx: number | null = null;
+      let preloadAnswers: any[] | null = null;
+      if (schoolName) {
+        const { data: prog } = await supabase
+          .from('quiz_live_progress' as any)
+          .select('current_question_index, answers, is_finished')
+          .eq('school_name', schoolName.trim())
+          .eq('quiz_password_id', passwordId)
+          .maybeSingle() as any;
+        if (prog && !prog.is_finished) {
+          if (typeof prog.current_question_index === 'number') preloadIdx = prog.current_question_index;
+          if (Array.isArray(prog.answers)) preloadAnswers = prog.answers;
+        }
+      }
+
+      const { data: cacheResp, error: cacheErr } = await supabase.functions.invoke(
+        "quiz-cache",
+        {
+          body: { quiz_password_id: passwordId },
+          method: "POST",
+        },
+      );
+
+      if (cacheErr || !cacheResp || !Array.isArray((cacheResp as any).questions)) {
+        console.error("quiz-cache error", cacheErr);
         toast.error(
           language === "ta"
             ? "இந்த வினாடிவினாவிற்கான கேள்விகள் இல்லை"
@@ -892,6 +958,8 @@ const QuizTamilMCQ: React.FC = () => {
         );
         return;
       }
+
+      const questionsData = (cacheResp as any).questions;
 
       // Format questions to match Question type
       const formattedQuestions = questionsData.map((q: any) => ({
@@ -924,11 +992,34 @@ const QuizTamilMCQ: React.FC = () => {
       setTimeRemaining(initialSeconds);
       setCanViewReview(false);
       setCurrentIndex(0);
-      const initialAnswers = Array.from({ length: formattedQuestions.length }, () => ({ selectedOptionId: null }));
+      let initialAnswers = Array.from({ length: formattedQuestions.length }, () => ({ selectedOptionId: null }));
+      if (preloadAnswers && Array.isArray(preloadAnswers)) {
+        // merge any preloaded answers (matching length)
+        initialAnswers = preloadAnswers.length === formattedQuestions.length ? preloadAnswers : initialAnswers;
+      }
       setAnswers(initialAnswers);
+      // if we preloaded an index from another device, jump there
+      if (preloadIdx !== null && preloadIdx >= 0 && preloadIdx < formattedQuestions.length) {
+        setCurrentIndex(preloadIdx);
+        setUrl(preloadIdx + 1, schoolName, false);
+      }
       // persist session immediately so refresh during the landing -> first-question transition restores correctly
-      if (schoolName) saveQuizSession(0, initialAnswers, Date.now());
+      if (schoolName) saveQuizSession(currentIndex, initialAnswers, Date.now());
       setSelectedQuizNo(null); // Not needed for this logic
+
+      // Broadcast initial presence for admin live monitor (also include persisted answers)
+      updatePresence({
+        school_name: schoolName,
+        quiz_password_id: passwordId,
+        quiz_name: (passwordData as any).quiz_name ?? '',
+        current_question_index: 0,
+        total_questions: formattedQuestions.length,
+        answered_count: 0,
+        answers: initialAnswers,
+        started_at: new Date().toISOString(),
+        is_finished: false,
+      });
+
       toast.success(
         language === "ta" ? "வினாடிவினா தொடங்குகிறது!" : "Quiz starting!",
       );
@@ -1069,6 +1160,16 @@ const QuizTamilMCQ: React.FC = () => {
         // Don't show error to user since main results were saved
       } else {
         console.log("Individual answers saved successfully");
+      }
+
+      // Clear cached quiz questions on server so next attempt refetches fresh
+      try {
+        await supabase.functions.invoke("quiz-cache", {
+          method: "DELETE",
+          body: { quiz_password_id: quizPasswordId },
+        });
+      } catch (cacheDeleteErr) {
+        console.warn("quiz-cache delete failed", cacheDeleteErr);
       }
 
       toast.success(
