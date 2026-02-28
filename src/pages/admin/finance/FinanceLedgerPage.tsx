@@ -86,20 +86,10 @@ interface Transaction {
   approved: boolean;
 }
 
-const categories = [
-  "Membership Fee",
-  "Fund Collection",
-  "Monthly Exams",
-  "Ausdav Exams",
-  "Practical Seminar",
-  "Utilities",
-  "Blood Camp",
-  "Printing",
-  "Catering",
-  "Other",
-];
+// categories will be pulled dynamically from the finance table
+// so users can filter based on whatever events have been recorded.
 
-const allCategories = ["All Categories", ...categories];
+// NOTE: allCategories is derived below using useMemo inside the component.
 
 interface TransactionFormData {
   exp_type: "income" | "expense";
@@ -127,6 +117,12 @@ const MAX_RECEIPT_SIZE_BYTES = 5 * 1024 * 1024;
 export default function FinanceLedgerPage() {
   const { user, isSuperAdmin, isAdmin } = useAdminAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const allCategories = useMemo(
+    () => ["All Categories", ...categories],
+    [categories]
+  );
+
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All Categories");
@@ -191,6 +187,12 @@ export default function FinanceLedgerPage() {
         .order("txn_date", { ascending: false });
 
       if (error) throw error;
+
+      // pull distinct categories from returned rows
+      const uniqueCats = [
+        ...new Set((data || []).map((t: Tables<"finance">) => t.category))
+      ].filter(Boolean) as string[];
+      setCategories(uniqueCats);
 
       // Fetch creator names from members or profiles
       const submitterIds = [
@@ -889,7 +891,7 @@ export default function FinanceLedgerPage() {
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Category</TableHead>
+                      <TableHead>Event</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       {canEdit && <TableHead className="w-[50px]"></TableHead>}
@@ -1034,24 +1036,15 @@ export default function FinanceLedgerPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Category *</Label>
-                  <Select
+                  <Label>Event *</Label>
+                  <Input
                     value={formData.category}
-                    onValueChange={(v) =>
-                      setFormData({ ...formData, category: v })
+                    onChange={(e) =>
+                      setFormData({ ...formData, category: e.target.value })
                     }
-                  >
-                    <SelectTrigger className="bg-background/50">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="e.g. Pentathlon"
+                    className="bg-background/50"
+                  />
                 </div>
               </div>
 
