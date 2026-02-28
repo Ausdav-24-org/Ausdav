@@ -140,10 +140,6 @@ const QuizTamilMCQ: React.FC = () => {
   const [isQuizEnabled, setIsQuizEnabled] = useState(false);
   const [loadingQuizStatus, setLoadingQuizStatus] = useState(true);
 
-  // ---------- Anti-copy / anti-screenshot ----------
-  const [copyAttempts, setCopyAttempts] = useState(0);
-  const [compromised, setCompromised] = useState(false);
-  const [privacyBlur, setPrivacyBlur] = useState(false);
 
   const {
     questions: dbQuestions,
@@ -295,9 +291,6 @@ const QuizTamilMCQ: React.FC = () => {
     );
     // currentIndex is updated from the URL in a separate effect; do not touch it here
     setIsFinished(false);
-    setCompromised(false);
-    setCopyAttempts(0);
-    setPrivacyBlur(false);
   }, [totalQuestions, restoringSession]);
 
   const currentQuestion = activeQuestions[currentIndex] as any;
@@ -762,9 +755,6 @@ const QuizTamilMCQ: React.FC = () => {
       })),
     );
     setIsFinished(false);
-    setCompromised(false);
-    setCopyAttempts(0);
-    setPrivacyBlur(false);
     setShowSchoolDialog(true);
     setShowSchoolInput(false);
     setSchoolName("");
@@ -1050,82 +1040,11 @@ const QuizTamilMCQ: React.FC = () => {
     }
   };
 
-  // ---------- Anti-copy ----------
-  const punishCopyAttempt = () => {
-    setCopyAttempts((n) => n + 1);
-    setCompromised(true);
-  };
-
-  useEffect(() => {
-    const onCopy = (e: ClipboardEvent) => {
-      e.preventDefault();
-      punishCopyAttempt();
-    };
-
-    const onCut = (e: ClipboardEvent) => {
-      e.preventDefault();
-      punishCopyAttempt();
-    };
-
-    const onContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-      punishCopyAttempt();
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      const key = typeof e.key === "string" ? e.key.toLowerCase() : "";
-      const ctrlOrCmd = e.ctrlKey || e.metaKey;
-      if (ctrlOrCmd && ["c", "x", "a", "p", "s"].includes(key)) {
-        e.preventDefault();
-        punishCopyAttempt();
-      }
-      if (key === "printscreen" || (e as any).keyCode === 44) {
-        e.preventDefault();
-        setPrivacyBlur(true);
-        punishCopyAttempt();
-        toast.error(
-          language === "ta"
-            ? "ஸ்க்ரீன்ஷாட் அனுமதிக்கப்படவில்லை!"
-            : "Screenshots are not allowed!",
-        );
-        setTimeout(() => setPrivacyBlur(false), 1000);
-      }
-    };
-
-    const onVisibilityChange = () => {
-      if (document.hidden) setPrivacyBlur(true);
-      else setPrivacyBlur(false);
-    };
-
-    const onWindowBlur = () => setPrivacyBlur(true);
-    const onWindowFocus = () => setPrivacyBlur(false);
-
-    document.addEventListener("copy", onCopy);
-    document.addEventListener("cut", onCut);
-    document.addEventListener("contextmenu", onContextMenu);
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("blur", onWindowBlur);
-    window.addEventListener("focus", onWindowFocus);
-
-    return () => {
-      document.removeEventListener("copy", onCopy);
-      document.removeEventListener("cut", onCut);
-      document.removeEventListener("contextmenu", onContextMenu);
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("blur", onWindowBlur);
-      window.removeEventListener("focus", onWindowFocus);
-    };
-  }, [language]);
 
   const displayedQuestion = useMemo(() => {
     if (!currentQuestion) return "";
-    if (!compromised) return currentQuestion.question;
-    return language === "ta"
-      ? "⚠️ Copy முயற்சி காரணமாக கேள்வி மறைக்கப்பட்டது."
-      : "⚠️ Question hidden due to copy attempt.";
-  }, [compromised, currentQuestion, language]);
+    return currentQuestion.question;
+  }, [currentQuestion]);
 
   const Watermark = () => (
     <div className="pointer-events-none select-none absolute inset-0 overflow-hidden rounded-xl">
@@ -1483,7 +1402,7 @@ const QuizTamilMCQ: React.FC = () => {
 
                 <div
                   className={
-                    privacyBlur ? "blur-xl select-none pointer-events-none" : ""
+                    ""
                   }
                 >
                   <motion.div
@@ -1640,8 +1559,8 @@ const QuizTamilMCQ: React.FC = () => {
                       )}
                       <Card
                         className="border-primary/20 shadow-lg mb-8 relative overflow-hidden select-none"
-                        onCopy={(e) => { e.preventDefault(); punishCopyAttempt(); }}
-                        onContextMenu={(e) => { e.preventDefault(); punishCopyAttempt(); }}
+                        onCopy={(e) => { e.preventDefault(); }}
+                        onContextMenu={(e) => { e.preventDefault(); }}
                         style={{ userSelect: "none", WebkitUserSelect: "none" }}
                       >
                         <Watermark />
@@ -1679,7 +1598,6 @@ const QuizTamilMCQ: React.FC = () => {
                               }}
                               onCopy={(e) => {
                                 e.preventDefault();
-                                punishCopyAttempt();
                               }}
                             >
                               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
