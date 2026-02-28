@@ -88,7 +88,7 @@ export function useQuizPresenceTracker(
   // Flush current stateRef to database via UPSERT
   const flushToDb = useCallback(async () => {
     const s = stateRef.current;
-    const name = s.school_name;
+    const name = s.school_name ? s.school_name.trim() : s.school_name;
     const qpId = s.quiz_password_id;
     if (!name || !qpId) return;
 
@@ -149,7 +149,7 @@ export function useQuizPresenceTracker(
       stateRef.current.quiz_password_id = quizPasswordId;
     }
     if (schoolName && !stateRef.current.school_name) {
-      stateRef.current.school_name = schoolName;
+      stateRef.current.school_name = schoolName.trim();
     }
 
     // Do NOT flush immediately; wait for first updatePresence caller so we

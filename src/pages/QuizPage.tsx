@@ -231,6 +231,49 @@ const QuizTamilMCQ: React.FC = () => {
   const questionsToRender =
     quizStarted && quizQuestions.length > 0 ? quizQuestions : dbQuestions;
 
+  // explicit per-client question stack (shuffled) used for quiz order
+  const [questionStack, setQuestionStack] = useState<Question[]>([]);
+  const activeQuestions = questionStack; // alias for readability
+
+  // build/refresh stack when dependency changes
+  useEffect(() => {
+    const filtered = selectedQuizNo
+      ? questionsToRender.filter(
+          (q: any) => (q?.quiz_no ?? 1) === selectedQuizNo,
+        )
+      : questionsToRender;
+
+    if (!filtered.length) {
+      setQuestionStack(filtered);
+      return;
+    }
+
+    if (!schoolName) {
+      // without school name we can't seed; just keep order
+      setQuestionStack(filtered);
+      return;
+    }
+
+    // seed based on school name so order is deterministic per client
+    const seed = schoolName
+      .split("")
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const shuffled = [...filtered];
+
+    let random = seed;
+    const seededRandom = () => {
+      random = (random * 9301 + 49297) % 233280;
+      return random / 233280;
+    };
+
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(seededRandom() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    setQuestionStack(shuffled);
+  }, [questionsToRender, schoolName, selectedQuizNo]);
+
   // periodically refresh quizQuestions from server cache when password is known
   useEffect(() => {
     let timer: number | null = null;
@@ -285,34 +328,6 @@ const QuizTamilMCQ: React.FC = () => {
       if (timer != null) clearInterval(timer);
     };
   }, [quizPasswordId, dbQuestions]);
-
-  const activeQuestions = useMemo(() => {
-    const filtered = selectedQuizNo
-      ? questionsToRender.filter(
-          (q: any) => (q?.quiz_no ?? 1) === selectedQuizNo,
-        )
-      : questionsToRender;
-
-    if (!filtered.length || !schoolName) return filtered;
-
-    const seed = schoolName
-      .split("")
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const shuffled = [...filtered];
-
-    let random = seed;
-    const seededRandom = () => {
-      random = (random * 9301 + 49297) % 233280;
-      return random / 233280;
-    };
-
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    return shuffled;
-  }, [questionsToRender, schoolName, selectedQuizNo]);
 
   const totalQuestions = activeQuestions.length;
 
@@ -1113,12 +1128,22 @@ const QuizTamilMCQ: React.FC = () => {
       setPasswordIsTest(isTestMode);
       setPasswordIsQuiz(isQuizMode);
 
-      // In quiz mode, block duplicate school entries
+      // In quiz mode, block duplicate school entries.  Normalize the school
+      // name to guard against trivial variations in whitespace or case (which
+      // would also be handled by the database constraint added below).
       if (isQuizMode && !isTestMode && schoolName) {
+        const normalized = schoolName.trim();
+        // update state / URL to the normalized value so later operations use it
+        if (normalized !== schoolName) {
+          setSchoolName(normalized);
+          setUrl(currentIndex + 1, normalized, true);
+        }
         const { data: existingAttempt } = await supabase
           .from("school_quiz_results" as any)
           .select("id")
-          .eq("school_name", schoolName.trim())
+          // Postgres text comparisons are case‑sensitive by default; use ilike
+          // so "SCHOOL" and "school" count as the same.
+          .ilike("school_name", normalized)
           .eq("quiz_password_id", passwordId)
           .maybeSingle();
         if (existingAttempt) {
@@ -1291,10 +1316,14 @@ const QuizTamilMCQ: React.FC = () => {
 
   const saveQuizResults = async () => {
     // Type and null checks for all required fields
-    if (!schoolName || typeof schoolName !== "string") {
+    // normalize/trimming school name before saving results (ensures
+    // constraint works reliably)
+    const cleanSchool = schoolName?.trim();
+    if (!cleanSchool || typeof cleanSchool !== "string") {
       toast.error("School name missing or invalid.");
       return;
     }
+    // use cleaned value below
     if (
       typeof totalQuestions !== "number" ||
       typeof result.correct !== "number" ||
@@ -1315,7 +1344,7 @@ const QuizTamilMCQ: React.FC = () => {
     }
 
     const insertObj: any = {
-      school_name: schoolName,
+      school_name: cleanSchool,
       total_questions: totalQuestions,
       correct_answers: result.correct,
       wrong_answers: result.wrong,
