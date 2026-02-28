@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Plus, Minus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload, Loader2, Copy } from "lucide-react";
+import { Plus, Minus, Edit2, Trash2, Save, X, Eye, EyeOff, Download, Upload, Loader2, Copy, Radio } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LabelList } from "recharts";
 // Markdown + KaTeX (used by the LaTeX helper preview)
 import ReactMarkdown from 'react-markdown';
@@ -16,11 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
 import QuizAttemptDetailsModal from "@/components/QuizAttemptDetailsModal";
+import QuizLiveMonitor from "@/components/admin/QuizLiveMonitor";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 type QuizQuestion = {
@@ -122,6 +124,8 @@ const AdminQuizPage: React.FC = () => {
 
   // View mode (default = table). Table mode shows charts + table; Card mode shows the existing cards.
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  // Admin tab: management vs live monitor
+  const [adminTab, setAdminTab] = useState<'management' | 'monitor'>('management');
   // Map of school_name -> total duration in seconds (computed from answers_meta)
   const [schoolDurations, setSchoolDurations] = useState<Record<string, number | null>>({});
   const [loadingDurations, setLoadingDurations] = useState(false);
@@ -936,6 +940,23 @@ const AdminQuizPage: React.FC = () => {
             Quiz Management
           </h1>
 
+          {/* Admin Tab System: Management vs Live Monitor */}
+          {isAdminView && (
+            <Tabs value={adminTab} onValueChange={(v) => setAdminTab(v as 'management' | 'monitor')} className="mb-6">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="management">Management</TabsTrigger>
+                <TabsTrigger value="monitor" className="gap-1.5">
+                  <Radio className="w-3.5 h-3.5" />
+                  Live Monitor
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="monitor" className="mt-4">
+                <QuizLiveMonitor quizPasswords={quizPasswords} />
+              </TabsContent>
+
+              <TabsContent value="management" className="mt-4">
+
           {/* Quiz Enable/Disable Toggle (admin only) */}
           {isAdminView && (
             <Card className="mb-6">
@@ -1541,6 +1562,11 @@ const AdminQuizPage: React.FC = () => {
               </CardContent>
             </Card>
           )}
+
+              </TabsContent>
+            </Tabs>
+          )}
+
           {(isAdminView || isMemberWithQuizGrant) && (
             <div className="flex justify-end mb-6">
               <Button
