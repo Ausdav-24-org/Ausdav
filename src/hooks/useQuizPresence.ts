@@ -49,6 +49,10 @@ export interface QuizPresenceState {
   total_questions: number;
   answered_count: number;
   answers?: any;          // optional JSON of answers for resume
+  // new: live bonus/metrics that admin may want to view
+  time_bonus?: number;    // remaining bonus or current bonus points
+  extras?: any;           // arbitrary additional details (stored as JSONB)
+
   started_at: string; // ISO timestamp
   updated_at: string; // ISO timestamp
   is_finished: boolean;
@@ -101,6 +105,8 @@ export function useQuizPresenceTracker(
         is_finished: s.is_finished ?? false,
       };
       if (s.answers) payload.answers = s.answers;
+      if (typeof s.time_bonus === 'number') payload.time_bonus = s.time_bonus;
+      if (s.extras) payload.extras = s.extras;
 
       const { error } = await supabase
         .from('quiz_live_progress' as any)
@@ -146,8 +152,10 @@ export function useQuizPresenceTracker(
       stateRef.current.school_name = schoolName;
     }
 
-    // Immediately flush once when enabled becomes true (re-registers after refresh)
-    flushToDb();
+    // Do NOT flush immediately; wait for first updatePresence caller so we
+    // have a meaningful time_bonus value before inserting the row. This avoids
+    // an initial 0 default that later overwrote a valid bonus on refresh.
+    // flushToDb();
 
     heartbeatRef.current = setInterval(flushToDb, HEARTBEAT_INTERVAL);
     return () => {
@@ -211,6 +219,8 @@ export function useQuizPresenceListener(
             current_question_index: row.current_question_index ?? 0,
             total_questions: row.total_questions ?? 0,
             answered_count: row.answered_count ?? 0,
+            time_bonus: row.time_bonus ?? 0,
+            extras: row.extras ?? {},
             started_at: row.started_at ?? '',
             updated_at: row.updated_at ?? '',
             is_finished: false,
@@ -276,6 +286,8 @@ export function useQuizPresenceListener(
                 current_question_index: row.current_question_index ?? 0,
                 total_questions: row.total_questions ?? 0,
                 answered_count: row.answered_count ?? 0,
+                time_bonus: row.time_bonus ?? 0,
+                extras: row.extras ?? {},
                 started_at: row.started_at ?? '',
                 updated_at: row.updated_at ?? '',
                 is_finished: false,
