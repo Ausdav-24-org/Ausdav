@@ -77,11 +77,22 @@ const navItems: NavItem[] = [
 ];
 
 export function AdminSidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768);
   const location = useLocation();
   const { role, isSuperAdmin } = useAdminAuth();
   const { hasPermission } = useAdminGrantedPermissions();
   const [manualApplicantsOpen, setManualApplicantsOpen] = useState(false);
+
+  // collapse sidebar automatically on small screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setCollapsed(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!role || role === 'admin' || role === 'super_admin') return;
@@ -196,6 +207,12 @@ export function AdminSidebar() {
                     'hover:bg-secondary/80',
                     isActive && 'bg-primary/10 text-primary border border-primary/20 neon-glow'
                   )}
+                  onClick={() => {
+                    // on small screens, collapse when navigating to a page
+                    if (window.innerWidth < 768) {
+                      setCollapsed(true);
+                    }
+                  }}
                 >
                   <item.icon className={cn('h-5 w-5 shrink-0', isActive && 'text-primary')} />
                   <AnimatePresence mode="wait">

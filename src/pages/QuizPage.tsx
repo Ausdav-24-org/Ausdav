@@ -140,10 +140,6 @@ const QuizTamilMCQ: React.FC = () => {
   const [isQuizEnabled, setIsQuizEnabled] = useState(false);
   const [loadingQuizStatus, setLoadingQuizStatus] = useState(true);
 
-  // ---------- Anti-copy / anti-screenshot ----------
-  const [copyAttempts, setCopyAttempts] = useState(0);
-  const [compromised, setCompromised] = useState(false);
-  const [privacyBlur, setPrivacyBlur] = useState(false);
 
   const {
     questions: dbQuestions,
@@ -226,33 +222,22 @@ const QuizTamilMCQ: React.FC = () => {
   const questionsToRender =
     quizStarted && quizQuestions.length > 0 ? quizQuestions : dbQuestions;
 
+  // ---------- Active Questions (NO FRONTEND SHUFFLE) ----------
   const activeQuestions = useMemo(() => {
-    const filtered = selectedQuizNo
+    if (!questionsToRender || questionsToRender.length === 0) {
+      return [];
+    }
+
+    // Order already handled in handleStartQuiz via school_quiz_order table
+    // Never shuffle in frontend
+
+    return selectedQuizNo
       ? questionsToRender.filter(
-          (q: any) => (q?.quiz_no ?? 1) === selectedQuizNo,
+          (q: any) => (q?.quiz_no ?? 1) === selectedQuizNo
         )
       : questionsToRender;
 
-    if (!filtered.length || !schoolName) return filtered;
-
-    const seed = schoolName
-      .split("")
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const shuffled = [...filtered];
-
-    let random = seed;
-    const seededRandom = () => {
-      random = (random * 9301 + 49297) % 233280;
-      return random / 233280;
-    };
-
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    return shuffled;
-  }, [questionsToRender, schoolName, selectedQuizNo]);
+  }, [questionsToRender, selectedQuizNo]);
 
   const totalQuestions = activeQuestions.length;
 
@@ -295,9 +280,6 @@ const QuizTamilMCQ: React.FC = () => {
     );
     // currentIndex is updated from the URL in a separate effect; do not touch it here
     setIsFinished(false);
-    setCompromised(false);
-    setCopyAttempts(0);
-    setPrivacyBlur(false);
   }, [totalQuestions, restoringSession]);
 
   const currentQuestion = activeQuestions[currentIndex] as any;
@@ -441,7 +423,27 @@ const QuizTamilMCQ: React.FC = () => {
               : null,
           }));
 
-          setQuizQuestions(formattedQuestions);
+          // apply persisted school-specific ordering if available
+          let orderedQuestions: Question[] = formattedQuestions;
+          try {
+            const { data: orderRow } = await supabase
+              .from('school_quiz_order' as any)
+              .select('order_ids')
+              .eq('school_name', schoolName)
+              .eq('quiz_password_id', pwdId)
+              .maybeSingle();
+            if (orderRow && (orderRow as any).order_ids) {
+              const idList: string[] = (orderRow as any).order_ids as string[];
+              orderedQuestions = idList
+                .map((id) => formattedQuestions.find((q) => q.id === id))
+                .filter(Boolean) as Question[];
+            }
+          } catch (e) {
+            console.warn('restore order fail', e);
+          }
+
+
+          setQuizQuestions(orderedQuestions);
 
           // determine configured duration (prefer savedSession if present)
           const durationFromPwd = (pwdData as any)?.duration_minutes && typeof (pwdData as any).duration_minutes === "number" && (pwdData as any).duration_minutes > 0
@@ -694,6 +696,35 @@ const QuizTamilMCQ: React.FC = () => {
 
   const result = useMemo(() => computeResult(), [answers, activeQuestions]);
 
+  // Helper: skip current question as unanswered and move forward
+  const skipCurrentQuestion = () => {
+    if (isFinished) return;
+    if (currentAnswer !== null) return;
+
+    // persist unanswered state defensively
+    if (schoolName && quizStartTime) {
+      saveQuizSession(
+        currentIndex,
+        answers,
+        quizStartTime,
+        questionStartTime ?? null,
+      );
+    }
+
+    setShowUnansweredWarning(false);
+
+    if (!isLast) {
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      setUrl(nextIndex + 1, schoolName, false);
+      return;
+    }
+
+    setIsFinished(true);
+    setCanViewReview(true);
+    saveQuizResults();
+  };
+
   // ✅ Next: update URL so each question has different URL
   const goNext = () => {
     if (isFinished) return;
@@ -705,12 +736,9 @@ const QuizTamilMCQ: React.FC = () => {
         return; // block first click
       }
 
-      // second click: persist unanswered state (defensive) and continue
-      if (schoolName && quizStartTime) {
-        saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
-      }
-      // reset the warning so it doesn't linger on the next question
-      setShowUnansweredWarning(false);
+      // If warning already shown (fallback path), treat as confirm skip
+      skipCurrentQuestion();
+      return;
     }
 
     if (!isLast) {
@@ -736,9 +764,6 @@ const QuizTamilMCQ: React.FC = () => {
       })),
     );
     setIsFinished(false);
-    setCompromised(false);
-    setCopyAttempts(0);
-    setPrivacyBlur(false);
     setShowSchoolDialog(true);
     setShowSchoolInput(false);
     setSchoolName("");
@@ -831,7 +856,7 @@ const QuizTamilMCQ: React.FC = () => {
       }
 
       // Format questions to match Question type
-      const formattedQuestions = questionsData.map((q: any) => ({
+      const formattedQuestions: Question[] = questionsData.map((q: any) => ({
         id: q.id.toString(),
         question: q.question_text,
         options: [
@@ -849,7 +874,53 @@ const QuizTamilMCQ: React.FC = () => {
           : null,
       }));
 
-      setQuizQuestions(formattedQuestions);
+      // --------- per-school order logic ---------
+      // table `school_quiz_order` stores { school_name, quiz_password_id, order_ids }
+      let orderedQuestions: Question[] = formattedQuestions;
+      try {
+        const { data: orderRow } = await supabase
+          .from('school_quiz_order' as any)
+          .select('order_ids')
+          .eq('school_name', schoolName)
+          .eq('quiz_password_id', passwordId)
+          .maybeSingle();
+
+        if (orderRow && (orderRow as any).order_ids) {
+          const idList: string[] = (orderRow as any).order_ids as string[];
+          orderedQuestions = idList
+            .map((id) => formattedQuestions.find((q) => q.id === id))
+            .filter(Boolean) as Question[];
+        } else {
+          // generate new order and persist it
+          const ids = formattedQuestions.map((q) => q.id);
+          // simple Fisher-Yates shuffle seeded by school name
+          const shuffledIds = [...ids];
+          let random = schoolName
+            .split('')
+            .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+          const seededRandom = () => {
+            random = (random * 9301 + 49297) % 233280;
+            return random / 233280;
+          };
+          for (let i = shuffledIds.length - 1; i > 0; i--) {
+            const j = Math.floor(seededRandom() * (i + 1));
+            [shuffledIds[i], shuffledIds[j]] = [shuffledIds[j], shuffledIds[i]];
+          }
+          await supabase.from('school_quiz_order' as any).insert({
+            school_name: schoolName,
+            quiz_password_id: passwordId,
+            order_ids: shuffledIds,
+          });
+          orderedQuestions = shuffledIds
+            .map((id) => formattedQuestions.find((q) => q.id === id))
+            .filter((q): q is Question => !!q);
+        }
+      } catch (e) {
+        console.warn('could not load/save school order, falling back:', e);
+      }
+
+      setQuizQuestions(orderedQuestions);
+
       setQuizStarted(true);
       setShowSchoolDialog(false);
       setShowSchoolInput(false);
@@ -1024,82 +1095,11 @@ const QuizTamilMCQ: React.FC = () => {
     }
   };
 
-  // ---------- Anti-copy ----------
-  const punishCopyAttempt = () => {
-    setCopyAttempts((n) => n + 1);
-    setCompromised(true);
-  };
-
-  useEffect(() => {
-    const onCopy = (e: ClipboardEvent) => {
-      e.preventDefault();
-      punishCopyAttempt();
-    };
-
-    const onCut = (e: ClipboardEvent) => {
-      e.preventDefault();
-      punishCopyAttempt();
-    };
-
-    const onContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-      punishCopyAttempt();
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      const key = typeof e.key === "string" ? e.key.toLowerCase() : "";
-      const ctrlOrCmd = e.ctrlKey || e.metaKey;
-      if (ctrlOrCmd && ["c", "x", "a", "p", "s"].includes(key)) {
-        e.preventDefault();
-        punishCopyAttempt();
-      }
-      if (key === "printscreen" || (e as any).keyCode === 44) {
-        e.preventDefault();
-        setPrivacyBlur(true);
-        punishCopyAttempt();
-        toast.error(
-          language === "ta"
-            ? "ஸ்க்ரீன்ஷாட் அனுமதிக்கப்படவில்லை!"
-            : "Screenshots are not allowed!",
-        );
-        setTimeout(() => setPrivacyBlur(false), 1000);
-      }
-    };
-
-    const onVisibilityChange = () => {
-      if (document.hidden) setPrivacyBlur(true);
-      else setPrivacyBlur(false);
-    };
-
-    const onWindowBlur = () => setPrivacyBlur(true);
-    const onWindowFocus = () => setPrivacyBlur(false);
-
-    document.addEventListener("copy", onCopy);
-    document.addEventListener("cut", onCut);
-    document.addEventListener("contextmenu", onContextMenu);
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("blur", onWindowBlur);
-    window.addEventListener("focus", onWindowFocus);
-
-    return () => {
-      document.removeEventListener("copy", onCopy);
-      document.removeEventListener("cut", onCut);
-      document.removeEventListener("contextmenu", onContextMenu);
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("blur", onWindowBlur);
-      window.removeEventListener("focus", onWindowFocus);
-    };
-  }, [language]);
 
   const displayedQuestion = useMemo(() => {
     if (!currentQuestion) return "";
-    if (!compromised) return currentQuestion.question;
-    return language === "ta"
-      ? "⚠️ Copy முயற்சி காரணமாக கேள்வி மறைக்கப்பட்டது."
-      : "⚠️ Question hidden due to copy attempt.";
-  }, [compromised, currentQuestion, language]);
+    return currentQuestion.question;
+  }, [currentQuestion]);
 
   const Watermark = () => (
     <div className="pointer-events-none select-none absolute inset-0 overflow-hidden rounded-xl">
@@ -1304,19 +1304,22 @@ const QuizTamilMCQ: React.FC = () => {
                                     value={schoolName}
                                     onChange={setSchoolName}
                                     options={[
-                                      "Vavuniya Tamil Madhya Maha Vidyalayam",
-                                      "V/Rambaikkulam Girls Maha Vidyalayam",
-                                      "Vipulanantha College Vavuniya",
-                                      "Vavuniya Nelukkulam Kalaimakal Maha Vidyalayam",
-                                      "Vavuniya Muslim Maha Vidyalayam",
-                                      "Saivapragasa Ladies College",
-                                      "Koomankulam Sithivinayakar Vidyalayam",
-                                      "Vavuniya Hindu College",
-                                      "Kanakarayankulam Maha Vidyalayam",
-                                      "V/Puliyankulam Hindu college",
-                                      "Nochchimoddai Junior Secondary Vidyalayam",
-                                      "Omanthai Central College",
-                                      "Panrikkeithakulam school in vavuniya",
+                                      "V/Vavuniya Tamil Madhya Maha Vidyalayam",
+                                      "V/Rambaikulam Girls' Maha Vidyalayam",
+                                      "V/Vipulanantha College",
+                                      "V/Koomankulam Sithivinayakar Vidyalayam",
+                                      "V/Saivapragasa ladies college",
+                                      "V/ Vavuniya Hindu College",
+                                      "V/Nelukkulam Kalaimagal Maha Vidyalayam",
+                                      "V/Velikkulam Junior High Vidyalayam",
+                                      "V/Kanagarayankulam Maha Vidyalayam",
+                                      "V/Nochchimoddai Junior Secondary Vidyalayam",
+                                      "V/Omanthai Central College",
+                                      "V/Puliyankulam Hindu College",
+                                      "V/Panrikkeithakulam Government Tamil Mixed School",
+                                      "V/Puthukkulam Maha Vidyalayam",
+                                      "V/Vavuniya Muslim Maha Vidyalayam",
+
                                     ]}
                                     placeholder={
                                       language === "ta"
@@ -1411,9 +1414,50 @@ const QuizTamilMCQ: React.FC = () => {
             {/* Quiz */}
             {quizStarted && (
               <div>
+                {/* Centered skip-warning popup */}
+                {showUnansweredWarning && !isFinished && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="max-w-md mx-4 rounded-xl bg-red-600 text-white shadow-2xl p-4 md:p-5 text-center space-y-3">
+                      <h2 className="text-lg md:text-xl font-semibold">
+                        {language === "ta"
+                          ? "பதில் இல்லை எச்சரிக்கை"
+                          : "Unanswered Question"}
+                      </h2>
+                      <p className="text-sm md:text-base">
+                        {language === "ta"
+                          ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Next அழுத்தினால், இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
+                          : "You haven't selected an answer for this question. If you press Next again, it will be marked as not answered."}
+                      </p>
+                      <p className="text-xs md:text-sm opacity-80">
+                        {language === "ta"
+                          ? "தொடர Next பொத்தானை மீண்டும் அழுத்தவும்"
+                          : "Press the Next button again to continue."}
+                      </p>
+
+                      <div className="mt-3 flex justify-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-white/10 border-white/40 text-white hover:bg-white/20 hover:text-white"
+                          onClick={() => setShowUnansweredWarning(false)}
+                        >
+                          {language === "ta" ? "மூடு" : "Close"}
+                        </Button>
+                        <Button
+                          type="button"
+                          className="bg-white text-red-700 hover:bg-slate-100"
+                          onClick={skipCurrentQuestion}
+                        >
+                          {language === "ta" ? "இந்த கேள்வியை தவிர்க்கவும்" : "Skip this question"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div
                   className={
-                    privacyBlur ? "blur-xl select-none pointer-events-none" : ""
+                    ""
                   }
                 >
                   <motion.div
@@ -1570,8 +1614,8 @@ const QuizTamilMCQ: React.FC = () => {
                       )}
                       <Card
                         className="border-primary/20 shadow-lg mb-8 relative overflow-hidden select-none"
-                        onCopy={(e) => { e.preventDefault(); punishCopyAttempt(); }}
-                        onContextMenu={(e) => { e.preventDefault(); punishCopyAttempt(); }}
+                        onCopy={(e) => { e.preventDefault(); }}
+                        onContextMenu={(e) => { e.preventDefault(); }}
                         style={{ userSelect: "none", WebkitUserSelect: "none" }}
                       >
                         <Watermark />
@@ -1609,7 +1653,6 @@ const QuizTamilMCQ: React.FC = () => {
                               }}
                               onCopy={(e) => {
                                 e.preventDefault();
-                                punishCopyAttempt();
                               }}
                             >
                               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
@@ -1666,14 +1709,6 @@ const QuizTamilMCQ: React.FC = () => {
                           </div>
 
                           {/* progress bar removed — progressValue no longer used */}
-
-                          {showUnansweredWarning && (
-                            <p role="alert" className="w-full mb-2 text-sm text-red-500">
-                              {language === "ta"
-                                ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Next அழுத்தவும்; இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
-                                : "You haven't selected an answer for this question. Click Next again to continue — this will be marked as unanswered."}
-                            </p>
-                          )}
 
                           <div className="flex justify-between items-center gap-4">
                             <Button

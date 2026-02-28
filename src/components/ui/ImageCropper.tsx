@@ -101,6 +101,13 @@ export function ImageCropper({
     });
   }, [isDragging, dragStart]);
 
+  const handleClose = useCallback(() => {
+    setZoom(1);
+    setRotation(0);
+    setPosition({ x: 0, y: 0 });
+    onClose();
+  }, [onClose]);
+
   const handleCrop = useCallback(async () => {
     if (!imageRef.current || !containerRef.current) return;
     if (isCropping) return;
@@ -198,13 +205,6 @@ export function ImageCropper({
       setIsCropping(false);
     }
   }, [zoom, position, rotation, imageDimensions, onCropComplete, isCropping, handleClose]);
-
-  const handleClose = useCallback(() => {
-    setZoom(1);
-    setRotation(0);
-    setPosition({ x: 0, y: 0 });
-    onClose();
-  }, [onClose]);
 
   const rotateImage = () => {
     setRotation((prev) => (prev + 90) % 360);

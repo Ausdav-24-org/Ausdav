@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Shield, Save, Loader2, UploadCloud } from 'lucide-react';
+import { User, Shield, Save, Loader2, UploadCloud, X } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { Button } from '@/components/ui/button';
@@ -234,6 +234,30 @@ export default function AdminProfilePage() {
     }
   };
 
+  const handleAvatarRemove = async () => {
+    if (!profile?.profile_path) return;
+    setUploading(true);
+    try {
+      // delete from storage
+      const { error: deleteError } = await supabase.storage
+        .from('member-profiles')
+        .remove([profile.profile_path]);
+      if (deleteError) throw deleteError;
+      // unset path in db
+      const { error: updateError } = await supabase
+        .from('members' as any)
+        .update({ profile_path: null })
+        .eq('mem_id', profile.mem_id);
+      if (updateError) throw updateError;
+      await refreshProfile();
+      toast.success('Profile picture removed');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen">
       <AdminHeader title="Profile" breadcrumb="Settings" />
@@ -248,19 +272,31 @@ export default function AdminProfilePage() {
             <CardContent className="p-8">
               <div className="flex flex-col md:flex-row items-center gap-6">
                 <div className="flex flex-col items-center gap-2 relative">
-                  <button
-                    type="button"
-                    className="relative rounded-full"
-                    onClick={() => avatarInputRef.current?.click()}
-                  >
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage src={avatarUrl || undefined} />
-                      <AvatarFallback className="bg-primary/20 text-primary text-2xl">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="sr-only">Edit profile photo</span>
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="relative rounded-full"
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      <Avatar className="h-24 w-24">
+                        <AvatarImage src={avatarUrl || undefined} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-2xl">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="sr-only">Edit profile photo</span>
+                    </button>
+                    {avatarUrl && !uploading && (
+                      <button
+                        type="button"
+                        className="absolute top-0 right-0 bg-red-500/80 text-white rounded-full p-1 hover:bg-red-500"
+                        onClick={handleAvatarRemove}
+                        title="Remove photo"
+                      >
+                        <span className="h-4 w-4 flex items-center justify-center">🗑️</span>
+                      </button>
+                    )}
+                  </div>
                   <input
                     ref={avatarInputRef}
                     type="file"
