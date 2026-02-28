@@ -14,6 +14,10 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "favicon.ico", "robots.txt", "apple-touch-icon.png"],
+      workbox: {
+        // Allow precaching of larger JS bundles (default is 2 MiB)
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      },
       manifest: {
         name: "AUSDAV",
         short_name: "AUSDAV",
