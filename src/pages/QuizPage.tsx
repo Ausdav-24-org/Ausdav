@@ -1486,15 +1486,15 @@ const QuizTamilMCQ: React.FC = () => {
                           ? "பதில் இல்லை எச்சரிக்கை"
                           : "Unanswered Question"}
                       </h2>
-                      <p className="text-sm md:text-base">
+                        <p className="text-sm md:text-base">
                         {language === "ta"
-                          ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Next அழுத்தினால், இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
-                          : "You haven't selected an answer for this question. If you press Next again, it will be marked as not answered."}
-                      </p>
-                      <p className="text-xs md:text-sm opacity-80">
+                          ? "இந்த கேள்விக்கு நீங்கள் பதிலை தேர்ந்தெடுக்கவில்லை. மீண்டும் Skip அழுத்தினால், இது 'பதில் இல்லை' எனக் கணக்கிடப்படும்."
+                          : "You haven't selected an answer for this question. If you press Skip, it will be marked as not answered."}
+                        </p>
+                        <p className="text-xs md:text-sm opacity-80">
                         {language === "ta"
-                          ? "தொடர Next பொத்தானை மீண்டும் அழுத்தவும்"
-                          : "Press the Next button again to continue."}
+                          ? "பதிலளிக்க விரும்பினால் மூடு பொத்தானை அழுத்தவும்"
+                          : "Press the Close button if you want to answer this question."}
                       </p>
 
                       <div className="mt-3 flex justify-center gap-3">
