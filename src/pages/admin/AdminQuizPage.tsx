@@ -553,6 +553,16 @@ const AdminQuizPage: React.FC = () => {
         // Continue even if answers delete fails
       }
 
+      // ALSO clear the per‑school order table so future quizzes start fresh
+      const { error: deleteOrderError } = await supabase
+        .from("school_quiz_order" as any)
+        .delete()
+        .gt("id", 0);
+      if (deleteOrderError) {
+        console.error("Delete order error:", deleteOrderError);
+        // not fatal
+      }
+
       // Immediately clear the UI
       setSchoolResults([]);
       // answers were deleted too — refresh the map
