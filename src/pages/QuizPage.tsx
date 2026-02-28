@@ -222,33 +222,22 @@ const QuizTamilMCQ: React.FC = () => {
   const questionsToRender =
     quizStarted && quizQuestions.length > 0 ? quizQuestions : dbQuestions;
 
+  // ---------- Active Questions (NO FRONTEND SHUFFLE) ----------
   const activeQuestions = useMemo(() => {
-    const filtered = selectedQuizNo
+    if (!questionsToRender || questionsToRender.length === 0) {
+      return [];
+    }
+
+    // Order already handled in handleStartQuiz via school_quiz_order table
+    // Never shuffle in frontend
+
+    return selectedQuizNo
       ? questionsToRender.filter(
-          (q: any) => (q?.quiz_no ?? 1) === selectedQuizNo,
+          (q: any) => (q?.quiz_no ?? 1) === selectedQuizNo
         )
       : questionsToRender;
 
-    if (!filtered.length || !schoolName) return filtered;
-
-    const seed = schoolName
-      .split("")
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const shuffled = [...filtered];
-
-    let random = seed;
-    const seededRandom = () => {
-      random = (random * 9301 + 49297) % 233280;
-      return random / 233280;
-    };
-
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    return shuffled;
-  }, [questionsToRender, schoolName, selectedQuizNo]);
+  }, [questionsToRender, selectedQuizNo]);
 
   const totalQuestions = activeQuestions.length;
 
@@ -434,7 +423,27 @@ const QuizTamilMCQ: React.FC = () => {
               : null,
           }));
 
-          setQuizQuestions(formattedQuestions);
+          // apply persisted school-specific ordering if available
+          let orderedQuestions: Question[] = formattedQuestions;
+          try {
+            const { data: orderRow } = await supabase
+              .from('school_quiz_order' as any)
+              .select('order_ids')
+              .eq('school_name', schoolName)
+              .eq('quiz_password_id', pwdId)
+              .maybeSingle();
+            if (orderRow && (orderRow as any).order_ids) {
+              const idList: string[] = (orderRow as any).order_ids as string[];
+              orderedQuestions = idList
+                .map((id) => formattedQuestions.find((q) => q.id === id))
+                .filter(Boolean) as Question[];
+            }
+          } catch (e) {
+            console.warn('restore order fail', e);
+          }
+
+
+          setQuizQuestions(orderedQuestions);
 
           // determine configured duration (prefer savedSession if present)
           const durationFromPwd = (pwdData as any)?.duration_minutes && typeof (pwdData as any).duration_minutes === "number" && (pwdData as any).duration_minutes > 0
@@ -847,7 +856,7 @@ const QuizTamilMCQ: React.FC = () => {
       }
 
       // Format questions to match Question type
-      const formattedQuestions = questionsData.map((q: any) => ({
+      const formattedQuestions: Question[] = questionsData.map((q: any) => ({
         id: q.id.toString(),
         question: q.question_text,
         options: [
@@ -865,7 +874,53 @@ const QuizTamilMCQ: React.FC = () => {
           : null,
       }));
 
-      setQuizQuestions(formattedQuestions);
+      // --------- per-school order logic ---------
+      // table `school_quiz_order` stores { school_name, quiz_password_id, order_ids }
+      let orderedQuestions: Question[] = formattedQuestions;
+      try {
+        const { data: orderRow } = await supabase
+          .from('school_quiz_order' as any)
+          .select('order_ids')
+          .eq('school_name', schoolName)
+          .eq('quiz_password_id', passwordId)
+          .maybeSingle();
+
+        if (orderRow && (orderRow as any).order_ids) {
+          const idList: string[] = (orderRow as any).order_ids as string[];
+          orderedQuestions = idList
+            .map((id) => formattedQuestions.find((q) => q.id === id))
+            .filter(Boolean) as Question[];
+        } else {
+          // generate new order and persist it
+          const ids = formattedQuestions.map((q) => q.id);
+          // simple Fisher-Yates shuffle seeded by school name
+          const shuffledIds = [...ids];
+          let random = schoolName
+            .split('')
+            .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+          const seededRandom = () => {
+            random = (random * 9301 + 49297) % 233280;
+            return random / 233280;
+          };
+          for (let i = shuffledIds.length - 1; i > 0; i--) {
+            const j = Math.floor(seededRandom() * (i + 1));
+            [shuffledIds[i], shuffledIds[j]] = [shuffledIds[j], shuffledIds[i]];
+          }
+          await supabase.from('school_quiz_order' as any).insert({
+            school_name: schoolName,
+            quiz_password_id: passwordId,
+            order_ids: shuffledIds,
+          });
+          orderedQuestions = shuffledIds
+            .map((id) => formattedQuestions.find((q) => q.id === id))
+            .filter((q): q is Question => !!q);
+        }
+      } catch (e) {
+        console.warn('could not load/save school order, falling back:', e);
+      }
+
+      setQuizQuestions(orderedQuestions);
+
       setQuizStarted(true);
       setShowSchoolDialog(false);
       setShowSchoolInput(false);
