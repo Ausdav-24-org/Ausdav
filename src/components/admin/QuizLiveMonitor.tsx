@@ -376,6 +376,11 @@ const QuizLiveMonitor: React.FC<QuizLiveMonitorProps> = ({ quizPasswords }) => {
                     p.quiz_name ||
                     quizNameMap[p.quiz_password_id] ||
                     `Quiz #${p.quiz_password_id}`;
+                  // extras could hold arbitrary data; if non-empty JSON stringify for tooltip
+                  const extrasString =
+                    p.extras && Object.keys(p.extras).length
+                      ? JSON.stringify(p.extras)
+                      : null;
 
                   return (
                     <motion.div
@@ -391,6 +396,14 @@ const QuizLiveMonitor: React.FC<QuizLiveMonitorProps> = ({ quizPasswords }) => {
                           <div className="flex items-start justify-between gap-2">
                             <h4 className="font-semibold text-sm truncate flex-1">
                               {p.school_name}
+                              {extrasString && (
+                                <span
+                                  title={extrasString}
+                                  className="ml-1 text-xs text-muted-foreground cursor-help"
+                                >
+                                  ⓘ
+                                </span>
+                              )}
                             </h4>
                             <Badge
                               variant="secondary"
@@ -413,11 +426,17 @@ const QuizLiveMonitor: React.FC<QuizLiveMonitorProps> = ({ quizPasswords }) => {
                           </div>
 
                           {/* Footer */}
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground gap-2">
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {elapsedSince(p.started_at)}
                             </span>
+                            {/* show current time bonus if available */}
+                            {typeof p.time_bonus === 'number' && (
+                              <Badge variant="outline" className="text-[10px] border-cyan-400 text-cyan-600">
+                                Bonus {p.time_bonus}
+                              </Badge>
+                            )}
                             {answeredPct >= 80 && (
                               <Badge
                                 variant="outline"

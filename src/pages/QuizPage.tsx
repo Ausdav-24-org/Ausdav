@@ -159,6 +159,7 @@ const QuizTamilMCQ: React.FC = () => {
     startTime: number,
     // optional override so callers can persist an immediately-set questionStartTime
     overrideQuestionStartTime?: number | null,
+    bonus?: number,
   ) => {
     const session: any = {
       schoolName,
@@ -175,6 +176,9 @@ const QuizTamilMCQ: React.FC = () => {
         typeof overrideQuestionStartTime === "number"
           ? overrideQuestionStartTime
           : questionStartTime ?? null,
+      // store the current live bonus so reloads can restore exactly
+      timeBonus:
+        typeof bonus === "number" ? bonus : _bonusRemaining,
       savedAt: Date.now(),
     };
     localStorage.setItem(`quiz_session_${schoolName}`, JSON.stringify(session));
@@ -227,6 +231,61 @@ const QuizTamilMCQ: React.FC = () => {
   const questionsToRender =
     quizStarted && quizQuestions.length > 0 ? quizQuestions : dbQuestions;
 
+  // periodically refresh quizQuestions from server cache when password is known
+  useEffect(() => {
+    let timer: number | null = null;
+    const refresh = async () => {
+      if (!quizPasswordId) return;
+      try {
+        const { data: cacheRowRaw } = await supabase
+          .from("quiz_cache" as any)
+          .select("payload, expires_at")
+          .eq("quiz_password_id", quizPasswordId)
+          .maybeSingle();
+        const cacheRow: any = cacheRowRaw;
+        if (
+          cacheRow?.payload &&
+          cacheRow.expires_at &&
+          new Date(cacheRow.expires_at) > new Date()
+        ) {
+          const payload = cacheRow.payload as any[];
+          // convert to Question type
+          const serverQs = payload.map((q: any) => ({
+            id: q.id.toString(),
+            question: q.question_text,
+            options: [
+              { id: "a", text: q.option_a },
+              { id: "b", text: q.option_b },
+              { id: "c", text: q.option_c },
+              { id: "d", text: q.option_d },
+            ],
+            correctOptionId: q.correct_answer,
+            image_path: q.image_path ?? null,
+            imageUrl: q.image_path
+              ? supabase.storage
+                  .from("quiz-question-images")
+                  .getPublicUrl(q.image_path).data.publicUrl
+              : null,
+          }));
+          // replace local cache if different length or contents
+          if (
+            serverQs.length !== quizQuestions.length ||
+            serverQs.some((sq, i) => sq.id !== quizQuestions[i]?.id)
+          ) {
+            setQuizQuestions(serverQs);
+          }
+        }
+      } catch (e) {
+        console.warn("failed to refresh server cache", e);
+      }
+    };
+    refresh();
+    timer = window.setInterval(refresh, 60_000);
+    return () => {
+      if (timer != null) clearInterval(timer);
+    };
+  }, [quizPasswordId, dbQuestions]);
+
   const activeQuestions = useMemo(() => {
     const filtered = selectedQuizNo
       ? questionsToRender.filter(
@@ -278,6 +337,27 @@ const QuizTamilMCQ: React.FC = () => {
     schoolName,
     quizStarted && !isFinished,
   );
+
+  // After restoration completes, re-send presence so any bonus calculations
+  // that relied on freshly-restored state are reflected in the database.
+  useEffect(() => {
+    if (!quizStarted || restoringSession || !schoolName || !quizPasswordId) return;
+    if (
+      typeof answers[currentIndex]?.secondsTaken !== "number" &&
+      typeof questionStartTime !== "number"
+    ) {
+      return;
+    }
+    const extras = { question_times: answers.map((a) => a.secondsTaken ?? null) };
+    // compute same bonus logic used elsewhere (live in case _bonusRemaining hasn't
+    // been recomputed yet by React render when this effect runs)
+    const BONUS_MAX = 60;
+    const elapsedForBonus =
+      answers[currentIndex]?.secondsTaken ??
+      (questionStartTime ? Math.floor((Date.now() - questionStartTime) / 1000) : 0);
+    const bonusVal = clamp(BONUS_MAX - elapsedForBonus, 0, BONUS_MAX);
+    updatePresence({ time_bonus: bonusVal, extras });
+  }, [restoringSession, quizStarted, schoolName, quizPasswordId, answers, currentIndex, questionStartTime, updatePresence]);
 
   // Toggle for question index panel (shows small card with question numbers)
   const [showQuestionPanel, setShowQuestionPanel] = useState(false);
@@ -370,7 +450,7 @@ const QuizTamilMCQ: React.FC = () => {
       const ts = Date.now();
       setQuestionStartTime(ts);
       // persist immediately so a refresh RIGHT AFTER this will still have the timestamp
-      if (schoolName) saveQuizSession(currentIndex, answers, quizStartTime ?? Date.now(), ts);
+      if (schoolName) saveQuizSession(currentIndex, answers, quizStartTime ?? Date.now(), ts, _bonusRemaining);
     }
   }, [currentIndex, quizStartTime, restoringSession, answers, questionStartTime, schoolName]);
 
@@ -446,6 +526,10 @@ const QuizTamilMCQ: React.FC = () => {
         setRestoringSession(true);
         try {
           const pwdId = savedSession.quizPasswordId;
+          let syncedBonus: number | null =
+            typeof savedSession.timeBonus === "number"
+              ? clamp(savedSession.timeBonus, 0, BONUS_MAX)
+              : null;
 
           // fetch quiz password metadata (duration / mode)
           const { data: pwdData } = await supabase
@@ -454,16 +538,75 @@ const QuizTamilMCQ: React.FC = () => {
             .eq("id", pwdId)
             .maybeSingle();
 
-          // fetch questions through server-side cache
-          const { data: cacheResp, error: cacheErr } = await supabase.functions.invoke(
-            "quiz-cache",
-            {
-              body: { quiz_password_id: pwdId },
-              method: "POST",
-            },
-          );
+          // attempt to sync bonus from live progress row as well
+          try {
+            const { data: progRow } = await supabase
+              .from('quiz_live_progress' as any)
+              .select('time_bonus, current_question_index, answers, is_finished')
+              .eq('school_name', schoolName.trim())
+              .eq('quiz_password_id', pwdId)
+              .maybeSingle() as any;
+            if (progRow && !progRow.is_finished && typeof progRow.time_bonus === 'number') {
+              // Prefer server bonus; but if server just got a transient 0 on refresh,
+              // keep a higher local value so we don't incorrectly refill/drain bonus.
+              const localBonus = typeof savedSession.timeBonus === 'number' ? savedSession.timeBonus : null;
+              const serverBonus = progRow.time_bonus;
+              const chosen =
+                serverBonus === 0 && localBonus != null && localBonus > 0
+                  ? localBonus
+                  : serverBonus;
+              syncedBonus = clamp(chosen, 0, BONUS_MAX);
+              savedSession.timeBonus = syncedBonus;
+              localStorage.setItem(`quiz_session_${schoolName}`, JSON.stringify(savedSession));
+            }
+          } catch (e) {
+            console.warn('bonus sync fetch failed', e);
+          }
 
-          const questionsData = (cacheResp as any)?.questions;
+          // fetch questions through server-side cache
+          // (old edge function path removed; caching handled directly below)
+          let questionsData: any[] = [];
+          let cacheErr: any = null;
+          try {
+            const { data: cacheRowRaw, error } = await supabase
+              .from("quiz_cache" as any)
+              .select("payload, expires_at")
+              .eq("quiz_password_id", pwdId)
+              .maybeSingle();
+            cacheErr = error;
+            const cacheRow: any = cacheRowRaw;
+            if (cacheErr) console.warn("cache select error", cacheErr);
+            if (
+              cacheRow?.payload &&
+              cacheRow.expires_at &&
+              new Date(cacheRow.expires_at) > new Date()
+            ) {
+              questionsData = cacheRow.payload as any[];
+            }
+          } catch (e) {
+            console.warn("cache table fetch failed", e);
+          }
+
+          if (!questionsData || questionsData.length === 0) {
+            const { data: fresh, error: qErr } = await supabase
+              .from("quiz_mcq" as any)
+              .select("id, quiz_password_id, question_text, option_a, option_b, option_c, option_d, correct_answer, image_path")
+              .eq("quiz_password_id", pwdId)
+              .order("created_at", { ascending: true });
+            if (qErr || !fresh || fresh.length === 0) {
+              toast.error(
+                language === "ta"
+                  ? "இந்த வினாடிவினாவிற்கான கேள்விகள் இல்லை"
+                  : "No questions found for this quiz",
+              );
+              return;
+            }
+            questionsData = fresh;
+            const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+            await supabase
+              .from("quiz_cache" as any)
+              .upsert({ quiz_password_id: pwdId, payload: questionsData, updated_at: new Date().toISOString(), expires_at: expiresAt });
+          }
 
           if (cacheErr || !questionsData || !Array.isArray(questionsData) || questionsData.length === 0) {
             // nothing to restore
@@ -506,6 +649,28 @@ const QuizTamilMCQ: React.FC = () => {
 
           // only restore if quiz hasn't expired yet
           if (elapsed < durationSeconds) {
+            const restoredAnswers = Array.isArray(savedSession.answers)
+              ? savedSession.answers
+              : [];
+            const targetIndex = clamp(
+              savedSession.currentIndex ?? desiredIndexFromUrl,
+              0,
+              formattedQuestions.length - 1,
+            );
+            const restoredBonus =
+              typeof restoredAnswers[targetIndex]?.secondsTaken === "number"
+                ? clamp(BONUS_MAX - restoredAnswers[targetIndex].secondsTaken, 0, BONUS_MAX)
+                : typeof savedSession.questionStartTime === "number"
+                  ? clamp(
+                      BONUS_MAX -
+                        Math.floor((Date.now() - savedSession.questionStartTime) / 1000),
+                      0,
+                      BONUS_MAX,
+                    )
+                  : typeof syncedBonus === "number"
+                    ? clamp(syncedBonus, 0, BONUS_MAX)
+                    : BONUS_MAX;
+
             setShowSchoolDialog(false);
             setShowSchoolInput(false);
             setQuizStarted(true);
@@ -514,6 +679,8 @@ const QuizTamilMCQ: React.FC = () => {
             if (typeof savedSession.questionStartTime === "number") {
               setQuestionStartTime(savedSession.questionStartTime);
             }
+            // derive from restored state to avoid accidental refill on refresh
+            setQuestionStartTime(Date.now() - (BONUS_MAX - restoredBonus) * 1000);
             setQuizPasswordId(pwdId);
             setPasswordIsTest(Boolean((pwdData as any)?.is_test));
             setPasswordIsQuiz(Boolean((pwdData as any)?.is_quiz));
@@ -522,17 +689,10 @@ const QuizTamilMCQ: React.FC = () => {
             setCanViewReview(elapsed >= 60);
 
             // restore answers (validate length)
-            const restoredAnswers = Array.isArray(savedSession.answers) ? savedSession.answers : [];
             setAnswers(
               restoredAnswers.length === formattedQuestions.length
                 ? restoredAnswers
                 : Array.from({ length: formattedQuestions.length }, () => ({ selectedOptionId: null })),
-            );
-
-            const targetIndex = clamp(
-              savedSession.currentIndex ?? desiredIndexFromUrl,
-              0,
-              formattedQuestions.length - 1,
             );
 
             // ensure URL matches saved index (covers cases where URL lacked qNo)
@@ -547,6 +707,17 @@ const QuizTamilMCQ: React.FC = () => {
               const answeredCount = (Array.isArray(savedSession.answers) ? savedSession.answers : []).filter(
                 (a: any) => a?.selectedOptionId !== null
               ).length;
+              const extras = { question_times: (Array.isArray(savedSession.answers) ? savedSession.answers : []).map((a: any) => a?.secondsTaken ?? null) };
+              // compute accurate bonus based on restored start time or recorded answer time
+              const now = Date.now();
+              let bonusForRestore = BONUS_MAX;
+              if (Array.isArray(savedSession.answers) && savedSession.answers[targetIndex]?.secondsTaken != null) {
+                const sec = savedSession.answers[targetIndex].secondsTaken;
+                bonusForRestore = clamp(BONUS_MAX - sec, 0, BONUS_MAX);
+              } else if (typeof savedSession.questionStartTime === 'number') {
+                const elapsed = Math.floor((now - savedSession.questionStartTime) / 1000);
+                bonusForRestore = clamp(BONUS_MAX - elapsed, 0, BONUS_MAX);
+              }
               updatePresence({
                 school_name: schoolName,
                 quiz_password_id: pwdId,
@@ -555,6 +726,8 @@ const QuizTamilMCQ: React.FC = () => {
                 total_questions: formattedQuestions.length,
                 answered_count: answeredCount,
                 answers: savedSession.answers ?? [],
+                time_bonus: restoredBonus,
+                extras,
                 started_at: savedSession.startTime
                   ? new Date(savedSession.startTime).toISOString()
                   : new Date().toISOString(),
@@ -600,6 +773,23 @@ const QuizTamilMCQ: React.FC = () => {
 
       // restore while quiz not expired; previously used a 120s hard cutoff — use configured duration instead
       if (elapsed < sessionDuration) {
+        const restoredAnswers = Array.isArray(savedSession.answers)
+          ? savedSession.answers
+          : [];
+        const restoredBonus =
+          typeof restoredAnswers[targetIndex]?.secondsTaken === "number"
+            ? clamp(BONUS_MAX - restoredAnswers[targetIndex].secondsTaken, 0, BONUS_MAX)
+            : typeof savedSession.questionStartTime === "number"
+              ? clamp(
+                  BONUS_MAX -
+                    Math.floor((Date.now() - savedSession.questionStartTime) / 1000),
+                  0,
+                  BONUS_MAX,
+                )
+              : typeof savedSession.timeBonus === "number"
+                ? clamp(savedSession.timeBonus, 0, BONUS_MAX)
+                : BONUS_MAX;
+
         setRestoringSession(true);
         setShowSchoolDialog(false);
         setShowSchoolInput(false);
@@ -609,14 +799,12 @@ const QuizTamilMCQ: React.FC = () => {
         if (typeof savedSession.questionStartTime === "number") {
           setQuestionStartTime(savedSession.questionStartTime);
         }
+        setQuestionStartTime(Date.now() - (BONUS_MAX - restoredBonus) * 1000);
         setQuizDurationSeconds(sessionDuration);
         setTimeRemaining(remainingTime);
         setCanViewReview(elapsed >= 60);
 
         // restore answers
-        const restoredAnswers = Array.isArray(savedSession.answers)
-          ? savedSession.answers
-          : [];
         setAnswers(
           restoredAnswers.length === restoreTotal
             ? restoredAnswers
@@ -657,7 +845,17 @@ const QuizTamilMCQ: React.FC = () => {
 
         // save every second so refresh returns to same URL question
       if (schoolName && !isFinished) {
-        saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
+        if (
+          typeof answers[currentIndex]?.secondsTaken !== "number" &&
+          typeof questionStartTime !== "number"
+        ) {
+          return;
+        }
+        const liveTakenForBonus =
+          answers[currentIndex]?.secondsTaken ??
+          (questionStartTime ? Math.floor((Date.now() - questionStartTime) / 1000) : 0);
+        const liveBonus = clamp(BONUS_MAX - liveTakenForBonus, 0, BONUS_MAX);
+        saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null, liveBonus);
       }
 
       if (remaining === 0 && !isFinished) {
@@ -675,16 +873,18 @@ const QuizTamilMCQ: React.FC = () => {
     quizStarted,
     quizStartTime,
     isFinished,
+    quizDurationSeconds,
     language,
     currentIndex,
     answers,
+    questionStartTime,
     schoolName,
   ]);
 
   // Persist current position immediately when it changes so refresh stays on the same question
   useEffect(() => {
     if (!quizStarted || !quizStartTime || !schoolName) return;
-    saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null);
+    saveQuizSession(currentIndex, answers, quizStartTime, questionStartTime ?? null, _bonusRemaining);
   }, [currentIndex, quizStarted, quizStartTime, schoolName, answers, questionStartTime]);
 
   // ---------- Select / clear option ----------
@@ -706,7 +906,8 @@ const QuizTamilMCQ: React.FC = () => {
       };
       // Update presence with new answered count
       const answeredCount = next.filter((a) => a.selectedOptionId !== null).length;
-      updatePresence({ answered_count: answeredCount, current_question_index: currentIndex, answers });
+      const extras = { question_times: next.map((a) => a.secondsTaken ?? null) };
+      updatePresence({ answered_count: answeredCount, current_question_index: currentIndex, answers, time_bonus: _bonusRemaining, extras });
       return next;
     });
   };
@@ -777,6 +978,7 @@ const QuizTamilMCQ: React.FC = () => {
         answers,
         quizStartTime,
         questionStartTime ?? null,
+        _bonusRemaining,
       );
     }
 
@@ -788,14 +990,16 @@ const QuizTamilMCQ: React.FC = () => {
       setUrl(nextIndex + 1, schoolName, false);
       // update presence because we moved to next question without answering
       const answeredCount = answers.filter((a) => a.selectedOptionId !== null).length;
-      updatePresence({ current_question_index: nextIndex, answered_count: answeredCount, answers });
+      const extras = { question_times: answers.map((a) => a.secondsTaken ?? null) };
+      updatePresence({ current_question_index: nextIndex, answered_count: answeredCount, answers, time_bonus: _bonusRemaining, extras });
       return;
     }
 
     setIsFinished(true);
     setCanViewReview(true);
     // Mark as finished in presence and untrack
-    updatePresence({ is_finished: true, answers });
+    const extrasFinish = { question_times: answers.map((a) => a.secondsTaken ?? null) };
+    updatePresence({ is_finished: true, answers, time_bonus: _bonusRemaining, extras: extrasFinish });
     untrackPresence();
     saveQuizResults();
   };
@@ -822,14 +1026,16 @@ const QuizTamilMCQ: React.FC = () => {
       // push url
       setUrl(nextIndex + 1, schoolName, false);
       // Update presence with new question index
-      updatePresence({ current_question_index: nextIndex, answers });
+      const extras = { question_times: answers.map((a) => a.secondsTaken ?? null) };
+      updatePresence({ current_question_index: nextIndex, answers, time_bonus: _bonusRemaining, extras });
       return;
     }
 
     setIsFinished(true);
     setCanViewReview(true);
     // Mark as finished in presence and untrack
-    updatePresence({ is_finished: true, answers });
+    const extrasFinish2 = { question_times: answers.map((a) => a.secondsTaken ?? null) };
+    updatePresence({ is_finished: true, answers, time_bonus: _bonusRemaining, extras: extrasFinish2 });
     untrackPresence();
     saveQuizResults();
   }; 
@@ -931,35 +1137,67 @@ const QuizTamilMCQ: React.FC = () => {
       if (schoolName) {
         const { data: prog } = await supabase
           .from('quiz_live_progress' as any)
-          .select('current_question_index, answers, is_finished')
+          .select('current_question_index, answers, is_finished, time_bonus, extras')
           .eq('school_name', schoolName.trim())
           .eq('quiz_password_id', passwordId)
           .maybeSingle() as any;
         if (prog && !prog.is_finished) {
           if (typeof prog.current_question_index === 'number') preloadIdx = prog.current_question_index;
           if (Array.isArray(prog.answers)) preloadAnswers = prog.answers;
+          // sync client bonus to server value by adjusting questionStartTime
+          if (typeof prog.time_bonus === 'number') {
+            const elapsed = BONUS_MAX - prog.time_bonus;
+            setQuestionStartTime(Date.now() - elapsed * 1000);
+          }
         }
       }
 
-      const { data: cacheResp, error: cacheErr } = await supabase.functions.invoke(
-        "quiz-cache",
-        {
-          body: { quiz_password_id: passwordId },
-          method: "POST",
-        },
-      );
-
-      if (cacheErr || !cacheResp || !Array.isArray((cacheResp as any).questions)) {
-        console.error("quiz-cache error", cacheErr);
-        toast.error(
-          language === "ta"
-            ? "இந்த வினாடிவினாவிற்கான கேள்விகள் இல்லை"
-            : "No questions found for this quiz",
-        );
-        return;
+      // try server-side cache table first
+      let questionsData: any[] = [];
+      try {
+        const { data: cacheRowRaw, error: cacheErr } = await supabase
+          .from("quiz_cache" as any)
+          .select("payload, expires_at")
+          .eq("quiz_password_id", passwordId)
+          .maybeSingle();
+        const cacheRow: any = cacheRowRaw;
+        if (cacheErr) console.warn("cache select error", cacheErr);
+        if (
+          cacheRow?.payload &&
+          cacheRow.expires_at &&
+          new Date(cacheRow.expires_at) > new Date()
+        ) {
+          questionsData = cacheRow.payload as any[];
+        }
+      } catch (e) {
+        console.warn("cache table fetch failed", e);
       }
 
-      const questionsData = (cacheResp as any).questions;
+      if (!questionsData || questionsData.length === 0) {
+        // fall back to fresh read from quiz_mcq
+        const { data: fresh, error: qErr } = await supabase
+          .from("quiz_mcq" as any)
+          .select(
+            "id, quiz_password_id, question_text, option_a, option_b, option_c, option_d, correct_answer, image_path",
+          )
+          .eq("quiz_password_id", passwordId)
+          .order("created_at", { ascending: true });
+        if (qErr || !fresh || fresh.length === 0) {
+          toast.error(
+            language === "ta"
+              ? "இந்த வினாடிவினாவிற்கான கேள்விகள் இல்லை"
+              : "No questions found for this quiz",
+          );
+          return;
+        }
+        questionsData = fresh;
+
+        // update cache row
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        await supabase
+          .from("quiz_cache" as any)
+          .upsert({ quiz_password_id: passwordId, payload: questionsData, updated_at: new Date().toISOString(), expires_at: expiresAt });
+      }
 
       // Format questions to match Question type
       const formattedQuestions = questionsData.map((q: any) => ({
@@ -1004,10 +1242,11 @@ const QuizTamilMCQ: React.FC = () => {
         setUrl(preloadIdx + 1, schoolName, false);
       }
       // persist session immediately so refresh during the landing -> first-question transition restores correctly
-      if (schoolName) saveQuizSession(currentIndex, initialAnswers, Date.now());
+      if (schoolName) saveQuizSession(currentIndex, initialAnswers, Date.now(), undefined, _bonusRemaining);
       setSelectedQuizNo(null); // Not needed for this logic
 
       // Broadcast initial presence for admin live monitor (also include persisted answers)
+      const extras = { question_times: (initialAnswers as any).map((a: any) => a.secondsTaken ?? null) };
       updatePresence({
         school_name: schoolName,
         quiz_password_id: passwordId,
@@ -1016,6 +1255,8 @@ const QuizTamilMCQ: React.FC = () => {
         total_questions: formattedQuestions.length,
         answered_count: 0,
         answers: initialAnswers,
+        time_bonus: _bonusRemaining,
+        extras,
         started_at: new Date().toISOString(),
         is_finished: false,
       });
