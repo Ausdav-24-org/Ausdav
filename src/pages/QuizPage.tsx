@@ -273,12 +273,49 @@ const QuizTamilMCQ: React.FC = () => {
   // Toggle for question index panel (shows small card with question numbers)
   const [showQuestionPanel, setShowQuestionPanel] = useState(false);
 
-  // open panel automatically on desktop when questions exist (prevents need to toggle)
-  useEffect(() => {
-    if (totalQuestions > 1 && typeof window !== 'undefined' && window.innerWidth >= 768) {
-      setShowQuestionPanel(true);
+  // Auto-hide timer for question index panel
+  const questionPanelTimeoutRef = useRef<number | null>(null);
+
+  const scheduleHideQuestionPanel = () => {
+    if (questionPanelTimeoutRef.current !== null) {
+      window.clearTimeout(questionPanelTimeoutRef.current);
     }
-  }, [totalQuestions]);
+    questionPanelTimeoutRef.current = window.setTimeout(() => {
+      setShowQuestionPanel(false);
+      questionPanelTimeoutRef.current = null;
+    }, 5000);
+  };
+
+  const openQuestionPanel = () => {
+    setShowQuestionPanel(true);
+    scheduleHideQuestionPanel();
+  };
+
+  const toggleQuestionPanel = () => {
+    setShowQuestionPanel((prev) => {
+      const next = !prev;
+      if (next) {
+        scheduleHideQuestionPanel();
+      } else if (questionPanelTimeoutRef.current !== null) {
+        window.clearTimeout(questionPanelTimeoutRef.current);
+        questionPanelTimeoutRef.current = null;
+      }
+      return next;
+    });
+  };
+
+  // Show the question panel briefly (5s) when quiz questions first load
+  useEffect(() => {
+    if (!quizStarted) return;
+    if (totalQuestions <= 1) return;
+    openQuestionPanel();
+    return () => {
+      if (questionPanelTimeoutRef.current !== null) {
+        window.clearTimeout(questionPanelTimeoutRef.current);
+        questionPanelTimeoutRef.current = null;
+      }
+    };
+  }, [quizStarted, totalQuestions]);
   // Show a one-click warning when user presses Next without answering —
   // user must press Next again to confirm moving on (question marked unanswered)
   const [showUnansweredWarning, setShowUnansweredWarning] = useState(false);
@@ -1516,7 +1553,7 @@ const QuizTamilMCQ: React.FC = () => {
                             type="button"
                             aria-expanded={showQuestionPanel}
                             aria-label={showQuestionPanel ? 'Hide question index' : 'Show question index'}
-                            onClick={() => setShowQuestionPanel((s) => !s)}
+                            onClick={toggleQuestionPanel}
                             className="p-1 rounded-md hover:bg-primary/5 active:scale-95 md:hidden"
                           >
                             <List className="w-4 h-4 text-foreground/70" />
@@ -1599,16 +1636,16 @@ const QuizTamilMCQ: React.FC = () => {
                       {totalQuestions > 1 && (
                         <>
                           <button
-                            onClick={() => setShowQuestionPanel((s) => !s)}
+                            onClick={toggleQuestionPanel}
                             aria-expanded={showQuestionPanel}
                             aria-label={showQuestionPanel ? 'Hide question index' : 'Show question index'}
-                            className="hidden md:flex items-center justify-center fixed right-4 top-[15%] -translate-y-1/2 z-40 w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg"
+                            className="hidden md:flex items-center justify-center fixed right-4 top-1/2 -translate-y-1/2 z-40 w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg"
                           >
                             <List className="w-5 h-5" />
                           </button>
 
                           <div
-                            className={`hidden md:block fixed right-14 top-[20%] -translate-y-1/2 z-30 w-auto max-w-[420px] p-3 bg-muted/90 border border-primary/10 rounded-lg shadow-lg transition-transform duration-200 ${showQuestionPanel ? 'translate-x-0' : 'translate-x-6 opacity-0 pointer-events-none'}`}
+                            className={`hidden md:block fixed right-14 top-1/2 -translate-y-1/2 z-30 w-auto max-w-[420px] p-3 bg-muted/90 border border-primary/10 rounded-lg shadow-lg transition-transform duration-200 ${showQuestionPanel ? 'translate-x-0' : 'translate-x-6 opacity-0 pointer-events-none'}`}
                           >
 
                             <div className="grid grid-cols-3 gap-2 py-1">
