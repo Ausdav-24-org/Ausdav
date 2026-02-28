@@ -291,7 +291,8 @@ export default function FinanceVerifyPage() {
                       <TableHead>Submitted By</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Category</TableHead>
+                      <TableHead>Event</TableHead>
+                      <TableHead>Description</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Receipt</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -321,6 +322,7 @@ export default function FinanceVerifyPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>{sub.category}</TableCell>
+                        <TableCell className="max-w-xs truncate" title={sub.description}>{sub.description}</TableCell>
                         <TableCell className="font-medium">
                           Rs. {sub.amount.toLocaleString()}
                         </TableCell>
