@@ -555,22 +555,22 @@ export default function AdminMembersPage() {
       <div className="min-h-screen">
         <AdminHeader title="Members" breadcrumb="Management" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* Actions Bar */}
-        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-          <div className="flex flex-1 gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-md">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+            <div className="relative w-full sm:flex-1 sm:min-w-[200px] md:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search members..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-background/50"
+                className="pl-10 bg-background/50 w-full"
               />
             </div>
 
             <Select value={filterBatch} onValueChange={setFilterBatch}>
-              <SelectTrigger className="w-[140px] bg-background/50">
+              <SelectTrigger className="w-full sm:w-[140px] bg-background/50">
                 <SelectValue placeholder="All Batches" />
               </SelectTrigger>
               <SelectContent>
@@ -584,7 +584,7 @@ export default function AdminMembersPage() {
             </Select>
 
             <Select value={filterRole} onValueChange={setFilterRole}>
-              <SelectTrigger className="w-[180px] bg-background/50">
+              <SelectTrigger className="w-full sm:w-[180px] bg-background/50">
                 <SelectValue placeholder="Everyone" />
               </SelectTrigger>
               <SelectContent>
@@ -597,7 +597,7 @@ export default function AdminMembersPage() {
             </Select>
 
             <Select value={filterDesignation} onValueChange={setFilterDesignation}>
-              <SelectTrigger className="w-[160px] bg-background/50">
+              <SelectTrigger className="w-full sm:w-[160px] bg-background/50">
                 <SelectValue placeholder="All Designations" />
               </SelectTrigger>
               <SelectContent>
@@ -612,24 +612,27 @@ export default function AdminMembersPage() {
           </div>
 
           {isSuperAdmin && (
-            <div className="flex gap-2">
-              <Button onClick={downloadCsvTemplate} variant="outline">
+            <div className="flex flex-col sm:flex-row gap-2 w-full">
+              <Button onClick={downloadCsvTemplate} variant="outline" className="w-full sm:w-auto">
                 <Download className="mr-2 h-4 w-4" />
-                Download Template
+                <span className="hidden sm:inline">Download Template</span>
+                <span className="sm:hidden">Template</span>
               </Button>
-              <Button onClick={() => setImportOpen(true)}>
+              <Button onClick={() => setImportOpen(true)} className="w-full sm:w-auto">
                 <Upload className="mr-2 h-4 w-4" />
-                Import CSV
+                <span className="hidden sm:inline">Import CSV</span>
+                <span className="sm:hidden">Import</span>
               </Button>
-              <Button onClick={() => setInviteOpen(true)}>
+              <Button onClick={() => setInviteOpen(true)} className="w-full sm:w-auto">
                 <UserPlus className="mr-2 h-4 w-4" />
-                Invite Member
+                <span className="hidden sm:inline">Invite Member</span>
+                <span className="sm:hidden">Invite</span>
               </Button>
             </div>
           )}
           {/* Bulk actions when rows selected */}
           {selectedIds.length > 0 && isSuperAdmin && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
               <span className="text-sm text-muted-foreground">{selectedIds.length} selected</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -678,72 +681,77 @@ export default function AdminMembersPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                      <TableHead>
-                        <input
-                          type="checkbox"
-                          aria-label="Select all"
-                          checked={filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.includes(m.mem_id))}
-                          onChange={() => {
-                            if (filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.includes(m.mem_id))) {
-                              setSelectedIds([]);
-                            } else {
-                              setSelectedIds(filteredMembers.map((m) => m.mem_id));
-                            }
-                          }}
-                        />
-                      </TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Batch</TableHead>
-                      <TableHead>Designation</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMembers.map((member) => (
-                    <TableRow key={member.mem_id}>
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${member.username}`}
-                          checked={selectedIds.includes(member.mem_id)}
-                          onChange={() => {
-                            if (selectedIds.includes(member.mem_id)) {
-                              setSelectedIds((prev) => prev.filter((id) => id !== member.mem_id));
-                            } else {
-                              setSelectedIds((prev) => [...prev, member.mem_id]);
-                            }
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{member.fullname}</p>
-                          <p className="text-sm text-muted-foreground">{member.username}</p>
-                        </div>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table className="w-full">
+                  <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-10 text-xs sm:text-sm p-2 sm:p-4">
+                          <input
+                            type="checkbox"
+                            aria-label="Select all"
+                            checked={filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.includes(m.mem_id))}
+                            onChange={() => {
+                              if (filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.includes(m.mem_id))) {
+                                setSelectedIds([]);
+                              } else {
+                                setSelectedIds(filteredMembers.map((m) => m.mem_id));
+                              }
+                            }}
+                          />
+                        </TableHead>
+                        <TableHead className="min-w-[130px] text-xs sm:text-sm p-2 sm:p-4">Name</TableHead>
+                        <TableHead className="hidden sm:table-cell text-xs sm:text-sm p-2 sm:p-4">Batch</TableHead>
+                        <TableHead className="hidden md:table-cell text-xs sm:text-sm p-2 sm:p-4">Designation</TableHead>
+                        <TableHead className="hidden sm:table-cell text-xs sm:text-sm p-2 sm:p-4">Role</TableHead>
+                        <TableHead className="text-right text-xs sm:text-sm p-2 sm:p-4">Actions</TableHead>
+                      </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMembers.map((member) => (
+                      <TableRow key={member.mem_id}>
+                        <TableCell className="w-10 p-2 sm:p-4">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${member.username}`}
+                            checked={selectedIds.includes(member.mem_id)}
+                            onChange={() => {
+                              if (selectedIds.includes(member.mem_id)) {
+                                setSelectedIds((prev) => prev.filter((id) => id !== member.mem_id));
+                              } else {
+                                setSelectedIds((prev) => [...prev, member.mem_id]);
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell className="p-2 sm:p-4">
+                          <div>
+                            <p className="font-medium truncate text-xs sm:text-sm">{member.fullname}</p>
+                            <p className="hidden sm:block text-xs sm:text-xs text-muted-foreground truncate">{member.username}</p>
+                            <div className="sm:hidden text-xs text-muted-foreground mt-1 space-y-0.5">
+                              <p>Batch: {member.batch ?? '-'}</p>
+                              <p>Designation: {member.designation ? member.designation.replace(/_/g, ' ') : '-'}</p>
+                            </div>
+                          </div>
+                        </TableCell>
 
-                      <TableCell>{member.batch ?? '-'}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs sm:text-sm p-2 sm:p-4">{member.batch ?? '-'}</TableCell>
 
-                      <TableCell>{member.designation ? member.designation.replace(/_/g, ' ') : '-'}</TableCell>
+                        <TableCell className="hidden md:table-cell text-xs sm:text-sm p-2 sm:p-4">{member.designation ? member.designation.replace(/_/g, ' ') : '-'}</TableCell>
 
-                      <TableCell>
-                        <Badge className={cn('capitalize', getRoleBadgeColor(member.role || ''))}>
-                          {member.role?.replace('_', ' ') || 'Unknown'}
-                        </Badge>
-                      </TableCell>
+                        <TableCell className="hidden sm:table-cell p-2 sm:p-4">
+                          <Badge className={cn('capitalize text-xs', getRoleBadgeColor(member.role || ''))}>
+                            {member.role?.replace('_', ' ') || 'Unknown'}
+                          </Badge>
+                        </TableCell>
 
                       {/* Status and Finance columns removed per admin UI requirements */}
 
-                      <TableCell className="text-right">
+                      <TableCell className="text-right p-2 sm:p-4">
                         {(isSuperAdmin || (isAdmin && member.role === 'member')) ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-10 sm:w-10">
+                                <MoreVertical className="h-3 w-3 sm:h-4 sm:w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -783,16 +791,17 @@ export default function AdminMembersPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {filteredMembers.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-12">
-                        <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                        <p className="text-muted-foreground">No members found</p>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                    {filteredMembers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12">
+                          <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">No members found</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
