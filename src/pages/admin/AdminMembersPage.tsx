@@ -319,13 +319,27 @@ export default function AdminMembersPage() {
 
     setInviting(true);
     try {
-      // Note: In production, you would use an edge function to send invites
-      // For now, we'll create the user directly (super_admin only)
-      toast.info('Invite functionality requires email service setup');
+      // Call edge function to send invitation using auth.admin.inviteUserByEmail
+      const { data, error } = await invokeFunction('send-member-invitation', {
+        email: inviteEmail.toLowerCase().trim(),
+        fullname: inviteName.trim(),
+        inviteRole: inviteRole || 'member',
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to send invitation');
+      }
+
+      toast.success(`Invitation sent to ${inviteEmail}. They will receive an email with account setup instructions.`);
       setInviteOpen(false);
       setInviteEmail('');
       setInviteName('');
+      setInviteRole('member');
+      
+      // Refresh members list to show new member
+      setTimeout(() => fetchRef.current(), 1000);
     } catch (error: any) {
+      console.error('Invite error:', error);
       toast.error(error.message || 'Failed to send invite');
     } finally {
       setInviting(false);
