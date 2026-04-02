@@ -257,6 +257,8 @@ export default function AdminResultsPage() {
   const [filterGender, setFilterGender] = useState<string>('all');
   const [filterSchool, setFilterSchool] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [chartHeight, setChartHeight] = useState(320);
+  const [isMobileView, setIsMobileView] = useState(false);
 
   const [allowResultsView, setAllowResultsView] = useState<boolean | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -343,6 +345,26 @@ export default function AdminResultsPage() {
     fetchApplicants();
     loadResultsSetting();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ Handle responsive chart heights and mobile view detection
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 640) {
+        setChartHeight(250);
+        setIsMobileView(true);
+      } else if (window.innerWidth < 1024) {
+        setChartHeight(280);
+        setIsMobileView(false);
+      } else {
+        setChartHeight(320);
+        setIsMobileView(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const loadResultsSetting = async () => {
@@ -1381,8 +1403,9 @@ export default function AdminResultsPage() {
       {/* Year Selection + Publish Button */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3">
+            {/* Title and Badge Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <CardTitle className="text-lg">Select Year</CardTitle>
 
               <Badge className={allowResultsView ? 'bg-blue-500/20 text-blue-500' : 'bg-muted text-muted-foreground'}>
@@ -1390,9 +1413,10 @@ export default function AdminResultsPage() {
               </Badge>
             </div>
 
-            <div className="flex gap-2">
+            {/* Action Button - Responsive */}
+            <div>
               <Button
-                className={allowResultsView ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}
+                className={allowResultsView ? 'bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto' : 'bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto'}
                 size="sm"
                 onClick={toggleResultsSetting}
                 disabled={!canManageSettings || settingsLoading || resultsSaving || allowResultsView === null}
@@ -1407,7 +1431,7 @@ export default function AdminResultsPage() {
 
         <CardContent>
           {uniqueYears.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">No applicants found</p>
+            <div className="text-center text-muted-foreground py-8">No applicants found</div>
           ) : (
             <div className="flex flex-wrap gap-2">
               {uniqueYears.map((year) => {
@@ -1417,7 +1441,7 @@ export default function AdminResultsPage() {
                     key={year}
                     variant={selectedYear === year ? 'default' : 'outline'}
                     onClick={() => setSelectedYear(year)}
-                    className="min-w-[100px]"
+                    className="flex-1 sm:flex-none min-w-[100px]"
                   >
                     {year}
                     <Badge variant="secondary" className="ml-2 bg-background/20">
@@ -1431,94 +1455,98 @@ export default function AdminResultsPage() {
         </CardContent>
       </Card>
 
-      {selectedYear !== null && (
-        <>
-          {/* Filters */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Filters for {selectedYear}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex-1 min-w-[200px]">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search by name, index, NIC, email, school..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-
-                <Select value={filterStream} onValueChange={setFilterStream}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Stream" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Streams</SelectItem>
-                    {uniqueStreams.map((stream) => (
-                      <SelectItem key={stream} value={stream}>
-                        {stream}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={filterGender} onValueChange={setFilterGender}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Genders</SelectItem>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={filterSchool} onValueChange={setFilterSchool}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="School" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Schools</SelectItem>
-                    {uniqueSchools.map((school) => (
-                      <SelectItem key={school} value={school}>
-                        {school}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={downloadCsvTemplate}>
-                    <Download className="h-4 w-4 mr-1" />
-                    Template
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={downloadFilteredApplicantsCsv} disabled={filteredApplicants.length === 0}>
-                    <Download className="h-4 w-4 mr-1" />
-                    Export CSV
-                  </Button>
-                  <Button size="sm" onClick={() => setUploadOpen(true)}>
-                    <Upload className="h-4 w-4 mr-1" />
-                    Import
-                  </Button>
-                </div>
+      {/* Filters */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Filters for {selectedYear}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4">
+            {/* Search Bar */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, index, NIC, email, school..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-full"
+                  disabled={selectedYear === null}
+                />
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Total Applicants</CardDescription>
-                <CardTitle className="text-3xl flex items-center gap-2">
-                  <Users className="h-6 w-6 text-primary" />
+            {/* Filters Row - Responsive Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Select value={filterStream} onValueChange={setFilterStream} disabled={selectedYear === null}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Stream" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Streams</SelectItem>
+                  {uniqueStreams.map((stream) => (
+                    <SelectItem key={stream} value={stream}>
+                      {stream}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterGender} onValueChange={setFilterGender} disabled={selectedYear === null}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Genders</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={filterSchool} onValueChange={setFilterSchool} disabled={selectedYear === null}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="School" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Schools</SelectItem>
+                  {uniqueSchools.map((school) => (
+                    <SelectItem key={school} value={school}>
+                      {school}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Action Buttons - Responsive Stack */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" size="sm" onClick={downloadCsvTemplate} disabled={selectedYear === null} className="w-full sm:w-auto">
+                <Download className="h-4 w-4 mr-1" />
+                Template
+              </Button>
+              <Button variant="outline" size="sm" onClick={downloadFilteredApplicantsCsv} disabled={filteredApplicants.length === 0 || selectedYear === null} className="w-full sm:w-auto">
+                <Download className="h-4 w-4 mr-1" />
+                Export CSV
+              </Button>
+              <Button size="sm" onClick={() => setUploadOpen(true)} disabled={selectedYear === null} className="w-full sm:w-auto">
+                <Upload className="h-4 w-4 mr-1" />
+                Import
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total Applicants</CardDescription>
+            <CardTitle className="text-3xl flex items-center gap-2">
+              <Users className="h-6 w-6 text-primary" />
                   {filteredApplicants.length}
                 </CardTitle>
               </CardHeader>
@@ -1572,19 +1600,31 @@ export default function AdminResultsPage() {
                 <CardTitle className="text-lg">Bell Curve Distribution (Marks)</CardTitle>
                 <CardDescription>Maths, Bio, Physics and Chemistry mark distribution by buckets</CardDescription>
               </CardHeader>
-              <CardContent>
-                <ChartContainer config={bellCurveChartConfig} className="h-[320px]">
-                  <BarChart data={bellCurveData}>
-                    <XAxis dataKey="name" tick={{ fill: 'hsl(var(--foreground))' }} />
-                    <YAxis tick={{ fill: 'hsl(var(--foreground))' }} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Bar dataKey="maths" fill="#60A5FA" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="bio" fill="#A78BFA" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="physics" fill="#34D399" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="chemistry" fill="#FBBF24" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ChartContainer>
+              <CardContent className="flex items-center justify-center overflow-x-auto">
+                <div className="w-full min-h-[250px] sm:min-h-[280px] md:min-h-[320px]">
+                  <ChartContainer config={bellCurveChartConfig} className="h-[250px] sm:h-[280px] md:h-[320px] w-full min-w-[400px]">
+                    <BarChart 
+                      data={bellCurveData} 
+                      margin={{ bottom: isMobileView ? 80 : 30, right: 10, top: 10, left: 0 }}
+                    >
+                      <XAxis 
+                        dataKey="name" 
+                        tick={{ fill: 'hsl(var(--foreground))', fontSize: isMobileView ? 9 : 12 }} 
+                        angle={isMobileView ? -60 : 0}
+                        textAnchor={isMobileView ? "end" : "middle"}
+                        height={isMobileView ? 100 : 30}
+                        interval={isMobileView ? 1 : 0}
+                      />
+                      <YAxis tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: isMobileView ? '20px' : '0px' }} />
+                      <Bar dataKey="maths" fill="#60A5FA" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="bio" fill="#A78BFA" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="physics" fill="#34D399" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="chemistry" fill="#FBBF24" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
               </CardContent>
             </Card>
 
@@ -1593,18 +1633,35 @@ export default function AdminResultsPage() {
                 <CardTitle className="text-lg">Z-Score Distribution</CardTitle>
                 <CardDescription>Bucketed distribution of applicants by Z-score</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex items-center justify-center">
                 {stats.zScoreData.length > 0 ? (
-                  <ChartContainer config={zScoreChartConfig} className="h-[300px]">
-                    <BarChart data={stats.zScoreData} layout="vertical">
-                      <XAxis type="number" tick={{ fill: 'hsl(var(--foreground))' }} />
-                      <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="count" fill="#60A5FA" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ChartContainer>
+                  <div className="w-full overflow-x-auto">
+                    <ChartContainer 
+                      config={zScoreChartConfig} 
+                      className="h-[250px] sm:h-[280px] md:h-[320px] w-full min-w-[350px]"
+                    >
+                      <BarChart 
+                        data={stats.zScoreData} 
+                        layout="vertical" 
+                        margin={{ left: isMobileView ? 45 : 100, right: 10, top: 5, bottom: 5 }}
+                      >
+                        <XAxis type="number" tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }} />
+                        <YAxis 
+                          type="category" 
+                          dataKey="name" 
+                          width={isMobileView ? 45 : 100} 
+                          tick={{ fontSize: isMobileView ? 9 : 11, fill: 'hsl(var(--foreground))' }}
+                          interval={0}
+                        />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#60A5FA" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ChartContainer>
+                  </div>
                 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">No data available</div>
+                  <div className="h-[250px] sm:h-[280px] md:h-[320px] w-full flex items-center justify-center text-muted-foreground">
+                    No data available
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1624,11 +1681,11 @@ export default function AdminResultsPage() {
             </CardHeader>
 
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-4 items-end">
-                <div className="w-52">
+              <div className="flex flex-col gap-4 items-start sm:flex-row sm:items-end sm:flex-wrap">
+                <div className="w-full sm:w-52">
                   <Label>Subject</Label>
                   <Select value={selectedSubjectForGrade} onValueChange={(v) => setSelectedSubjectForGrade(v as SubjectKey)}>
-                    <SelectTrigger className="w-52">
+                    <SelectTrigger className="w-full sm:w-52">
                       <SelectValue placeholder="Select Subject" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1643,7 +1700,7 @@ export default function AdminResultsPage() {
                   </Select>
                 </div>
 
-                <Badge variant="secondary" className="h-9 flex items-center">
+                <Badge variant="secondary" className="h-auto sm:h-9 flex items-center text-xs sm:text-sm py-1 sm:py-0">
                   Applied: A≥{gradeRangesAppliedBySubject[selectedSubjectForGrade].A_min} | B≥
                   {gradeRangesAppliedBySubject[selectedSubjectForGrade].B_min} | C≥
                   {gradeRangesAppliedBySubject[selectedSubjectForGrade].C_min} | S≥
@@ -1651,7 +1708,7 @@ export default function AdminResultsPage() {
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <Label>A minimum</Label>
                   <Input
@@ -1718,13 +1775,13 @@ export default function AdminResultsPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 items-center">
-                <Button onClick={saveGradeRanges} disabled={!canManageSettings || rangesSaving || !rangesDifferent}>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-start sm:items-center">
+                <Button onClick={saveGradeRanges} disabled={!canManageSettings || rangesSaving || !rangesDifferent} className="w-full sm:w-auto">
                   {rangesSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                   Save Changes
                 </Button>
 
-                <Button variant="outline" onClick={resetGradeRanges} disabled={!canManageSettings || rangesSaving}>
+                <Button variant="outline" onClick={resetGradeRanges} disabled={!canManageSettings || rangesSaving} className="w-full sm:w-auto">
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Reset (Sri Lankan Default)
                 </Button>
@@ -1734,22 +1791,22 @@ export default function AdminResultsPage() {
 
           {/* Applicants Table */}
           <Card>
-            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5" />
                 Applicants List ({filteredApplicants.length})
               </CardTitle>
 
-              <div className="flex gap-2">
-                <Button variant={sortMode === 'default' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('default')}>
+              <div className="flex flex-wrap gap-2">
+                <Button variant={sortMode === 'default' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('default')} className="flex-1 sm:flex-none">
                   <ArrowUpDown className="h-4 w-4 mr-1" />
                   Default
                 </Button>
-                <Button variant={sortMode === 'rank_asc' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('rank_asc')}>
+                <Button variant={sortMode === 'rank_asc' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('rank_asc')} className="flex-1 sm:flex-none">
                   <ArrowUpDown className="h-4 w-4 mr-1" />
                   Rank ↑
                 </Button>
-                <Button variant={sortMode === 'rank_desc' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('rank_desc')}>
+                <Button variant={sortMode === 'rank_desc' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('rank_desc')} className="flex-1 sm:flex-none">
                   <ArrowUpDown className="h-4 w-4 mr-1" />
                   Rank ↓
                 </Button>
@@ -1757,25 +1814,25 @@ export default function AdminResultsPage() {
             </CardHeader>
 
             <CardContent>
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Index No</TableHead>
-                      <TableHead>Stream</TableHead>
+                      <TableHead className="min-w-[100px] text-xs sm:text-sm p-2 sm:p-4">Index No</TableHead>
+                      <TableHead className="hidden sm:table-cell text-xs sm:text-sm p-2 sm:p-4">Stream</TableHead>
 
-                      <TableHead>Bio/Maths</TableHead>
-                      <TableHead>Bio/Maths Result</TableHead>
+                      <TableHead className="hidden md:table-cell text-xs sm:text-sm p-2 sm:p-4">Bio/Maths</TableHead>
+                      <TableHead className="hidden lg:table-cell text-xs sm:text-sm p-2 sm:p-4">Bio/Maths Result</TableHead>
 
-                      <TableHead>Physics</TableHead>
-                      <TableHead>Physics Result</TableHead>
+                      <TableHead className="hidden lg:table-cell text-xs sm:text-sm p-2 sm:p-4">Physics</TableHead>
+                      <TableHead className="hidden lg:table-cell text-xs sm:text-sm p-2 sm:p-4">Physics Result</TableHead>
 
-                      <TableHead>Chemistry</TableHead>
-                      <TableHead>Chemistry Result</TableHead>
+                      <TableHead className="hidden lg:table-cell text-xs sm:text-sm p-2 sm:p-4">Chemistry</TableHead>
+                      <TableHead className="hidden lg:table-cell text-xs sm:text-sm p-2 sm:p-4">Chemistry Result</TableHead>
 
-                      <TableHead>Z-Score</TableHead>
-                      <TableHead>Rank</TableHead>
-                      <TableHead className="w-10"></TableHead>
+                      <TableHead className="text-xs sm:text-sm p-2 sm:p-4">Z-Score</TableHead>
+                      <TableHead className="text-xs sm:text-sm p-2 sm:p-4">Rank</TableHead>
+                      <TableHead className="text-right text-xs sm:text-sm p-2 sm:p-4 w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
 
@@ -1791,34 +1848,34 @@ export default function AdminResultsPage() {
 
                       return (
                         <TableRow key={a.applicant_id}>
-                          <TableCell className="font-medium">{a.index_no}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{a.stream}</Badge>
+                          <TableCell className="font-medium text-xs sm:text-sm p-2 sm:p-4">{a.index_no}</TableCell>
+                          <TableCell className="hidden sm:table-cell p-2 sm:p-4">
+                            <Badge variant="outline" className="text-xs">{a.stream}</Badge>
                           </TableCell>
 
-                          <TableCell className="font-mono text-sm">{fmt(mathsOrBioMarks)}</TableCell>
-                          <TableCell>
+                          <TableCell className="hidden md:table-cell font-mono text-xs p-2 sm:p-4">{fmt(mathsOrBioMarks)}</TableCell>
+                          <TableCell className="hidden lg:table-cell p-2 sm:p-4">
                             <Badge className={gradeBadgeClass(mathsOrBioGrade)}>{mathsOrBioGrade ?? '-'}</Badge>
                           </TableCell>
 
-                          <TableCell className="font-mono text-sm">{fmt(result?.physics_marks)}</TableCell>
-                          <TableCell>
+                          <TableCell className="hidden lg:table-cell font-mono text-xs p-2 sm:p-4">{fmt(result?.physics_marks)}</TableCell>
+                          <TableCell className="hidden lg:table-cell p-2 sm:p-4">
                             <Badge className={gradeBadgeClass(result?.physics_grade)}>{result?.physics_grade ?? '-'}</Badge>
                           </TableCell>
 
-                          <TableCell className="font-mono text-sm">{fmt(result?.chemistry_marks)}</TableCell>
-                          <TableCell>
+                          <TableCell className="hidden lg:table-cell font-mono text-xs p-2 sm:p-4">{fmt(result?.chemistry_marks)}</TableCell>
+                          <TableCell className="hidden lg:table-cell p-2 sm:p-4">
                             <Badge className={gradeBadgeClass(result?.chemistry_grade)}>{result?.chemistry_grade ?? '-'}</Badge>
                           </TableCell>
 
-                          <TableCell className="font-mono text-sm">{z}</TableCell>
-                          <TableCell className="font-mono text-sm">{result?.rank ?? '-'}</TableCell>
+                          <TableCell className="font-mono text-xs p-2 sm:p-4">{z}</TableCell>
+                          <TableCell className="font-mono text-xs p-2 sm:p-4">{result?.rank ?? '-'}</TableCell>
 
-                          <TableCell>
+                          <TableCell className="text-right p-2 sm:p-4">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-10 sm:w-10">
+                                  <MoreVertical className="h-3 w-3 sm:h-4 sm:w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
@@ -1845,8 +1902,6 @@ export default function AdminResultsPage() {
               )}
             </CardContent>
           </Card>
-        </>
-      )}
 
       {/* CSV Upload Dialog */}
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>

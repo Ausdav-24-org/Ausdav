@@ -754,80 +754,90 @@ export default function FinanceLedgerPage() {
 
           {/* Filters */}
           <Card className="bg-card/50 backdrop-blur-sm border-border">
-            <CardContent className="p-4">
-              <div className="flex flex-wrap gap-4 items-end">
-                <div className="flex-1 min-w-[200px]">
+            <CardContent className="p-2 sm:p-4">
+              <div className="flex flex-col gap-2 sm:gap-3">
+                {/* Search bar - full width on mobile */}
+                <div className="w-full">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search transactions..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-background/50"
+                      className="pl-10 bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
                     />
                   </div>
                 </div>
 
-                <Select
-                  value={filterCategory}
-                  onValueChange={setFilterCategory}
-                >
-                  <SelectTrigger className="w-[160px] bg-background/50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allCategories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Category and Type dropdowns - side by side on sm+, stack on mobile */}
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full">
+                  <Select
+                    value={filterCategory}
+                    onValueChange={setFilterCategory}
+                  >
+                    <SelectTrigger className="w-full sm:w-[160px] bg-background/50 text-xs sm:text-sm h-8 sm:h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allCategories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-[120px] bg-background/50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="income">Income</SelectItem>
-                    <SelectItem value="expense">Expense</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger className="w-full sm:w-[120px] bg-background/50 text-xs sm:text-sm h-8 sm:h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="income">Income</SelectItem>
+                      <SelectItem value="expense">Expense</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <div className="flex items-center gap-2">
+                {/* Date range - stack on mobile, side by side on sm+ */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full">
                   <Input
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-[140px] bg-background/50"
+                    className="flex-1 bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
                     placeholder="From"
                   />
-                  <span className="text-muted-foreground">to</span>
+                  <span className="hidden sm:block text-muted-foreground">to</span>
+                  <span className="text-xs sm:hidden text-muted-foreground">to</span>
                   <Input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="w-[140px] bg-background/50"
+                    className="flex-1 bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
                     placeholder="To"
                   />
                 </div>
 
-                <Button
-                  variant="outline"
-                  onClick={exportPDF}
-                  disabled={exportingPdf}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {exportingPdf ? "Exporting..." : "Export PDF"}
-                </Button>
-
-                {canEdit && (
-                  <Button onClick={handleOpenAddDialog}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Record
+                {/* Buttons - full width on mobile, side by side on sm+ */}
+                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                  <Button
+                    variant="outline"
+                    onClick={exportPDF}
+                    disabled={exportingPdf}
+                    className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-9"
+                  >
+                    <Download className="h-3 sm:h-4 w-3 sm:w-4 mr-1 sm:mr-2" />
+                    {exportingPdf ? "Exporting..." : "Export PDF"}
                   </Button>
-                )}
+
+                  {canEdit && (
+                    <Button onClick={handleOpenAddDialog} className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-9">
+                      <Plus className="h-3 sm:h-4 w-3 sm:w-4 mr-1 sm:mr-2" />
+                      Add Record
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -968,24 +978,24 @@ export default function FinanceLedgerPage() {
 
         {/* Add/Edit Transaction Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
+          <DialogContent className="w-[90vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
+            <DialogHeader className="space-y-1 sm:space-y-2">
+              <DialogTitle className="text-base sm:text-lg">
                 {editingTransaction
                   ? "Edit Transaction"
                   : "Add New Transaction"}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs sm:text-sm">
                 {editingTransaction
                   ? "Update the transaction details below."
                   : "Enter the details for the new finance record."}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Transaction Type *</Label>
+            <div className="space-y-2 sm:space-y-4 py-2 sm:py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Transaction Type *</Label>
                   <Select
                     value={formData.exp_type}
                     onValueChange={(v) =>
@@ -996,7 +1006,7 @@ export default function FinanceLedgerPage() {
                       })
                     }
                   >
-                    <SelectTrigger className="bg-background/50">
+                    <SelectTrigger className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1006,8 +1016,8 @@ export default function FinanceLedgerPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Amount (Rs.) *</Label>
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Amount (Rs.) *</Label>
                   <Input
                     type="number"
                     min="0"
@@ -1017,53 +1027,53 @@ export default function FinanceLedgerPage() {
                       setFormData({ ...formData, amount: e.target.value })
                     }
                     placeholder="0.00"
-                    className="bg-background/50"
+                    className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Date *</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Date *</Label>
                   <Input
                     type="date"
                     value={formData.txn_date}
                     onChange={(e) =>
                       setFormData({ ...formData, txn_date: e.target.value })
                     }
-                    className="bg-background/50"
+                    className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Event *</Label>
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-xs sm:text-sm">Event *</Label>
                   <Input
                     value={formData.category}
                     onChange={(e) =>
                       setFormData({ ...formData, category: e.target.value })
                     }
                     placeholder="e.g. Pentathlon"
-                    className="bg-background/50"
+                    className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Description *</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Description *</Label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
                   placeholder="Details about this transaction..."
-                  className="bg-background/50"
+                  className="bg-background/50 text-xs sm:text-sm"
                   rows={3}
                 />
               </div>
 
               {/* ✅ NEW: Receipt image upload */}
-              <div className="space-y-2">
-                <Label>Receipt Image (optional)</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm">Receipt Image (optional)</Label>
 
                 {editingTransaction?.photo_path && !receiptFile && (
                   <div className="text-xs text-muted-foreground flex items-center gap-2">
@@ -1072,11 +1082,11 @@ export default function FinanceLedgerPage() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <Input
                     type="file"
                     accept="image/*"
-                    className="bg-background/50"
+                    className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9 flex-1"
                     onChange={(e) =>
                       handleReceiptChange(e.target.files?.[0] ?? null)
                     }
@@ -1088,55 +1098,58 @@ export default function FinanceLedgerPage() {
                       size="sm"
                       onClick={() => handleReceiptChange(null)}
                       title="Remove"
+                      className="h-8 sm:h-9"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 sm:h-4 w-3 sm:w-4" />
                     </Button>
                   )}
                 </div>
 
                 {receiptPreviewUrl && (
-                  <div className="mt-2 overflow-hidden rounded-lg border border-border bg-background/40">
+                  <div className="mt-1 sm:mt-2 overflow-hidden rounded-lg border border-border bg-background/40">
                     <img
                       src={receiptPreviewUrl}
                       alt="Receipt preview"
-                      className="w-full h-48 object-contain"
+                      className="w-full h-32 sm:h-48 object-contain"
                     />
                   </div>
                 )}
 
                 {!receiptPreviewUrl && existingReceiptUrl && (
-                  <div className="mt-2 overflow-hidden rounded-lg border border-border bg-background/40">
+                  <div className="mt-1 sm:mt-2 overflow-hidden rounded-lg border border-border bg-background/40">
                     <img
                       src={existingReceiptUrl}
                       alt="Existing receipt"
-                      className="w-full h-48 object-contain"
+                      className="w-full h-32 sm:h-48 object-contain"
                     />
                   </div>
                 )}
 
                 {!receiptPreviewUrl && existingReceiptLoading && (
-                  <div className="mt-2 text-xs text-muted-foreground">
+                  <div className="mt-1 sm:mt-2 text-xs text-muted-foreground">
                     Loading receipt...
                   </div>
                 )}
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <Button
                 variant="outline"
                 onClick={handleCloseDialog}
                 disabled={saving || receiptUploading}
+                className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-9"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveTransaction}
                 disabled={saving || receiptUploading}
+                className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-9"
               >
                 {saving || receiptUploading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-1 sm:mr-2 h-3 sm:h-4 w-3 sm:w-4 animate-spin" />
                     {receiptUploading ? "Uploading..." : "Saving..."}
                   </>
                 ) : editingTransaction ? (
@@ -1150,48 +1163,53 @@ export default function FinanceLedgerPage() {
         </Dialog>
 
         <Dialog open={auditDialogOpen} onOpenChange={setAuditDialogOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Upload Audit Summary</DialogTitle>
-              <DialogDescription>
+          <DialogContent className="w-[90vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
+            <DialogHeader className="space-y-1 sm:space-y-2">
+              <DialogTitle className="text-base sm:text-lg">Upload Audit Summary</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
                 This will generate a PDF from the current filters and save it to
                 the Audit page.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="audit-event">Event Name *</Label>
+            <div className="space-y-2 sm:space-y-4 py-2 sm:py-4">
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="audit-event" className="text-xs sm:text-sm">Event Name *</Label>
                 <Input
                   id="audit-event"
                   value={auditEventName}
                   onChange={(e) => setAuditEventName(e.target.value)}
                   placeholder="Enter event name"
-                  className="bg-background/50"
+                  className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="audit-year">Committee Year *</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="audit-year" className="text-xs sm:text-sm">Committee Year *</Label>
                 <Input
                   id="audit-year"
                   type="number"
                   value={auditYear}
                   onChange={(e) => setAuditYear(Number(e.target.value))}
-                  className="bg-background/50"
+                  className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <Button
                 variant="outline"
                 onClick={() => setAuditDialogOpen(false)}
                 disabled={auditUploading}
+                className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-9"
               >
                 Cancel
               </Button>
-              <Button onClick={handleUploadAuditPdf} disabled={auditUploading}>
+              <Button 
+                onClick={handleUploadAuditPdf} 
+                disabled={auditUploading}
+                className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-9"
+              >
                 {auditUploading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-1 sm:mr-2 h-3 sm:h-4 w-3 sm:w-4 animate-spin" />
                     Uploading...
                   </>
                 ) : (

@@ -137,14 +137,14 @@ export function AdminSidebar() {
       return hasPermission(item.permissionKey);
     }
 
+    // For members, show Applicants only when manual applications are open (check this FIRST)
+    if (role === 'member' && item.href === '/admin/applicants') {
+      return manualApplicantsOpen;
+    }
+
     // For members, require explicit grant for nav items that have permissionKey
     if (role === 'member' && item.permissionKey) {
       return hasPermission(item.permissionKey);
-    }
-
-    // For members, show Applicants only when manual applications are open
-    if (role === 'member' && item.href === '/admin/applicants') {
-      return manualApplicantsOpen;
     }
 
     return true;

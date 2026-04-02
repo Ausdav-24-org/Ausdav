@@ -114,46 +114,46 @@ export default function AdminDesignationsPage() {
           <CardTitle>Assign Designations</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">Only super admins can assign designations to admins.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mb-4">Only super admins can assign designations to admins.</p>
 
-          <div className="relative max-w-md mb-4">
+          <div className="relative w-full sm:max-w-md mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name, username, or designation..."
-              className="pl-10"
+              className="pl-10 w-full text-xs sm:text-sm"
             />
           </div>
 
-          <div>
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Designation</TableHead>
+                  <TableHead className="min-w-[120px] text-xs sm:text-sm p-2 sm:p-3">Name</TableHead>
+                  <TableHead className="hidden sm:table-cell min-w-[120px] text-xs sm:text-sm p-2 sm:p-3">Username</TableHead>
+                  <TableHead className="hidden md:table-cell min-w-[100px] text-xs sm:text-sm p-2 sm:p-3">Role</TableHead>
+                  <TableHead className="min-w-[160px] text-xs sm:text-sm p-2 sm:p-3">Designation</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredAdmins.map((a) => (
                   <TableRow key={a.mem_id}>
-                    <TableCell>
+                    <TableCell className="text-xs sm:text-sm p-2 sm:p-3">
                       <div>
                         <p className="font-medium">{a.fullname}</p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{a.username}</TableCell>
-                    <TableCell>
-                      <Badge className="capitalize">{a.role.replace('_', ' ')}</Badge>
+                    <TableCell className="hidden sm:table-cell text-xs text-muted-foreground p-2 sm:p-3">{a.username}</TableCell>
+                    <TableCell className="hidden md:table-cell text-xs sm:text-sm p-2 sm:p-3">
+                      <Badge className="capitalize text-xs">{a.role.replace('_', ' ')}</Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-xs sm:text-sm p-2 sm:p-3">
                       <Select
                         value={a.designation ?? 'none'}
                         onValueChange={(val) => updateDesignation(a.mem_id, val === 'none' ? null : val)}
                       >
-                        <SelectTrigger className="w-48">
+                        <SelectTrigger className="w-full sm:w-48 text-xs sm:text-sm">
                           <SelectValue placeholder="None" />
                         </SelectTrigger>
                         <SelectContent>
@@ -168,7 +168,7 @@ export default function AdminDesignationsPage() {
                 ))}
                 {filteredAdmins.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8">
+                    <TableCell colSpan={4} className="text-center py-6 sm:py-8 text-xs sm:text-sm">
                       {loading ? 'Loading...' : searchQuery ? 'No admins match your search' : 'No admins found'}
                     </TableCell>
                   </TableRow>
