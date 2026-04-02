@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 // @ts-expect-error
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Supabase edge function to invite members via auth.admin.inviteUserByEmail
 declare const Deno: { env: { get(key: string): string | undefined } };
 
 const corsHeaders = {
