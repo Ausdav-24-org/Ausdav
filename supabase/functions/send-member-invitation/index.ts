@@ -7,67 +7,48 @@ declare const Deno: { env: { get(key: string): string | undefined } };
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-auth',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400',
 };
 
 serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('OK', { 
-      status: 200, 
-      headers: corsHeaders 
-    });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
-      status: 405, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!supabaseUrl || !serviceRoleKey) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
-    return new Response(JSON.stringify({ error: 'Service misconfigured' }), { 
-      status: 500, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+    return new Response(JSON.stringify({ error: 'Service misconfigured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // Authenticate caller
+  const authHeader = req.headers.get('authorization') || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   try {
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    // Authenticate caller
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.replace(/^Bearer\s+/i, '');
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: missing token' }), { 
-        status: 401, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
-
-    // Verify user via auth
+    // Verify user
     let userId: string | null = null;
     try {
       const { data: userData, error: userErr } = await adminClient.auth.getUser(token) as any;
-      if (userErr || !userData?.user?.id) {
-        throw new Error(userErr?.message || 'Cannot identify user');
-      }
-      userId = userData.user.id;
+      if (userErr) throw userErr;
+      userId = userData?.user?.id ?? null;
     } catch (e) {
-      console.error('auth.getUser failed:', e);
-      return new Response(JSON.stringify({ error: 'Invalid token' }), { 
-        status: 401, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      console.error('auth.getUser failed', e);
+    }
+
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Cannot identify user' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Verify caller is admin
@@ -77,19 +58,8 @@ serve(async (req: Request) => {
       .eq('auth_user_id', userId)
       .maybeSingle();
 
-    if (callerErr || !callerRow) {
-      console.error('Member lookup failed:', callerErr);
-      return new Response(JSON.stringify({ error: 'Forbidden: admin access required' }), { 
-        status: 403, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
-
-    if (!['admin', 'super_admin'].includes(callerRow.role)) {
-      return new Response(JSON.stringify({ error: 'Forbidden: insufficient permissions' }), { 
-        status: 403, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+    if (callerErr || !callerRow || !['admin', 'super_admin'].includes(callerRow.role)) {
+      return new Response(JSON.stringify({ error: 'Forbidden: not an admin' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Parse request body
@@ -97,42 +67,23 @@ serve(async (req: Request) => {
     const { email, fullname, inviteRole = 'member' } = body;
 
     if (!email || !fullname) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: email, fullname' }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return new Response(JSON.stringify({ error: 'Invalid email format' }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Invite user via auth.admin.inviteUserByEmail
     const { data: inviteData, error: inviteErr } = await adminClient.auth.admin.inviteUserByEmail(
       email,
-      { redirectTo: `${supabaseUrl.replace('.supabase.co', '')}/auth/callback` }
+      { redirectTo: `${supabaseUrl}/auth/callback` }
     ) as any;
 
     if (inviteErr) {
-      console.error('inviteUserByEmail failed:', inviteErr);
-      return new Response(JSON.stringify({ error: inviteErr.message || 'Failed to send invitation' }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      console.error('inviteUserByEmail failed', inviteErr);
+      return new Response(JSON.stringify({ error: inviteErr.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const newUserId = inviteData?.user?.id;
     if (!newUserId) {
-      console.error('No user ID returned from inviteUserByEmail');
-      return new Response(JSON.stringify({ error: 'Failed to create auth user' }), { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      return new Response(JSON.stringify({ error: 'Failed to create auth user' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Create member record
@@ -148,31 +99,17 @@ serve(async (req: Request) => {
 
     if (memberErr) {
       console.error('Failed to create member record:', memberErr);
-      return new Response(JSON.stringify({ 
-        error: 'Invitation sent but failed to create member record',
-        details: memberErr.message 
-      }), { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      });
+      // Note: Auth user was created, but member record failed
     }
 
-    console.log(`Member invited: ${email} (${newUserId})`);
     return new Response(JSON.stringify({ 
       success: true, 
       message: `Invitation sent to ${email}`,
       user_id: newUserId 
-    }), { 
-      status: 200, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (e) {
-    console.error('send-member-invitation exception:', e);
-    const errorMsg = e instanceof Error ? e.message : 'Invitation failed';
-    return new Response(JSON.stringify({ error: errorMsg }), { 
-      status: 500, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+    console.error('send-member-invitation failed', e);
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'Invitation failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
