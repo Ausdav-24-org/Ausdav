@@ -929,7 +929,7 @@ const AdminQuizPage: React.FC = () => {
   return (
     <>
       <AdminHeader title="Quiz Management" breadcrumb="Admin / Quiz" />
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-8 sm:py-12 px-2 sm:px-3 md:px-4">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-8 sm:py-12 px-2 sm:px-3 md:px-4 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-700">
         <div className="container mx-auto max-w-6xl w-full">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -1862,7 +1862,7 @@ const AdminQuizPage: React.FC = () => {
         </motion.div>
 
         {/* Questions List */}
-        <div className="space-y-4 max-h-screen sm:max-h-[1000px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-700 pr-2">
+        <div className="space-y-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <h2 className="text-2xl font-semibold">
               Questions List
