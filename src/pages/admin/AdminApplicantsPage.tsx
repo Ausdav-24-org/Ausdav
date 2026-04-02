@@ -655,14 +655,43 @@ export default function AdminApplicantsPage() {
       <div className="space-y-6">
         <AdminHeader title="Submit Applicant" />
 
+        {/* Bulk Import Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Bulk Upload Applicants
+            </CardTitle>
+            <CardDescription>
+              Upload multiple applicants at once using a CSV file
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" size="sm" onClick={downloadCsvTemplate} className="w-full sm:w-auto">
+                <Download className="h-4 w-4 mr-2" />
+                Download Template
+              </Button>
+              <Button size="sm" onClick={() => setUploadOpen(true)} className="w-full sm:w-auto">
+                <Upload className="h-4 w-4 mr-2" />
+                Import CSV
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Download the template, fill in your applicants, and upload the file to add multiple applicants at once.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Single Submission */}
         <Card className="max-w-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
-              Submit Your Application
+              Submit Single Applicant
             </CardTitle>
             <CardDescription>
-              Fill in your details to submit an applicant application
+              Or, enter details manually to submit one applicant
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -755,6 +784,74 @@ export default function AdminApplicantsPage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* CSV Upload Dialog */}
+        <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Import Applicants from CSV</DialogTitle>
+              <DialogDescription>
+                Upload a CSV file with applicant data. Choose whether to import a single or multiple records.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {/* Mode Selection */}
+              <div className="space-y-2">
+                <Label>Import Mode</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={importMode === 'single' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportMode('single')}
+                  >
+                    Single Record
+                  </Button>
+                  <Button
+                    variant={importMode === 'bulk' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportMode('bulk')}
+                  >
+                    Bulk Records
+                  </Button>
+                </div>
+              </div>
+
+              {/* File Input */}
+              <div className="space-y-2">
+                <Label htmlFor="csv-file">Select CSV File</Label>
+                <Input
+                  id="csv-file"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                />
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-muted p-3 rounded-md text-sm text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Required Columns:</p>
+                <p>index_no, fullname, gender, stream, nic, phone, email, school</p>
+                <p className="mt-2">
+                  <strong>Note:</strong> Leave <code>index_no</code> empty - it will be generated automatically.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setUploadOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCsvUpload}
+                disabled={uploading || !csvFile || !importMode}
+              >
+                {uploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {uploading ? 'Uploading...' : 'Upload'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
