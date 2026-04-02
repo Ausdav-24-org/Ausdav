@@ -265,12 +265,12 @@ export default function AdminPastPaperPage() {
 
   return (
     <PermissionGate permissionKey="exam" permissionName="Past Paper Handling">
-      <div className="p-6 space-y-6">
+      <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
         <AdminHeader title="Past Paper Management" breadcrumb="Admin / Past Paper Management" />
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Past Paper Management</h1>
-          <p className="text-muted-foreground">Manage past papers and schemes</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Past Paper Management</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Manage past papers and schemes</p>
         </div>
         <Dialog open={isCreateDialogOpen || !!editingPastPaper} onOpenChange={(open) => {
           if (!open) {
@@ -285,29 +285,30 @@ export default function AdminPastPaperPage() {
               Add Past Paper
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editingPastPaper ? 'Edit Past Paper' : 'Add New Past Paper'}</DialogTitle>
+          <DialogContent className="w-[90vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
+            <DialogHeader className="space-y-1 sm:space-y-2">
+              <DialogTitle className="text-base sm:text-lg">{editingPastPaper ? 'Edit Past Paper' : 'Add New Past Paper'}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="year">Year</Label>
+            <div className="space-y-2 sm:space-y-3">
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="year" className="text-xs sm:text-sm font-medium">Year</Label>
                 <Input
                   id="year"
                   type="number"
                   value={formData.yrs}
                   onChange={(e) => setFormData(prev => ({ ...prev, yrs: parseInt(e.target.value) }))}
+                  className="text-xs sm:text-sm h-8 sm:h-9"
                 />
               </div>
-              <div>
-                <Label htmlFor="subject">Subject</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="subject" className="text-xs sm:text-sm font-medium">Subject</Label>
                 <Select
                   value={formData.subject}
                   onValueChange={(value) =>
                     setFormData(prev => ({ ...prev, subject: value }))
                   }
                 >
-                  <SelectTrigger id="subject">
+                  <SelectTrigger id="subject" className="text-xs sm:text-sm h-8 sm:h-9">
                     <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
@@ -319,32 +320,34 @@ export default function AdminPastPaperPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="exam-paper">Exam Paper (PDF)</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="exam-paper" className="text-xs sm:text-sm font-medium">Exam Paper (PDF)</Label>
                 <Input
                   id="exam-paper"
                   type="file"
                   accept=".pdf"
                   onChange={(e) => setExamPaperFile(e.target.files?.[0] || null)}
+                  className="text-xs sm:text-sm h-8 sm:h-9"
                 />
               </div>
-              <div>
-                <Label htmlFor="scheme">Scheme (PDF)</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="scheme" className="text-xs sm:text-sm font-medium">Scheme (PDF)</Label>
                 <Input
                   id="scheme"
                   type="file"
                   accept=".pdf"
                   onChange={(e) => setSchemeFile(e.target.files?.[0] || null)}
+                  className="text-xs sm:text-sm h-8 sm:h-9"
                 />
               </div>
-              <div className="flex gap-2 pt-4">
+              <div className="flex gap-2 pt-1 sm:pt-2">
                 <Button
                   onClick={editingPastPaper ? handleUpdate : handleCreate}
                   disabled={createMutation.isPending || updateMutation.isPending}
-                  className="flex-1"
+                  className="flex-1 text-xs sm:text-sm h-8 sm:h-9"
                 >
                   {createMutation.isPending || updateMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
                   ) : null}
                   {editingPastPaper ? 'Update' : 'Create'}
                 </Button>
@@ -355,10 +358,10 @@ export default function AdminPastPaperPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Past Papers</CardTitle>
+        <CardHeader className="px-2 sm:px-4 md:px-6 py-3 sm:py-4">
+          <CardTitle className="text-xl sm:text-2xl">Past Papers</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
