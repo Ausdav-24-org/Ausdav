@@ -649,6 +649,137 @@ export default function AdminApplicantsPage() {
     );
   }
 
+  // For members: show only submission form when manual applications are enabled
+  if (!isAdmin && allowManualApplications) {
+    return (
+      <div className="space-y-6">
+        <AdminHeader title="Submit Applicant" />
+
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Submit Your Application
+            </CardTitle>
+            <CardDescription>
+              Fill in your details to submit an applicant application
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSingleApplicantSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Input
+                    id="fullName"
+                    value={singleForm.fullName}
+                    onChange={(e) => setSingleForm({ ...singleForm, fullName: e.target.value })}
+                    placeholder="John Doe"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={singleForm.email}
+                    onChange={(e) => setSingleForm({ ...singleForm, email: e.target.value })}
+                    placeholder="john@example.com"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone (10 digits) *</Label>
+                  <Input
+                    id="phone"
+                    value={singleForm.phone}
+                    onChange={(e) => setSingleForm({ ...singleForm, phone: e.target.value })}
+                    placeholder="0712345678"
+                    maxLength={10}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nic">NIC (12 digits) *</Label>
+                  <Input
+                    id="nic"
+                    value={singleForm.nic}
+                    onChange={(e) => setSingleForm({ ...singleForm, nic: e.target.value })}
+                    placeholder="123456789012"
+                    maxLength={12}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="stream">Stream *</Label>
+                  <Select value={singleForm.stream} onValueChange={(value) => setSingleForm({ ...singleForm, stream: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select stream" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Maths">Maths</SelectItem>
+                      <SelectItem value="Biology">Biology</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Gender *</Label>
+                  <Select value={singleForm.gender} onValueChange={(value) => setSingleForm({ ...singleForm, gender: value as 'male' | 'female' })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="school">School *</Label>
+                  <Input
+                    id="school"
+                    value={singleForm.school}
+                    onChange={(e) => setSingleForm({ ...singleForm, school: e.target.value })}
+                    placeholder="Your School Name"
+                  />
+                </div>
+              </div>
+
+              <Button type="submit" disabled={singleSubmitting} className="w-full">
+                {singleSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {singleSubmitting ? 'Submitting...' : 'Submit Application'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // For members without manual applications enabled
+  if (!isAdmin && !allowManualApplications) {
+    return (
+      <div className="space-y-6">
+        <AdminHeader title="Applications" />
+        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950">
+          <CardContent className="p-6 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-yellow-900 dark:text-yellow-100">Applications Not Open</p>
+              <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
+                Manual applicant submissions are currently closed. Please check back later.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Admin view - full management interface
   return (
     <PermissionGate permissionKey="applicant" permissionName="Applicant Handling">
       <div className="space-y-6">
