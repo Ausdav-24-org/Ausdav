@@ -203,21 +203,21 @@ export default function AdminPatronsPage() {
                     const { data: urlData } = supabase.storage.from('patrons').getPublicUrl(hasImage ? p.image_paths![0] : '');
                     const publicUrl = hasImage ? urlData?.publicUrl : null;
                     return (
-                      <div key={p.id} className="p-4 border rounded space-y-2">
-                                <div className="flex items-center gap-4">
-                                                {publicUrl ? (
-                                                  <img src={publicUrl} alt={p.image_alt || p.name} className="w-16 h-16 object-cover rounded" />
-                                                ) : (
-                                                  <div className={isDark ? 'w-16 h-16 rounded flex items-center justify-center bg-gray-700 text-white' : 'w-16 h-16 rounded flex items-center justify-center bg-gray-200 text-gray-600'}>
-                                                    <IconUser />
-                                                  </div>
-                                                )}
-                                  <div>
-                                    <div className="font-medium">{p.name}</div>
-                                    <div className="text-sm text-muted-foreground">{p.designation}</div>
-                                    <div className="text-xs text-muted-foreground mt-1">Order: {p.display_order ?? 0} • {p.is_active ? 'Active' : 'Hidden'}</div>
-                                  </div>
-                                </div>
+                      <div key={p.id} className="p-3 sm:p-4 border rounded space-y-3">
+                        <div className="flex items-start gap-3 sm:gap-4">
+                          {publicUrl ? (
+                            <img src={publicUrl} alt={p.image_alt || p.name} className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded flex-shrink-0" />
+                          ) : (
+                            <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                              <IconUser />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm sm:text-base truncate">{p.name}</div>
+                            <div className="text-xs sm:text-sm text-muted-foreground truncate">{p.designation}</div>
+                            <div className="text-xs text-muted-foreground mt-1">Order: {p.display_order ?? 0} • {p.is_active ? 'Active' : 'Hidden'}</div>
+                          </div>
+                        </div>
                         <div className="flex gap-2 justify-end">
                           <Button onClick={() => openEdit(p)}>Edit</Button>
                           <Button variant="destructive" onClick={() => { if (confirm('Delete patron?')) deleteMutation.mutate(p); }}>
@@ -236,45 +236,45 @@ export default function AdminPatronsPage() {
           </Card>
 
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent>
+            <DialogContent className="w-[95vw] sm:w-[90vw] md:w-[500px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editing ? 'Edit Patron' : 'Add Patron'}</DialogTitle>
+                <DialogTitle className="text-lg sm:text-xl">{editing ? 'Edit Patron' : 'Add Patron'}</DialogTitle>
               </DialogHeader>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
-                  <Label>Name</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                  <Label className="text-xs sm:text-sm">Name</Label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} className="w-full text-sm" />
                 </div>
                 <div>
-                  <Label>Designation</Label>
-                  <Input value={designation} onChange={(e) => setDesignation(e.target.value)} />
+                  <Label className="text-xs sm:text-sm">Designation</Label>
+                  <Input value={designation} onChange={(e) => setDesignation(e.target.value)} className="w-full text-sm" />
                 </div>
-                  <div>
-                    <Label>Display Order</Label>
-                    <Input type="number" value={displayOrder} onChange={(e) => setDisplayOrder(Number(e.target.value || 0))} />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input id="patron-active" type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                    <label htmlFor="patron-active" className="text-sm">Active</label>
-                  </div>
-                  <div>
-                    <Label>Image Alt Text</Label>
-                    <Input value={imageAlt} onChange={(e) => setImageAlt(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>LinkedIn ID / URL</Label>
-                    <Input value={linkedinId} onChange={(e) => setLinkedinId(e.target.value)} placeholder="https://linkedin.com/in/username or username" />
-                  </div>
                 <div>
-                  <Label>Profile Image</Label>
-                  <Input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                  <Label className="text-xs sm:text-sm">Display Order</Label>
+                  <Input type="number" value={displayOrder} onChange={(e) => setDisplayOrder(Number(e.target.value || 0))} className="w-full text-sm" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input id="patron-active" type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="w-4 h-4" />
+                  <label htmlFor="patron-active" className="text-xs sm:text-sm cursor-pointer">Active</label>
+                </div>
+                <div>
+                  <Label className="text-xs sm:text-sm">Image Alt Text</Label>
+                  <Input value={imageAlt} onChange={(e) => setImageAlt(e.target.value)} className="w-full text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs sm:text-sm">LinkedIn ID / URL</Label>
+                  <Input value={linkedinId} onChange={(e) => setLinkedinId(e.target.value)} placeholder="https://linkedin.com/in/username or username" className="w-full text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs sm:text-sm">Profile Image</Label>
+                  <Input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="w-full text-sm file:text-xs sm:file:text-sm" />
                 </div>
               </div>
 
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 mt-6">
+                <Button variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto text-sm">Cancel</Button>
+                <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="w-full sm:w-auto text-sm">
                   {saveMutation.isPending ? 'Saving...' : 'Save'}
                 </Button>
               </DialogFooter>

@@ -113,6 +113,7 @@ export default function AdminApplicantsPage() {
   const [filterGender, setFilterGender] = useState<string>('all');
   const [filterSchool, setFilterSchool] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [pieRadius, setPieRadius] = useState(100);
 
   // Exam applications setting
   const [allowExamApplications, setAllowExamApplications] = useState<boolean | null>(null);
@@ -160,6 +161,23 @@ export default function AdminApplicantsPage() {
   useEffect(() => {
     fetchApplicants();
     loadAppSettings();
+  }, []);
+
+  // ✅ Handle responsive pie chart radius
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 640) {
+        setPieRadius(60);
+      } else if (window.innerWidth < 1024) {
+        setPieRadius(80);
+      } else {
+        setPieRadius(100);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // ✅ Load both settings in one go
@@ -631,6 +649,234 @@ export default function AdminApplicantsPage() {
     );
   }
 
+  // For members: show only submission form when manual applications are enabled
+  if (!isAdmin && allowManualApplications) {
+    return (
+      <div className="space-y-6">
+        <AdminHeader title="Submit Applicant" />
+
+        {/* Bulk Import Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Bulk Upload Applicants
+            </CardTitle>
+            <CardDescription>
+              Upload multiple applicants at once using a CSV file
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" size="sm" onClick={downloadCsvTemplate} className="w-full sm:w-auto">
+                <Download className="h-4 w-4 mr-2" />
+                Download Template
+              </Button>
+              <Button size="sm" onClick={() => setUploadOpen(true)} className="w-full sm:w-auto">
+                <Upload className="h-4 w-4 mr-2" />
+                Import CSV
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Download the template, fill in your applicants, and upload the file to add multiple applicants at once.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Single Submission */}
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Submit Single Applicant
+            </CardTitle>
+            <CardDescription>
+              Or, enter details manually to submit one applicant
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSingleApplicantSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Input
+                    id="fullName"
+                    value={singleForm.fullName}
+                    onChange={(e) => setSingleForm({ ...singleForm, fullName: e.target.value })}
+                    placeholder="John Doe"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={singleForm.email}
+                    onChange={(e) => setSingleForm({ ...singleForm, email: e.target.value })}
+                    placeholder="john@example.com"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone (10 digits) *</Label>
+                  <Input
+                    id="phone"
+                    value={singleForm.phone}
+                    onChange={(e) => setSingleForm({ ...singleForm, phone: e.target.value })}
+                    placeholder="0712345678"
+                    maxLength={10}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nic">NIC (12 digits) *</Label>
+                  <Input
+                    id="nic"
+                    value={singleForm.nic}
+                    onChange={(e) => setSingleForm({ ...singleForm, nic: e.target.value })}
+                    placeholder="123456789012"
+                    maxLength={12}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="stream">Stream *</Label>
+                  <Select value={singleForm.stream} onValueChange={(value) => setSingleForm({ ...singleForm, stream: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select stream" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Maths">Maths</SelectItem>
+                      <SelectItem value="Biology">Biology</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Gender *</Label>
+                  <Select value={singleForm.gender} onValueChange={(value) => setSingleForm({ ...singleForm, gender: value as 'male' | 'female' })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="school">School *</Label>
+                  <Input
+                    id="school"
+                    value={singleForm.school}
+                    onChange={(e) => setSingleForm({ ...singleForm, school: e.target.value })}
+                    placeholder="Your School Name"
+                  />
+                </div>
+              </div>
+
+              <Button type="submit" disabled={singleSubmitting} className="w-full">
+                {singleSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {singleSubmitting ? 'Submitting...' : 'Submit Application'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* CSV Upload Dialog */}
+        <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Import Applicants from CSV</DialogTitle>
+              <DialogDescription>
+                Upload a CSV file with applicant data. Choose whether to import a single or multiple records.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {/* Mode Selection */}
+              <div className="space-y-2">
+                <Label>Import Mode</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={importMode === 'single' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportMode('single')}
+                  >
+                    Single Record
+                  </Button>
+                  <Button
+                    variant={importMode === 'bulk' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportMode('bulk')}
+                  >
+                    Bulk Records
+                  </Button>
+                </div>
+              </div>
+
+              {/* File Input */}
+              <div className="space-y-2">
+                <Label htmlFor="csv-file">Select CSV File</Label>
+                <Input
+                  id="csv-file"
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                />
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-muted p-3 rounded-md text-sm text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Required Columns:</p>
+                <p>index_no, fullname, gender, stream, nic, phone, email, school</p>
+                <p className="mt-2">
+                  <strong>Note:</strong> Leave <code>index_no</code> empty - it will be generated automatically.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setUploadOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCsvUpload}
+                disabled={uploading || !csvFile || !importMode}
+              >
+                {uploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {uploading ? 'Uploading...' : 'Upload'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // For members without manual applications enabled
+  if (!isAdmin && !allowManualApplications) {
+    return (
+      <div className="space-y-6">
+        <AdminHeader title="Applications" />
+        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950">
+          <CardContent className="p-6 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-yellow-900 dark:text-yellow-100">Applications Not Open</p>
+              <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
+                Manual applicant submissions are currently closed. Please check back later.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Admin view - full management interface
   return (
     <PermissionGate permissionKey="applicant" permissionName="Applicant Handling">
       <div className="space-y-6">
@@ -639,12 +885,13 @@ export default function AdminApplicantsPage() {
         {/* Year Selection Buttons - Pagination Style */}
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3">
+              {/* Title and Badges Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <CardTitle className="text-lg">Select Year</CardTitle>
 
                 {isAdmin && (
-                  <>
+                  <div className="flex flex-wrap gap-2">
                     <Badge className={allowExamApplications ? 'bg-green-500/20 text-green-500' : 'bg-muted text-muted-foreground'}>
                       {settingsLoading ? 'Loading...' : allowExamApplications ? 'Applications Open' : 'Applications Closed'}
                     </Badge>
@@ -653,18 +900,19 @@ export default function AdminApplicantsPage() {
                     <Badge className={allowManualApplications ? 'bg-blue-500/20 text-blue-600' : 'bg-muted text-muted-foreground'}>
                       {settingsLoading ? 'Loading...' : allowManualApplications ? 'Manual Page Open' : 'Manual Page Closed'}
                     </Badge>
-                  </>
+                  </div>
                 )}
               </div>
 
-              {/* ✅ BOTH BUTTONS IN SAME ROW */}
+              {/* Action Buttons - Responsive */}
               {isAdmin && (
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button
                     variant={allowExamApplications ? 'destructive' : 'default'}
                     size="sm"
                     onClick={toggleExamSetting}
                     disabled={!isAdmin || settingsLoading || settingsSaving || allowExamApplications === null}
+                    className="w-full sm:w-auto"
                   >
                     {settingsSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                     {allowExamApplications ? 'Close Applications' : 'Open Applications'}
@@ -675,6 +923,7 @@ export default function AdminApplicantsPage() {
                     size="sm"
                     onClick={toggleManualSetting}
                     disabled={!isAdmin || settingsLoading || settingsSaving || allowManualApplications === null}
+                    className="w-full sm:w-auto"
                   >
                     {settingsSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                     {allowManualApplications ? 'Manual Application Close' : 'Manual Application Open'}
@@ -696,7 +945,7 @@ export default function AdminApplicantsPage() {
                       key={year}
                       variant={selectedYear === year ? 'default' : 'outline'}
                       onClick={() => setSelectedYear(year)}
-                      className="min-w-[100px]"
+                      className="flex-1 sm:flex-none min-w-[100px]"
                     >
                       {year}
                       <Badge variant="secondary" className="ml-2 bg-background/20">
@@ -755,60 +1004,65 @@ export default function AdminApplicantsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex-1 min-w-[200px]">
+                <div className="flex flex-col gap-4">
+                  {/* Search Bar */}
+                  <div className="flex-1">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Search by name, index, email, school..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 w-full"
                       />
                     </div>
                   </div>
 
-                  <Select value={filterStream} onValueChange={setFilterStream}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Stream" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Streams</SelectItem>
-                      {uniqueStreams.map((stream) => (
-                        <SelectItem key={stream} value={stream}>
-                          {stream}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* Filters Row - Responsive Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Select value={filterStream} onValueChange={setFilterStream}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Stream" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Streams</SelectItem>
+                        {uniqueStreams.map((stream) => (
+                          <SelectItem key={stream} value={stream}>
+                            {stream}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
-                  <Select value={filterGender} onValueChange={setFilterGender}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Genders</SelectItem>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Select value={filterGender} onValueChange={setFilterGender}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Genders</SelectItem>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-                  <Select value={filterSchool} onValueChange={setFilterSchool}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="School" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Schools</SelectItem>
-                      {uniqueSchools.map((school) => (
-                        <SelectItem key={school} value={school}>
-                          {school}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Select value={filterSchool} onValueChange={setFilterSchool}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="School" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Schools</SelectItem>
+                        {uniqueSchools.map((school) => (
+                          <SelectItem key={school} value={school}>
+                            {school}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={downloadCsvTemplate}>
+                  {/* Action Buttons - Responsive Stack */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button variant="outline" size="sm" onClick={downloadCsvTemplate} className="w-full sm:w-auto">
                       <Download className="h-4 w-4 mr-1" />
                       Template
                     </Button>
@@ -817,11 +1071,12 @@ export default function AdminApplicantsPage() {
                       size="sm"
                       onClick={downloadFilteredApplicantsCsv}
                       disabled={filteredApplicants.length === 0}
+                      className="w-full sm:w-auto"
                     >
                       <Download className="h-4 w-4 mr-1" />
                       Export CSV
                     </Button>
-                    <Button size="sm" onClick={() => setUploadOpen(true)}>
+                    <Button size="sm" onClick={() => setUploadOpen(true)} className="w-full sm:w-auto">
                       <Upload className="h-4 w-4 mr-1" />
                       Import
                     </Button>
@@ -890,33 +1145,37 @@ export default function AdminApplicantsPage() {
                   <CardTitle className="text-lg">School Distribution (Top 10)</CardTitle>
                   <CardDescription>Distribution of applicants by school</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex items-center justify-center">
                   {stats.schoolData.length > 0 ? (
-                    <ChartContainer config={schoolChartConfig} className="h-[300px]">
-                      <PieChart>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Pie
-                          data={stats.schoolData}
-                          dataKey="count"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={100}
-                        >
-                          {stats.schoolData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Legend
-                          wrapperStyle={{ color: 'hsl(var(--foreground))' }}
-                          formatter={(value) => (
-                            <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
-                          )}
-                        />
-                      </PieChart>
-                    </ChartContainer>
+                    <div className="w-full flex justify-center">
+                      <ChartContainer config={schoolChartConfig} className="h-[280px] sm:h-[300px] md:h-[350px] w-full">
+                        <PieChart>
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <Pie
+                            data={stats.schoolData}
+                            dataKey="count"
+                            nameKey="name"
+                            cx="50%"
+                            cy="45%"
+                            outerRadius={pieRadius}
+                          >
+                            {stats.schoolData.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Legend
+                            verticalAlign="bottom"
+                            height={36}
+                            wrapperStyle={{ color: 'hsl(var(--foreground))', paddingTop: '10px', fontSize: '12px' }}
+                            formatter={(value) => (
+                              <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+                            )}
+                          />
+                        </PieChart>
+                      </ChartContainer>
+                    </div>
                   ) : (
-                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                    <div className="h-[280px] sm:h-[300px] md:h-[350px] w-full flex items-center justify-center text-muted-foreground">
                       No data available
                     </div>
                   )}
@@ -928,33 +1187,37 @@ export default function AdminApplicantsPage() {
                   <CardTitle className="text-lg">Stream Distribution</CardTitle>
                   <CardDescription>Distribution of applicants by stream</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex items-center justify-center">
                   {stats.streamData.length > 0 ? (
-                    <ChartContainer config={streamChartConfig} className="h-[300px]">
-                      <PieChart>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Pie
-                          data={stats.streamData}
-                          dataKey="count"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={100}
-                        >
-                          {stats.streamData.map((_, index) => (
-                            <Cell key={`stream-cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Legend
-                          wrapperStyle={{ color: 'hsl(var(--foreground))' }}
-                          formatter={(value) => (
-                            <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
-                          )}
-                        />
-                      </PieChart>
-                    </ChartContainer>
+                    <div className="w-full flex justify-center">
+                      <ChartContainer config={streamChartConfig} className="h-[280px] sm:h-[300px] md:h-[350px] w-full">
+                        <PieChart>
+                          <ChartTooltip content={<ChartTooltipContent />} />
+                          <Pie
+                            data={stats.streamData}
+                            dataKey="count"
+                            nameKey="name"
+                            cx="50%"
+                            cy="45%"
+                            outerRadius={pieRadius}
+                          >
+                            {stats.streamData.map((_, index) => (
+                              <Cell key={`stream-cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Legend
+                            verticalAlign="bottom"
+                            height={36}
+                            wrapperStyle={{ color: 'hsl(var(--foreground))', paddingTop: '10px', fontSize: '12px' }}
+                            formatter={(value) => (
+                              <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
+                            )}
+                          />
+                        </PieChart>
+                      </ChartContainer>
+                    </div>
                   ) : (
-                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                    <div className="h-[280px] sm:h-[300px] md:h-[350px] w-full flex items-center justify-center text-muted-foreground">
                       No data available
                     </div>
                   )}
@@ -971,48 +1234,57 @@ export default function AdminApplicantsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Index No</TableHead>
-                        <TableHead>Full Name</TableHead>
-                    <TableHead>Stream</TableHead>
-                    <TableHead>School</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredApplicants.map((applicant) => (
+                        <TableHead className="min-w-[100px] text-xs sm:text-sm p-2 sm:p-4">Index No</TableHead>
+                        <TableHead className="min-w-[150px] text-xs sm:text-sm p-2 sm:p-4">Full Name</TableHead>
+                        <TableHead className="hidden sm:table-cell text-xs sm:text-sm p-2 sm:p-4">Stream</TableHead>
+                        <TableHead className="hidden md:table-cell text-xs sm:text-sm p-2 sm:p-4">School</TableHead>
+                        <TableHead className="text-right text-xs sm:text-sm p-2 sm:p-4 w-10"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredApplicants.map((applicant) => (
                         <TableRow key={applicant.applicant_id}>
-                          <TableCell className="font-medium">{applicant.index_no}</TableCell>
-                          <TableCell>{applicant.fullname}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{applicant.stream}</Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[150px] truncate" title={applicant.school}>
-                        {applicant.school}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedApplicant(applicant);
-                                setDetailsOpen(true);
-                              }}
-                              className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer"
-                            >
-                              <FileText className="h-4 w-4 mr-2" />
-                              View Details
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                          <TableCell className="font-medium text-xs sm:text-sm p-2 sm:p-4">{applicant.index_no}</TableCell>
+                          <TableCell className="p-2 sm:p-4">
+                            <div>
+                              <p className="font-medium text-xs sm:text-sm">{applicant.fullname}</p>
+                              {/* Mobile view - show additional info */}
+                              <div className="sm:hidden text-xs text-muted-foreground mt-1 space-y-0.5">
+                                <p className="truncate">Stream: <span className="font-medium">{applicant.stream}</span></p>
+                                <p className="truncate">School: <span className="font-medium">{applicant.school}</span></p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell p-2 sm:p-4">
+                            <Badge variant="outline" className="text-xs">{applicant.stream}</Badge>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-xs sm:text-sm p-2 sm:p-4 max-w-[150px] truncate" title={applicant.school}>
+                            {applicant.school}
+                          </TableCell>
+                          <TableCell className="text-right p-2 sm:p-4">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-10 sm:w-10">
+                                  <MoreVertical className="h-3 w-3 sm:h-4 sm:w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedApplicant(applicant);
+                                    setDetailsOpen(true);
+                                  }}
+                                  className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer"
+                                >
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  View Details
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))}

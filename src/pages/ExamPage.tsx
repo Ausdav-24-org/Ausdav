@@ -1888,36 +1888,37 @@ const ExamPage: React.FC = () => {
                 ? "Application Submitted Successfully!"
                 : "விண்ணப்பம் வெற்றிகரமாக சமர்ப்பிக்கப்பட்டது!"}
             </DialogTitle>
-            <DialogDescription>
-              {language === "en" ? (
-                <>
-                  <div className="text-lg font-medium mb-2">
-                    {registeredFullName
-                      ? `Hello ${registeredFullName}!`
-                      : "Hello!"}
-                  </div>
-                  <div>
-                    Congratulations! Your exam application has been submitted
-                    successfully. Please save your reference number for future
-                    reference.
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-lg font-medium mb-2">
-                    {registeredFullName
-                      ? `வணக்கம் ${registeredFullName}!`
-                      : "வணக்கம்!"}
-                  </div>
-                  <div>
-                    வாழ்த்துக்கள்! உங்கள் தேர்வு விண்ணப்பம் வெற்றிகரமாக
-                    சமர்ப்பிக்கப்பட்டது. எதிர்கால குறிப்புக்கு உங்கள் குறிப்பு
-                    எண்ணை சேமிக்கவும்.
-                  </div>
-                </>
-              )}
-            </DialogDescription>
           </DialogHeader>
+          
+          <div>
+            {language === "en" ? (
+              <>
+                <div className="text-lg font-medium mb-2">
+                  {registeredFullName
+                    ? `Hello ${registeredFullName}!`
+                    : "Hello!"}
+                </div>
+                <div>
+                  Congratulations! Your exam application has been submitted
+                  successfully. Please save your reference number for future
+                  reference.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-lg font-medium mb-2">
+                  {registeredFullName
+                    ? `வணக்கம் ${registeredFullName}!`
+                    : "வணக்கம்!"}
+                </div>
+                <div>
+                  வாழ்த்துக்கள்! உங்கள் தேர்வு விண்ணப்பம் வெற்றிகரமாக
+                  சமர்ப்பிக்கப்பட்டது. எதிர்கால குறிப்புக்கு உங்கள் குறிப்பு
+                  எண்ணை சேமிக்கவும்.
+                </div>
+              </>
+            )}
+          </div>
 
           <div className="flex flex-col items-center space-y-4 py-4">
             <div className="text-center">
