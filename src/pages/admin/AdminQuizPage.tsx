@@ -929,8 +929,8 @@ const AdminQuizPage: React.FC = () => {
   return (
     <>
       <AdminHeader title="Quiz Management" breadcrumb="Admin / Quiz" />
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-12 px-4">
-        <div className="container mx-auto max-w-6xl">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-8 sm:py-12 px-2 sm:px-3 md:px-4">
+        <div className="container mx-auto max-w-6xl w-full">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1001,22 +1001,22 @@ const AdminQuizPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 {/* Add new quiz password */}
-                <div className="flex flex-col md:flex-row gap-2 mb-4">
+                <div className="flex flex-col gap-2 mb-4">
                   <Input
                     placeholder="Quiz name (e.g. Science 2026)"
                     value={newQuizName}
                     onChange={e => setNewQuizName(e.target.value)}
-                    className="md:w-1/3"
+                    className="w-full text-xs sm:text-sm"
                     disabled={savingQuizPassword}
                   />
-                  <div className="relative md:w-1/3">
+                  <div className="relative w-full">
                     <Input
                       placeholder="Password"
                       type={showQuizPassword[0] ? "text" : "password"}
                       value={newQuizPassword}
                       onChange={e => setNewQuizPassword(e.target.value)}
                       disabled={savingQuizPassword}
-                      className="pr-10"
+                      className="pr-10 w-full text-xs sm:text-sm"
                     />
                     <button
                       type="button"
@@ -1028,19 +1028,20 @@ const AdminQuizPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <Input
-                    placeholder="Duration (min)"
-                    type="number"
-                    min={1}
-                    value={newQuizDuration}
-                    onChange={e => setNewQuizDuration(e.target.value)}
-                    disabled={savingQuizPassword}
-                    className="md:w-1/6"
-                  />
-
-                  <Button onClick={saveQuizPassword} disabled={savingQuizPassword} className="md:w-1/6">
-                    {savingQuizPassword ? "Saving..." : "Add"}
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Duration (min)"
+                      type="number"
+                      min={1}
+                      value={newQuizDuration}
+                      onChange={e => setNewQuizDuration(e.target.value)}
+                      disabled={savingQuizPassword}
+                      className="flex-1 text-xs sm:text-sm"
+                    />
+                    <Button onClick={saveQuizPassword} disabled={savingQuizPassword} className="w-full sm:w-auto text-xs sm:text-sm">
+                      {savingQuizPassword ? "Saving..." : "Add"}
+                    </Button>
+                  </div>
                 </div>
                 {/* List all quiz passwords */}
                 {loadingQuizPasswords ? (
@@ -1048,23 +1049,23 @@ const AdminQuizPage: React.FC = () => {
                 ) : quizPasswords.length === 0 ? (
                   <div className="text-muted-foreground py-4">No quiz passwords set</div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-96 sm:max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-700 pr-2">
                     {quizPasswords.map(qp => (
-                      <div id={`quiz-row-${qp.id}`} key={qp.id} className="flex items-center gap-2 border rounded px-3 py-2 transition-shadow duration-300">
+                      <div id={`quiz-row-${qp.id}`} key={qp.id} className="flex flex-col sm:flex-row sm:items-center gap-2 border rounded px-2 sm:px-3 py-2 transition-shadow duration-300">
 
                         {editingQuizId === qp.id ? (
                           <>
                             <Input
                               value={editingQuizName}
                               onChange={e => setEditingQuizName(e.target.value)}
-                              className="w-1/3"
+                              className="flex-1 text-xs sm:text-sm"
                             />
-                            <div className="relative w-1/3">
+                            <div className="relative flex-1">
                               <Input
                                 type={showQuizPassword[qp.id] ? "text" : "password"}
                                 value={editingQuizPassword}
                                 onChange={e => setEditingQuizPassword(e.target.value)}
-                                className="pr-10"
+                                className="pr-10 text-xs sm:text-sm"
                               />
                               <button
                                 type="button"
@@ -1081,25 +1082,28 @@ const AdminQuizPage: React.FC = () => {
                               min={1}
                               value={editingQuizDuration}
                               onChange={e => setEditingQuizDuration(e.target.value)}
-                              className="w-1/6"
+                              className="flex-1 text-xs sm:text-sm"
                             />
-                            <Button size="sm" onClick={saveQuizPassword} className="mr-2">Save</Button>
-                            <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); setEditingQuizDuration(""); }}>Cancel</Button>
+                            <div className="flex gap-2 w-full sm:w-auto">
+                              <Button size="sm" onClick={saveQuizPassword} className="flex-1 sm:flex-none text-xs sm:text-sm">Save</Button>
+                              <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(null); setEditingQuizName(""); setEditingQuizPassword(""); setEditingQuizDuration(""); }} className="flex-1 sm:flex-none text-xs sm:text-sm">Cancel</Button>
+                            </div>
                           </>
                         ) : (
                           <>
-                            <span className="w-1/3 font-semibold">{qp.quiz_name}</span>
+                            <span className="font-semibold text-xs sm:text-sm flex-1">{qp.quiz_name}</span>
 
                             {/* per-quiz mode toggles */}
-                            <div className="flex items-center gap-2 w-1/6">
+                            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                               <Button
                                 size="sm"
                                 variant={qp.is_test ? "default" : "outline"}
                                 onClick={() => toggleQuizMode(qp.id, 'is_test', !qp.is_test)}
                                 disabled={togglingQuizModeId === qp.id && togglingQuizModeField === 'is_test'}
                                 aria-pressed={!!qp.is_test}
+                                className="text-xs"
                               >
-                                {togglingQuizModeId === qp.id && togglingQuizModeField === 'is_test' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                {togglingQuizModeId === qp.id && togglingQuizModeField === 'is_test' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
                                 Test
                               </Button>
 
@@ -1109,18 +1113,19 @@ const AdminQuizPage: React.FC = () => {
                                 onClick={() => toggleQuizMode(qp.id, 'is_quiz', !qp.is_quiz)}
                                 disabled={togglingQuizModeId === qp.id && togglingQuizModeField === 'is_quiz'}
                                 aria-pressed={!!qp.is_quiz}
+                                className="text-xs"
                               >
-                                {togglingQuizModeId === qp.id && togglingQuizModeField === 'is_quiz' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                {togglingQuizModeId === qp.id && togglingQuizModeField === 'is_quiz' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
                                 Quiz
                               </Button>
                             </div>
 
-                            <div className="relative w-1/4">
+                            <div className="relative flex-1">
                               <Input
                                 type={showQuizPassword[qp.id] ? "text" : "password"}
                                 value={qp.password}
                                 readOnly
-                                className="pr-10 bg-muted"
+                                className="pr-10 bg-muted text-xs sm:text-sm"
                               />
                               <button
                                 type="button"
@@ -1132,15 +1137,18 @@ const AdminQuizPage: React.FC = () => {
                               </button>
                             </div>
 
-                            <div className="flex items-center gap-2 w-1/6">
-                              <span className="text-sm">{qp.duration_minutes != null ? `${qp.duration_minutes} mins` : '—'}</span>
+                            <div className="flex items-center gap-1 text-xs sm:text-sm flex-1 sm:flex-none">
+                              <span>{qp.duration_minutes != null ? `${qp.duration_minutes}m` : '—'}</span>
                             </div>
 
-                            <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); setEditingQuizDuration(qp.duration_minutes != null ? String(qp.duration_minutes) : ""); }}>Edit</Button>
-                            <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)} disabled={deletingQuizPasswordId === qp.id}>
-                              {deletingQuizPasswordId === qp.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                              Delete
-                            </Button>
+                            <div className="flex gap-1 w-full sm:w-auto">
+                              <Button size="sm" variant="outline" onClick={() => { setEditingQuizId(qp.id); setEditingQuizName(qp.quiz_name); setEditingQuizPassword(qp.password); setEditingQuizDuration(qp.duration_minutes != null ? String(qp.duration_minutes) : ""); }} className="flex-1 sm:flex-none text-xs sm:text-sm">Edit</Button>
+                              <Button size="sm" variant="destructive" onClick={() => deleteQuizPassword(qp.id)} disabled={deletingQuizPasswordId === qp.id} className="flex-1 sm:flex-none text-xs sm:text-sm">
+                                {deletingQuizPasswordId === qp.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+                                <span className="hidden sm:inline">Delete</span>
+                                <span className="sm:hidden">Del</span>
+                              </Button>
+                            </div>
                           </>
                         )}
                       </div>
@@ -1395,56 +1403,64 @@ const AdminQuizPage: React.FC = () => {
                 <>
                   {/* Charts */}
                   {!loadingResults && filteredSortedResults.length > 0 && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
                       {/* School vs Score Chart */}
-                      <div className="bg-muted/40 rounded-lg p-4 border border-muted-foreground/10">
-                        <h3 className="text-sm font-semibold mb-4 text-foreground">School vs Score</h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <BarChart data={chartDataScore} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                            <XAxis 
-                              dataKey="name" 
-                              angle={-45} 
-                              textAnchor="end" 
-                              height={1}
-                              tick={{ fontSize: 12, fill: '#888' }}
-                              tickFormatter={shortenTickLabel}
-                            />
-                            <YAxis tick={{ fontSize: 12, fill: '#888' }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} />
-                            <Bar dataKey="score" fill="#3b82f6" radius={[8, 8, 0, 0]}>
-                              <LabelList dataKey="score" position="top" fill="#fff" fontSize={12} />
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
+                      <div className="bg-muted/40 rounded-lg p-2 sm:p-3 md:p-4 border border-muted-foreground/10">
+                        <h3 className="text-xs sm:text-sm font-semibold mb-3 sm:mb-4 text-foreground">School vs Score</h3>
+                        <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-blue-600 scrollbar-track-gray-700">
+                          <div className="min-w-full" style={{ minWidth: '600px' }}>
+                            <ResponsiveContainer width="100%" height={250}>
+                              <BarChart data={chartDataScore} margin={{ top: 15, right: 20, left: 0, bottom: 45 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                <XAxis 
+                                  dataKey="name" 
+                                  angle={-45} 
+                                  textAnchor="end" 
+                                  height={1}
+                                  tick={{ fontSize: 10, fill: '#888' }}
+                                  tickFormatter={shortenTickLabel}
+                                />
+                                <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                                <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} />
+                                <Bar dataKey="score" fill="#3b82f6" radius={[8, 8, 0, 0]}>
+                                  <LabelList dataKey="score" position="top" fill="#fff" fontSize={10} />
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
                       </div>
 
                       {/* School vs Duration Chart */}
-                      <div className="bg-muted/40 rounded-lg p-4 border border-muted-foreground/10">
-                        <h3 className="text-sm font-semibold mb-4 text-foreground">School vs Duration (minutes)</h3>
+                      <div className="bg-muted/40 rounded-lg p-2 sm:p-3 md:p-4 border border-muted-foreground/10">
+                        <h3 className="text-xs sm:text-sm font-semibold mb-3 sm:mb-4 text-foreground">School vs Duration (minutes)</h3>
                         {loadingDurations ? (
-                          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground">
+                          <div className="h-60 flex items-center justify-center text-xs sm:text-sm text-muted-foreground">
                             Loading durations...
                           </div>
                         ) : (
-                          <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={chartDataDuration} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                              <XAxis 
-                                dataKey="name" 
-                                angle={-45} 
-                                textAnchor="end" 
-                                height={1}
-                                tick={{ fontSize: 12, fill: '#888' }}
-                                tickFormatter={shortenTickLabel}
-                              />
-                              <YAxis tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(v) => `${v}`} />
-                              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} formatter={(value: any) => (value == null ? '—' : `${value} min`)} />
-                              <Bar dataKey="durationMin" fill="#10b981" radius={[8, 8, 0, 0]}>
-                                <LabelList dataKey="durationLabel" position="top" fill="#fff" fontSize={12} />
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
+                          <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-gray-700">
+                            <div className="min-w-full" style={{ minWidth: '600px' }}>
+                              <ResponsiveContainer width="100%" height={250}>
+                                <BarChart data={chartDataDuration} margin={{ top: 15, right: 20, left: 0, bottom: 45 }}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                  <XAxis 
+                                    dataKey="name" 
+                                    angle={-45} 
+                                    textAnchor="end" 
+                                    height={1}
+                                    tick={{ fontSize: 10, fill: '#888' }}
+                                    tickFormatter={shortenTickLabel}
+                                  />
+                                  <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={(v) => `${v}`} />
+                                  <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #444' }} formatter={(value: any) => (value == null ? '—' : `${value} min`)} />
+                                  <Bar dataKey="durationMin" fill="#10b981" radius={[8, 8, 0, 0]}>
+                                    <LabelList dataKey="durationLabel" position="top" fill="#fff" fontSize={10} />
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1460,7 +1476,7 @@ const AdminQuizPage: React.FC = () => {
                       No results found
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto overflow-y-auto max-h-96 sm:max-h-[600px] scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-700">
                       <table className="w-full text-sm">
                         <thead className="bg-muted/40 border-b border-muted-foreground/10">
                           <tr>
@@ -1846,7 +1862,7 @@ const AdminQuizPage: React.FC = () => {
         </motion.div>
 
         {/* Questions List */}
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-screen sm:max-h-[1000px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-700 pr-2">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <h2 className="text-2xl font-semibold">
               Questions List
@@ -1895,7 +1911,7 @@ const AdminQuizPage: React.FC = () => {
                 transition={{ delay: index * 0.05 }}
               >
                 <Card>
-                  <CardContent className="pt-6">
+                  <CardContent className="pt-4 sm:pt-6 px-2 sm:px-4 md:px-6">
                     {/* Edit Form - shown when this question is being edited */}
                     {editingId === question.id ? (
                       <div className="space-y-4">
@@ -2126,7 +2142,7 @@ const AdminQuizPage: React.FC = () => {
                       </div>
                     ) : (
                       /* Question Display - shown when not editing */
-                      <div className="flex justify-between items-start gap-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4" >
                         {/* Image Section */}
                         {question.image_path && (() => {
                           const { data: imageUrl } = supabase.storage
@@ -2144,9 +2160,9 @@ const AdminQuizPage: React.FC = () => {
                           );
                         })()}
                         
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-bold text-lg">Q{index + 1}.</span>
+                        <div className="flex-1 w-full min-w-0">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="font-bold text-sm sm:text-lg">Q{index + 1}.</span>
                             <span className="text-xs bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 px-2 py-1 rounded">
                               {quizPasswords.find(qp => qp.id === question.quiz_password_id)?.quiz_name || "Unknown Quiz"}
                             </span>
@@ -2159,7 +2175,7 @@ const AdminQuizPage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <div className="font-semibold mb-4 prose max-w-none">
+                          <div className="font-semibold mb-4 prose prose-sm sm:prose max-w-full break-words w-full">
                             <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
                               {question.question_text}
                             </ReactMarkdown>
@@ -2167,28 +2183,28 @@ const AdminQuizPage: React.FC = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <div className={`flex items-center gap-2 ${question.correct_answer === 'a' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                               <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">A</span>
-                              <span className="text-sm prose max-w-none">
+                              <span className="text-sm prose prose-sm max-w-full break-words">
                                 <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{question.option_a}</ReactMarkdown>
                               </span>
-                              {question.correct_answer === 'a' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
+                              {question.correct_answer === 'a' && <span className="text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                             </div>
                             <div className={`flex items-center gap-2 ${question.correct_answer === 'b' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                               <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">B</span>
-                              <span className="text-sm prose max-w-none">
+                              <span className="text-sm prose prose-sm max-w-full break-words">
                                 <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{question.option_b}</ReactMarkdown>
                               </span>
-                              {question.correct_answer === 'b' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
+                              {question.correct_answer === 'b' && <span className="text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                             </div>
                             <div className={`flex items-center gap-2 ${question.correct_answer === 'c' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                               <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">C</span>
-                              <span className="text-sm prose max-w-none">
+                              <span className="text-sm prose prose-sm max-w-full break-words">
                                 <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{question.option_c}</ReactMarkdown>
                               </span>
-                              {question.correct_answer === 'c' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
+                              {question.correct_answer === 'c' && <span className="text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
                             </div>
                             <div className={`flex items-center gap-2 ${question.correct_answer === 'd' ? 'bg-green-100 dark:bg-green-900/20 p-2 rounded' : ''}`}>
                               <span className="font-bold text-sm bg-primary/20 px-2 py-1 rounded">D</span>
-                              <span className="text-sm prose max-w-none">
+                              <span className="text-sm prose prose-sm max-w-full break-words">
                                 <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{question.option_d}</ReactMarkdown>
                               </span>
                               {question.correct_answer === 'd' && <span className="ml-auto text-green-600 dark:text-green-400 text-xs font-bold">✓ Correct</span>}
@@ -2196,7 +2212,7 @@ const AdminQuizPage: React.FC = () => {
                           </div>
                         </div>
                         {(isAdminView || isMemberWithQuizGrant) && (
-                          <div className="flex gap-2">
+                          <div className="flex gap-1 sm:gap-2 w-full sm:w-auto flex-col sm:flex-row">
                             <Button
                               variant="outline"
                               size="sm"
