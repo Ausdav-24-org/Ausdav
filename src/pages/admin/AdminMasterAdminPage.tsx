@@ -1692,36 +1692,13 @@ export default function AdminMasterAdminPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">City</label>
-                <p className="text-sm font-medium">{selectedMemberDetails.city || 'Not provided'}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">University</label>
+                <p className="text-sm font-medium">{(selectedMemberDetails as any).university || 'Not provided'}</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">State</label>
-                <p className="text-sm font-medium">{selectedMemberDetails.state || 'Not provided'}</p>
-              </div>
-
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-muted-foreground mb-1">Address</label>
-                <p className="text-sm font-medium">{selectedMemberDetails.address || 'Not provided'}</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">Master Admin</label>
-                <p className="text-sm font-medium flex items-center gap-2">
-                  {selectedMemberDetails.is_master_admin ? (
-                    <>
-                      <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded-full">Yes</span>
-                    </>
-                  ) : (
-                    <span className="px-2 py-1 text-xs bg-gray-500/20 text-gray-400 rounded-full">No</span>
-                  )}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">Member ID</label>
-                <p className="text-sm font-medium text-muted-foreground">#{selectedMemberDetails.mem_id}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">School</label>
+                <p className="text-sm font-medium">{(selectedMemberDetails as any).school || 'Not provided'}</p>
               </div>
 
               <div>
