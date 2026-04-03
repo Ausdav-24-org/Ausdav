@@ -53,6 +53,7 @@ const navItems: NavItem[] = [
 
   { title: 'Patrons', href: '/admin/patrons', icon: UserPlus, roles: ['super_admin'] },
   { title: 'Designations', href: '/admin/designations', icon: User, roles: ['super_admin'] },
+  { title: 'Important Details', href: '/admin/details', icon: Settings, roles: ['super_admin'] },
 
   { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['member', 'admin', 'super_admin'], permissionKey: 'events' },
   { title: 'Quiz', href: '/admin/quiz', icon: ClipboardCheck, roles: ['member', 'admin', 'super_admin'], permissionKey: 'quiz' },
