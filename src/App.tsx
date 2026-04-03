@@ -57,6 +57,8 @@ import AdminSiteModePage from "@/pages/admin/AdminSiteModePage";
 // ✅ ADD THIS IMPORT (create this file or update the path to your actual results page)
 import AdminResultsPage from "@/pages/admin/AdminResultsPage";
 import AdminDesignationsPage from "@/pages/admin/AdminDesignationsPage";
+import AdminDetailsPage from "@/pages/admin/AdminDetailsPage";
+import AdminMasterAdminPage from "@/pages/admin/AdminMasterAdminPage";
 
 const queryClient = new QueryClient();
 
@@ -297,6 +299,7 @@ const App = () => {
                       path="designations"
                       element={<AdminDesignationsPage />}
                     />
+                    <Route path="details" element={<AdminDetailsPage />} />
                     <Route path="site-mode" element={<AdminSiteModePage />} />
                     <Route path="events" element={<AdminEventsPage />} />
                     <Route path="exam" element={<AdminExamPage />} />
@@ -315,6 +318,10 @@ const App = () => {
                     <Route
                       path="permissions"
                       element={<AdminPermissionsPage />}
+                    />
+                    <Route
+                      path="master-admin"
+                      element={<AdminMasterAdminPage />}
                     />
                     <Route path="contact" element={<ContactSettingsPage />} />
                     <Route path="audit" element={<AdminAuditPage />} />

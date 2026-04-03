@@ -118,6 +118,7 @@ export default function FinanceLedgerPage() {
   const { user, isSuperAdmin, isAdmin } = useAdminAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [descriptions, setDescriptions] = useState<string[]>([]);
   const allCategories = useMemo(
     () => ["All Categories", ...categories],
     [categories]
@@ -127,6 +128,7 @@ export default function FinanceLedgerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All Categories");
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterDescription, setFilterDescription] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -163,10 +165,26 @@ export default function FinanceLedgerPage() {
     useState<Transaction | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // View Receipt modal state
+  const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
+  const [viewingReceiptUrl, setViewingReceiptUrl] = useState<string | null>(null);
+  const [loadingReceiptView, setLoadingReceiptView] = useState(false);
+
   const canEdit = isSuperAdmin || isAdmin;
 
   useEffect(() => {
     fetchTransactions();
+  }, []);
+
+  // Cleanup: reset all loading states on unmount
+  useEffect(() => {
+    return () => {
+      setSaving(false);
+      setDeleting(false);
+      setAuditUploading(false);
+      setLoading(false);
+      setLoadingReceiptView(false);
+    };
   }, []);
 
   // Cleanup preview URL
@@ -178,6 +196,7 @@ export default function FinanceLedgerPage() {
   }, []);
 
   const fetchTransactions = async () => {
+    setLoading(true);
     try {
       // Fetch only approved finance records for the ledger
       const { data, error } = await supabase
@@ -193,6 +212,12 @@ export default function FinanceLedgerPage() {
         ...new Set((data || []).map((t: Tables<"finance">) => t.category))
       ].filter(Boolean) as string[];
       setCategories(uniqueCats);
+
+      // pull distinct descriptions from returned rows
+      const uniqueDescs = [
+        ...new Set((data || []).map((t: Tables<"finance">) => t.description).filter(Boolean))
+      ].filter(Boolean) as string[];
+      setDescriptions(uniqueDescs);
 
       // Fetch creator names from members or profiles
       const submitterIds = [
@@ -247,6 +272,10 @@ export default function FinanceLedgerPage() {
 
     const matchesType = filterType === "all" || txn.exp_type === filterType;
 
+    const matchesDescription =
+      filterDescription === "all" ||
+      txn.description === filterDescription;
+
     const matchesDateFrom =
       !dateFrom || (txn.txn_date && txn.txn_date >= dateFrom);
     const matchesDateTo = !dateTo || (txn.txn_date && txn.txn_date <= dateTo);
@@ -255,6 +284,7 @@ export default function FinanceLedgerPage() {
       matchesSearch &&
       matchesCategory &&
       matchesType &&
+      matchesDescription &&
       matchesDateFrom &&
       matchesDateTo
     );
@@ -459,6 +489,30 @@ export default function FinanceLedgerPage() {
     resetReceiptState();
   };
 
+  const handleViewReceipt = async (photoPath: string | null) => {
+    if (!photoPath) {
+      toast.error("No receipt image available");
+      return;
+    }
+
+    setLoadingReceiptView(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from("finance-photos")
+        .createSignedUrl(photoPath, 3600);
+
+      if (error) throw error;
+
+      setViewingReceiptUrl(data.signedUrl);
+      setViewReceiptOpen(true);
+    } catch (error) {
+      console.error("Error loading receipt:", error);
+      toast.error("Failed to load receipt image");
+    } finally {
+      setLoadingReceiptView(false);
+    }
+  };
+
   const handleReceiptChange = (file: File | null) => {
     if (file && file.size > MAX_RECEIPT_SIZE_BYTES) {
       toast.error("Receipt image must be 5 MB or smaller");
@@ -582,13 +636,15 @@ export default function FinanceLedgerPage() {
         toast.success("Transaction added successfully");
       }
 
+      // Close dialog and refresh
       handleCloseDialog();
-      fetchTransactions();
+      await fetchTransactions();
     } catch (error: unknown) {
-      console.error(error);
+      console.error("Error saving transaction:", error);
       toast.error(
         error instanceof Error ? error.message : "Failed to save transaction"
       );
+      // Don't close dialog on error - let user fix and retry
     } finally {
       setSaving(false);
     }
@@ -799,6 +855,23 @@ export default function FinanceLedgerPage() {
                   </Select>
                 </div>
 
+                {/* Description filter */}
+                <div className="w-full">
+                  <Select value={filterDescription} onValueChange={setFilterDescription}>
+                    <SelectTrigger className="w-full bg-background/50 text-xs sm:text-sm h-8 sm:h-9">
+                      <SelectValue placeholder="All Descriptions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Descriptions</SelectItem>
+                      {descriptions.map((desc) => (
+                        <SelectItem key={desc} value={desc}>
+                          {desc}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Date range - stack on mobile, side by side on sm+ */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full">
                   <Input
@@ -876,8 +949,8 @@ export default function FinanceLedgerPage() {
 
           {/* Transactions Table */}
           <Card className="bg-card/50 backdrop-blur-sm border-border">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <DollarSign className="h-5 w-5 text-primary" />
                 Transactions
                 <Badge className="ml-2">
@@ -904,7 +977,8 @@ export default function FinanceLedgerPage() {
                       <TableHead>Event</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
-                      {canEdit && <TableHead className="w-[50px]"></TableHead>}
+                      <TableHead className="w-[80px]">Receipt</TableHead>
+                      {canEdit && <TableHead className="w-[40px]"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -927,7 +1001,7 @@ export default function FinanceLedgerPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>{txn.category}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">
+                        <TableCell className="max-w-[120px] truncate text-sm">
                           {txn.description || "-"}
                         </TableCell>
                         <TableCell
@@ -940,6 +1014,26 @@ export default function FinanceLedgerPage() {
                         >
                           {txn.exp_type === "income" ? "+" : "-"} Rs.{" "}
                           {txn.amount.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          {txn.photo_path ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewReceipt(txn.photo_path)}
+                              disabled={loadingReceiptView}
+                              className="gap-1 text-xs h-8 px-2"
+                            >
+                              <ImageIcon className="h-3 w-3" />
+                              <span className="hidden sm:inline">
+                                {loadingReceiptView ? "Loading..." : "View"}
+                              </span>
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">
+                              -
+                            </span>
+                          )}
                         </TableCell>
                         {canEdit && (
                           <TableCell>
@@ -1271,6 +1365,28 @@ export default function FinanceLedgerPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* View Receipt Image Dialog */}
+        <Dialog open={viewReceiptOpen} onOpenChange={setViewReceiptOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Receipt Image</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center justify-center p-4">
+              {viewingReceiptUrl ? (
+                <img
+                  src={viewingReceiptUrl}
+                  alt="Receipt"
+                  className="max-w-full max-h-[70vh] rounded-lg object-contain border border-border"
+                />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading receipt image...
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </PermissionGate>
   );
