@@ -58,6 +58,7 @@ import AdminSiteModePage from "@/pages/admin/AdminSiteModePage";
 import AdminResultsPage from "@/pages/admin/AdminResultsPage";
 import AdminDesignationsPage from "@/pages/admin/AdminDesignationsPage";
 import AdminDetailsPage from "@/pages/admin/AdminDetailsPage";
+import AdminMasterAdminPage from "@/pages/admin/AdminMasterAdminPage";
 
 const queryClient = new QueryClient();
 
@@ -317,6 +318,10 @@ const App = () => {
                     <Route
                       path="permissions"
                       element={<AdminPermissionsPage />}
+                    />
+                    <Route
+                      path="master-admin"
+                      element={<AdminMasterAdminPage />}
                     />
                     <Route path="contact" element={<ContactSettingsPage />} />
                     <Route path="audit" element={<AdminAuditPage />} />
