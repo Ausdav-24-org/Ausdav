@@ -23,6 +23,7 @@ import {
   TrendingUp, // ✅ added for Results page icon
   Wrench,
   ClipboardCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoImg from '@/assets/logo/AUSDAV_llogo.png';
@@ -53,6 +54,7 @@ const navItems: NavItem[] = [
 
   { title: 'Patrons', href: '/admin/patrons', icon: UserPlus, roles: ['super_admin'] },
   { title: 'Designations', href: '/admin/designations', icon: User, roles: ['super_admin'] },
+  { title: 'Important Details', href: '/admin/details', icon: Settings, roles: ['super_admin'] },
 
   { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['member', 'admin', 'super_admin'], permissionKey: 'events' },
   { title: 'Quiz', href: '/admin/quiz', icon: ClipboardCheck, roles: ['member', 'admin', 'super_admin'], permissionKey: 'quiz' },
@@ -72,14 +74,14 @@ const navItems: NavItem[] = [
   { title: 'Claim Permission', href: '/admin/claim-permission', icon: HandHelping, roles: ['admin'] },
   { title: 'Permissions', href: '/admin/permissions', icon: Shield, roles: ['super_admin'] },
   { title: 'Contact', href: '/admin/contact', icon: Phone, roles: ['admin', 'super_admin'] },
-  { title: 'Audit Log', href: '/admin/audit', icon: FileText, roles: ['super_admin'] },
+  { title: 'Audit Log', href: '/admin/audit', icon: FileText, roles: ['admin', 'super_admin'] },
   { title: 'Settings', href: '/admin/settings', icon: Settings, roles: ['super_admin'] },
 ];
 
 export function AdminSidebar() {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768);
   const location = useLocation();
-  const { role, isSuperAdmin } = useAdminAuth();
+  const { role, isSuperAdmin, isMasterAdmin } = useAdminAuth();
   const { hasPermission } = useAdminGrantedPermissions();
   const [manualApplicantsOpen, setManualApplicantsOpen] = useState(false);
 
@@ -149,6 +151,19 @@ export function AdminSidebar() {
 
     return true;
   });
+
+  // Add Master Admin Control for Master Admins only (not regular super admin)
+  if (isMasterAdmin) {
+    const masterAdminItem: NavItem = {
+      title: 'Master Admin Control',
+      href: '/admin/master-admin',
+      icon: ShieldAlert,
+      roles: [],
+    };
+    // Insert before last items for better UX
+    const insertIndex = Math.max(0, filteredNavItems.length - 3);
+    filteredNavItems.splice(insertIndex, 0, masterAdminItem);
+  }
 
   return (
     <motion.aside

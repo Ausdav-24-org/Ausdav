@@ -21,6 +21,7 @@ interface MemberProfile {
   auth_user_id: string | null;
   profile_bucket: string;
   profile_path: string | null;
+  is_master_admin: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +35,7 @@ interface AdminAuthContextType {
   needsProfileSetup: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isMasterAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -147,6 +149,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAdmin = role === 'admin' || role === 'super_admin';
   const isSuperAdmin = role === 'super_admin';
+  const isMasterAdmin = profile?.is_master_admin === true;
 
   return (
     <AdminAuthContext.Provider
@@ -159,6 +162,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         needsProfileSetup,
         isAdmin,
         isSuperAdmin,
+        isMasterAdmin,
         signIn,
         signOut,
         refreshProfile,
