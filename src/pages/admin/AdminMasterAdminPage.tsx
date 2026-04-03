@@ -25,6 +25,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { FinanceAnalyticsChart } from '@/components/admin/FinanceAnalyticsChart';
+import { ActivityHeatmap } from '@/components/admin/ActivityHeatmap';
+import { MemberGrowthChart } from '@/components/admin/MemberGrowthChart';
+import { PermissionTrendChart } from '@/components/admin/PermissionTrendChart';
+import { SystemAlerts } from '@/components/admin/SystemAlerts';
+import { ActivityFeed } from '@/components/admin/ActivityFeed';
+import { NotificationPanel, Notification } from '@/components/admin/NotificationPanel';
 
 interface MasterAdmin {
   mem_id: number;
@@ -129,7 +136,8 @@ export default function AdminMasterAdminPage() {
   const [loading, setLoading] = useState(true);
   const [financeLoading, setFinanceLoading] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'master-admins' | 'members' | 'permissions' | 'finance' | 'audit'>('master-admins');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'members' | 'master-admins' | 'finance' | 'permissions' | 'audit' | 'analytics' | 'monitoring'>('dashboard');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [financeSearchQuery, setFinanceSearchQuery] = useState('');
   const [financeFilterType, setFinanceFilterType] = useState<string>('all');
   const [expandedAuditYear, setExpandedAuditYear] = useState<number | null>(null);
@@ -158,8 +166,15 @@ export default function AdminMasterAdminPage() {
       fetchFinanceTransactions();
     } else if (activeTab === 'audit') {
       fetchAuditLogs();
+    } else if (activeTab === 'analytics') {
+      fetchFinanceTransactions();
+    } else if (activeTab === 'monitoring') {
+      // Load all data for monitoring
+      if (financeTransactions.length === 0) fetchFinanceTransactions();
+      if (auditLogs.length === 0) fetchAuditLogs();
     }
-  }, [activeTab]);
+    // Dashboard uses data from initial fetchData call
+  }, [activeTab, financeTransactions.length, auditLogs.length]);
 
   useEffect(() => {
     let isActive = true;
@@ -501,6 +516,16 @@ export default function AdminMasterAdminPage() {
     return { income, expense, balance: income - expense };
   }, [filteredFinanceTransactions]);
 
+  const handleNotificationDismiss = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
+  const handleMarkNotificationAsRead = useCallback((id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  }, []);
+
   // Check if user is Master Admin (after all hooks)
   if (!isMasterAdmin) {
     return (
@@ -513,24 +538,31 @@ export default function AdminMasterAdminPage() {
 
   return (
     <div className="admin-container">
-      <AdminHeader
-        title="Master Admin Control Center"
-        breadcrumb="Admin / Master Admin Control"
-      />
+      <div className="flex items-center justify-between">
+        <AdminHeader
+          title="Master Admin Control Center"
+          breadcrumb="Admin / Master Admin Control"
+        />
+        <NotificationPanel
+          notifications={notifications}
+          onDismiss={handleNotificationDismiss}
+          onMarkAsRead={handleMarkNotificationAsRead}
+        />
+      </div>
 
       {/* Tabs */}
-      <div className="mt-6 border-b border-border">
-        <div className="flex gap-8">
+      <div className="mt-6 border-b border-border overflow-x-auto">
+        <div className="flex flex-wrap gap-2 sm:gap-4 lg:gap-8">
           <button
-            onClick={() => setActiveTab('master-admins')}
+            onClick={() => setActiveTab('dashboard')}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
-              activeTab === 'master-admins'
+              activeTab === 'dashboard'
                 ? 'text-primary border-b-2 border-primary'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Shield className="inline mr-2 h-4 w-4" />
-            Master Admins
+            <TrendingUp className="inline mr-2 h-4 w-4" />
+            Dashboard
           </button>
           <button
             onClick={() => setActiveTab('members')}
@@ -544,15 +576,15 @@ export default function AdminMasterAdminPage() {
             Members ({members.length})
           </button>
           <button
-            onClick={() => setActiveTab('permissions')}
+            onClick={() => setActiveTab('master-admins')}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
-              activeTab === 'permissions'
+              activeTab === 'master-admins'
                 ? 'text-primary border-b-2 border-primary'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <ShieldAlert className="inline mr-2 h-4 w-4" />
-            Access Permissions ({permissions.length})
+            <Shield className="inline mr-2 h-4 w-4" />
+            Master Admins
           </button>
           <button
             onClick={() => setActiveTab('finance')}
@@ -566,6 +598,17 @@ export default function AdminMasterAdminPage() {
             Finance Ledger
           </button>
           <button
+            onClick={() => setActiveTab('permissions')}
+            className={`px-4 py-3 font-medium text-sm transition-colors ${
+              activeTab === 'permissions'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ShieldAlert className="inline mr-2 h-4 w-4" />
+            Access Permissions ({permissions.length})
+          </button>
+          <button
             onClick={() => setActiveTab('audit')}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
               activeTab === 'audit'
@@ -576,6 +619,26 @@ export default function AdminMasterAdminPage() {
             <FileText className="inline mr-2 h-4 w-4" />
             Audit Logs
           </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-4 py-3 font-medium text-sm transition-colors ${
+              activeTab === 'analytics'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            📊 Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('monitoring')}
+            className={`px-4 py-3 font-medium text-sm transition-colors ${
+              activeTab === 'monitoring'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            ⚡ Monitoring
+          </button>
         </div>
       </div>
 
@@ -585,6 +648,209 @@ export default function AdminMasterAdminPage() {
         </div>
       ) : (
         <div className="mt-6">
+          {/* DASHBOARD TAB */}
+          {activeTab === 'dashboard' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="space-y-6">
+                {/* Key Statistics Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Total Members */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <Card className="bg-blue-500/10 border-blue-500/20">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Total Members</p>
+                            <p className="text-3xl font-bold text-blue-400">{members.length}</p>
+                          </div>
+                          <Users className="h-8 w-8 text-blue-400" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Master Admins */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <Card className="bg-red-500/10 border-red-500/20">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Master Admins</p>
+                            <p className="text-3xl font-bold text-red-400">{masterAdmins.length}</p>
+                          </div>
+                          <Shield className="h-8 w-8 text-red-400" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Permissions Granted */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <Card className="bg-purple-500/10 border-purple-500/20">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Permissions Active</p>
+                            <p className="text-3xl font-bold text-purple-400">{permissions.length}</p>
+                          </div>
+                          <ShieldAlert className="h-8 w-8 text-purple-400" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Net Balance */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <Card className={`${financeStats.balance >= 0 ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Net Balance</p>
+                            <p className={cn('text-3xl font-bold', financeStats.balance >= 0 ? 'text-green-400' : 'text-red-400')}>
+                              Rs. {financeStats.balance.toLocaleString()}
+                            </p>
+                          </div>
+                          <DollarSign className={cn('h-8 w-8', financeStats.balance >= 0 ? 'text-green-400' : 'text-red-400')} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </div>
+
+                {/* Finance Overview */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Income vs Expense */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    <Card className="bg-card/50 border-border">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Financial Summary</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <TrendingUp className="h-5 w-5 text-green-400" />
+                              <span className="text-sm text-muted-foreground">Income</span>
+                            </div>
+                            <p className="font-semibold text-green-400">Rs. {financeStats.income.toLocaleString()}</p>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <TrendingDown className="h-5 w-5 text-red-400" />
+                              <span className="text-sm text-muted-foreground">Expense</span>
+                            </div>
+                            <p className="font-semibold text-red-400">Rs. {financeStats.expense.toLocaleString()}</p>
+                          </div>
+                          <div className="border-t border-border pt-4 flex items-center justify-between">
+                            <span className="text-sm font-medium">Balance</span>
+                            <p className={cn('font-bold', financeStats.balance >= 0 ? 'text-green-400' : 'text-red-400')}>
+                              Rs. {financeStats.balance.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Quick Actions */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <Card className="bg-card/50 border-border">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Quick Actions</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <button
+                            onClick={() => setActiveTab('members')}
+                            className="w-full px-4 py-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
+                          >
+                            <Users className="h-4 w-4" />
+                            View All Members
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('master-admins')}
+                            className="w-full px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
+                          >
+                            <Shield className="h-4 w-4" />
+                            Manage Master Admins
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('finance')}
+                            className="w-full px-4 py-2 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
+                          >
+                            <DollarSign className="h-4 w-4" />
+                            View Finance Ledger
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('permissions')}
+                            className="w-full px-4 py-2 bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
+                          >
+                            <ShieldAlert className="h-4 w-4" />
+                            Check Permissions
+                          </button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </div>
+
+                {/* System Overview */}
+                <Card className="bg-card/50 border-border">
+                  <CardHeader>
+                    <CardTitle className="text-lg">System Overview</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-primary">{members.length}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Total Users</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-red-400">{masterAdmins.length}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Master Admins</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-purple-400">{permissions.length}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Active Permissions</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-blue-400">{auditLogs.length}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Audit Events</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </motion.div>
+          )}
+
           {/* MASTER ADMINS TAB */}
           {activeTab === 'master-admins' && (
             <motion.div
@@ -592,7 +858,7 @@ export default function AdminMasterAdminPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="mb-6 flex items-center gap-4">
+              <div className="mb-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <input
@@ -600,15 +866,16 @@ export default function AdminMasterAdminPage() {
                     placeholder="Search master admins..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                   />
                 </div>
                 <button
                   onClick={() => setShowAssignModal(true)}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 whitespace-nowrap text-sm"
                 >
                   <Plus className="h-4 w-4" />
-                  Assign Master Admin
+                  <span className="hidden sm:inline">Assign Master Admin</span>
+                  <span className="sm:hidden">Assign</span>
                 </button>
               </div>
 
@@ -676,13 +943,13 @@ export default function AdminMasterAdminPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Filter by Role</label>
                     <select
                       value={filterRole}
                       onChange={(e) => setFilterRole(e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                     >
                       <option value="">All Roles</option>
                       {uniqueRoles.map((role) => (
@@ -1148,14 +1415,112 @@ export default function AdminMasterAdminPage() {
               )}
             </motion.div>
           )}
+
+          {/* ANALYTICS TAB */}
+          {activeTab === 'analytics' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="space-y-6">
+                {/* Finance Analytics */}
+                {financeLoading ? (
+                  <div className="flex items-center justify-center min-h-[50vh]">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <>
+                    <FinanceAnalyticsChart transactions={financeTransactions} />
+                    <ActivityHeatmap auditLogs={auditLogs} />
+                    <MemberGrowthChart members={members} />
+                    <PermissionTrendChart permissions={permissions} />
+                  </>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* MONITORING TAB */}
+          {activeTab === 'monitoring' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="space-y-6">
+                {/* System Alerts */}
+                <SystemAlerts
+                  masterAdminsCount={masterAdmins.length}
+                  permissionsCount={permissions.length}
+                  membersCount={members.length}
+                  financeBalance={financeStats.balance}
+                />
+
+                {/* Activity Feed and Notifications */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2">
+                    <ActivityFeed
+                      masterAdmins={masterAdmins}
+                      members={members}
+                      permissions={permissions}
+                      transactions={financeTransactions}
+                      auditLogs={auditLogs}
+                    />
+                  </div>
+
+                  {/* Quick Stats */}
+                  <div className="space-y-4">
+                    <Card className="bg-blue-500/10 border-blue-500/20">
+                      <CardContent className="p-6">
+                        <p className="text-sm text-muted-foreground">Total Members</p>
+                        <p className="text-3xl font-bold text-blue-400 mt-2">{members.length}</p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {masterAdmins.length} master admin{masterAdmins.length === 1 ? '' : 's'}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-purple-500/10 border-purple-500/20">
+                      <CardContent className="p-6">
+                        <p className="text-sm text-muted-foreground">Active Permissions</p>
+                        <p className="text-3xl font-bold text-purple-400 mt-2">{permissions.length}</p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Assigned to {permissions.length} admin{permissions.length === 1 ? '' : 's'}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-green-500/10 border-green-500/20">
+                      <CardContent className="p-6">
+                        <p className="text-sm text-muted-foreground">System Status</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse"></div>
+                          <p className="text-sm font-semibold text-green-400">Operational</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-yellow-500/10 border-yellow-500/20">
+                      <CardContent className="p-6">
+                        <p className="text-sm text-muted-foreground">Audit Events</p>
+                        <p className="text-3xl font-bold text-yellow-400 mt-2">{auditLogs.length}</p>
+                        <p className="text-xs text-muted-foreground mt-2">Total recorded events</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
       )}
 
       {/* Assign Modal */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <motion.div
-            className="bg-card border border-border rounded-lg p-6 w-full max-w-md"
+            className="bg-card border border-border rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.2 }}
@@ -1239,9 +1604,9 @@ export default function AdminMasterAdminPage() {
 
       {/* Member Details Modal */}
       {showDetailsModal && selectedMemberDetails && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <motion.div
-            className="bg-card border border-border rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-card border border-border rounded-lg p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.2 }}
@@ -1285,7 +1650,7 @@ export default function AdminMasterAdminPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">Full Name</label>
                 <p className="text-sm font-medium">{selectedMemberDetails.fullname}</p>
@@ -1391,9 +1756,9 @@ export default function AdminMasterAdminPage() {
 
       {/* Password Confirmation Dialog for Revoking Master Admin */}
       {showRevokePasswordDialog && revokeTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <motion.div
-            className="bg-card border border-red-500/30 rounded-lg p-6 w-full max-w-md"
+            className="bg-card border border-red-500/30 rounded-lg p-4 sm:p-6 w-full max-w-md"
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.2 }}
