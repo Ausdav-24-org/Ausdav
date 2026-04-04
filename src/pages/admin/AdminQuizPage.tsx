@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { compressImageBlob } from "@/lib/imageCompression";
 import Papa from "papaparse";
 import QuizAttemptDetailsModal from "@/components/QuizAttemptDetailsModal";
 import QuizLiveMonitor from "@/components/admin/QuizLiveMonitor";
@@ -771,11 +772,24 @@ const AdminQuizPage: React.FC = () => {
         }
       }
 
+      // Compress image before uploading
+      const compressedBlob = await compressImageBlob(file, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: "image/jpeg",
+      });
+
+      const compressedSize = compressedBlob.size;
+      const originalSize = file.size;
+      const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+
       // Upload new image
       const fileName = `${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from("quiz-question-images")
-        .upload(`questions/${fileName}`, file);
+        .upload(`questions/${fileName}`, compressedBlob, {
+          contentType: "image/jpeg",
+        });
 
       if (uploadError) throw uploadError;
 
@@ -786,6 +800,10 @@ const AdminQuizPage: React.FC = () => {
         ...formData,
         image_path: relativePath,
       });
+
+      if (savingsPercent > 0) {
+        toast.success(`Question image compressed! (${savingsPercent}% smaller)`);
+      }
 
       // Show preview using the public URL
       const { data } = supabase.storage

@@ -7,6 +7,8 @@ import { renderCyanTail } from "@/utils/text";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DownloadCompressionDialog } from "@/components/DownloadCompressionDialog";
+import { useDownloadWithCompression } from "@/hooks/useDownloadWithCompression";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
 
 type Seminar = {
@@ -23,6 +25,15 @@ type Seminar = {
 const SeminarPage: React.FC = () => {
   const { t, language } = useLanguage();
 
+  const {
+    dialogOpen,
+    selectedFile,
+    isDownloading,
+    openDownloadDialog,
+    closeDownloadDialog,
+    handleDownload,
+  } = useDownloadWithCompression();
+
   // Fetch seminars from database
   const { data: seminars = [], isLoading: seminarsLoading } = useQuery({
     queryKey: ["seminars"],
@@ -37,7 +48,7 @@ const SeminarPage: React.FC = () => {
     },
   });
 
-  const openDownload = (seminar: Seminar, type: "paper" | "answers") => {
+  const openDownload = async (seminar: Seminar, type: "paper" | "answers") => {
     const bucket =
       type === "paper" ? seminar.seminar_paper_bucket : seminar.answers_bucket;
     const path = type === "paper" ? seminar.seminar_paper_path : seminar.answers_path;
@@ -59,15 +70,19 @@ const SeminarPage: React.FC = () => {
       return;
     }
 
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    if (data?.publicUrl) {
-      window.open(data.publicUrl, "_blank");
-    } else {
-      toast.error(
-        language === "en"
-          ? "Download link not available"
-          : "பதிவிறக்க இணைப்பு கிடைக்கவில்லை"
-      );
+    // Get file size from storage metadata
+    try {
+      const { data: fileList } = await supabase.storage.from(bucket).list(path.substring(0, path.lastIndexOf('/')));
+      const fileName = path.split('/').pop();
+      const fileData = fileList?.find(f => f.name === fileName);
+      const fileSize = fileData?.metadata?.size || 0;
+
+      const filename = `Seminar_${seminar.yrs}_${type}.pdf`;
+      openDownloadDialog(bucket, path, filename, 'pdf', fileSize);
+    } catch (err) {
+      console.error('Error fetching file size:', err);
+      const filename = `Seminar_${seminar.yrs}_${type}.pdf`;
+      openDownloadDialog(bucket, path, filename, 'pdf', 0);
     }
   };
 
@@ -231,6 +246,17 @@ const SeminarPage: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Download Compression Dialog */}
+      <DownloadCompressionDialog
+        open={dialogOpen}
+        onOpenChange={closeDownloadDialog}
+        filename={selectedFile?.filename || ''}
+        fileType={selectedFile?.fileType || 'pdf'}
+        originalSize={selectedFile?.originalSize || 0}
+        onDownload={handleDownload}
+        isLoading={isDownloading}
+      />
     </div>
   );
 };

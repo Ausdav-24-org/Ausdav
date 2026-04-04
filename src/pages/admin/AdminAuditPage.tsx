@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { compressPDFBlob } from "@/lib/pdfCompression";
 
 interface AuditAction {
   id: string;
@@ -110,9 +111,15 @@ export default function AdminAuditPage() {
       const fileName = `${data.year}_${safeEvent}_audit_summary.pdf`;
       const objectName = fileName.replace(/[^\w.-]/g, "_");
 
+      // Compress PDF before upload
+      const compressedBlob = await compressPDFBlob(data.auditFile, { quality: 'high' });
+      const originalSize = data.auditFile.size;
+      const compressedSize = compressedBlob.size;
+      const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(DEFAULT_BUCKET)
-        .upload(objectName, data.auditFile);
+        .upload(objectName, compressedBlob);
 
       if (uploadError) throw uploadError;
 
@@ -124,13 +131,19 @@ export default function AdminAuditPage() {
           bucket_id: DEFAULT_BUCKET,
           object_path: uploadData.path,
           file_name: fileName,
-          file_size: data.auditFile.size,
+          file_size: compressedSize,
           uploaded_by: currentUserId,
         })
         .select()
         .single();
 
       if (error) throw error;
+      
+      // Show compression feedback
+      if (savingsPercent > 0) {
+        toast.success(`Audit file compressed! (${savingsPercent}% smaller)`);
+      }
+      
       return result;
     },
     onSuccess: () => {
@@ -160,9 +173,15 @@ export default function AdminAuditPage() {
         const newFileName = `${data.year}_${safeEvent}_audit_summary.pdf`;
         const objectName = newFileName.replace(/[^\w.-]/g, "_");
 
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.auditFile, { quality: 'high' });
+        const originalSize = data.auditFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from(DEFAULT_BUCKET)
-          .upload(objectName, data.auditFile, { upsert: true });
+          .upload(objectName, compressedBlob, { upsert: true });
 
         if (uploadError) throw uploadError;
         if (
@@ -175,7 +194,12 @@ export default function AdminAuditPage() {
         }
         objectPath = uploadData.path;
         fileName = newFileName;
-        fileSize = data.auditFile.size;
+        fileSize = compressedSize;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Audit file compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       const { data: result, error } = await supabase

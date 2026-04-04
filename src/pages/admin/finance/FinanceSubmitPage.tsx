@@ -35,6 +35,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 
 interface FinanceRecord {
@@ -120,14 +121,31 @@ export default function FinanceSubmitPage() {
 
       // Upload receipt photo if provided
       if (receiptFile && user) {
-        const fileExt = receiptFile.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        // Compress receipt image before uploading
+        const compressedBlob = await compressImageBlob(receiptFile, {
+          maxSize: 1200,
+          quality: 0.92,
+          mimeType: "image/jpeg",
+        });
+
+        const compressedSize = compressedBlob.size;
+        const originalSize = receiptFile.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+
+        const fileName = `${user.id}/${Date.now()}.jpg`;
 
         const { error: uploadError } = await supabase.storage
           .from('finance-photos')
-          .upload(fileName, receiptFile);
+          .upload(fileName, compressedBlob, {
+            contentType: 'image/jpeg',
+          });
 
         if (uploadError) throw uploadError;
+        
+        if (savingsPercent > 0) {
+          toast.success(`Receipt compressed! (${savingsPercent}% smaller)`);
+        }
+        
         photo_path = fileName;
       }
 
@@ -323,11 +341,11 @@ export default function FinanceSubmitPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Receipt (PDF/Image)</Label>
+                    <Label>Receipt Image</Label>
                     <div className="flex items-center gap-4">
                       <Input
                         type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
+                        accept="image/*"
                         onChange={(e) =>
                           setReceiptFile(e.target.files?.[0] || null)
                         }

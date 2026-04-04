@@ -17,6 +17,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImageBlob } from '@/lib/imageCompression';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ImageCropper } from '@/components/ui/ImageCropper';
@@ -156,11 +157,20 @@ const ProfilePage: React.FC = () => {
       const oldProfilePath = profile.profile_path;
       const ext = file.name.split('.').pop() || 'jpg';
       const bucket = profile.profile_bucket || 'member-profiles';
-      const path = `${profile.auth_user_id || profile.mem_id}/avatar-${Date.now()}.${ext}`;
+      // Organized storage: batch/username_memberid.jpg
+      const filename = `${profile.username}_${profile.mem_id}.${ext}`;
+      const path = `${bucket}/${profile.batch}/${filename}`;
+
+      // Auto-compress with best quality (92% = minimal information loss)
+      const compressedBlob = await compressImageBlob(file, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: 'image/jpeg',
+      });
 
       const { error: uploadError } = await supabase.storage
         .from(bucket)
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, compressedBlob, { upsert: true, contentType: 'image/jpeg' });
       if (uploadError) throw uploadError;
 
       const { error: updateError } = await supabase
@@ -178,13 +188,46 @@ const ProfilePage: React.FC = () => {
         }
       }
 
-      toast.success('Profile picture updated');
+      const savings = file.size - compressedBlob.size;
+      const savingsPercent = Math.round((savings / file.size) * 100);
+      toast.success(`Profile picture updated! (Compressed ${savingsPercent}%)`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload image');
     } finally {
       setUploading(false);
     }
   };
+
+  // Remove profile picture completely
+  const handleAvatarRemove = async () => {
+    if (!profile?.profile_path) {
+      toast.error('No profile picture to remove');
+      return;
+    }
+    setUploading(true);
+    try {
+      const bucket = profile.profile_bucket || 'member-profiles';
+      // Delete from storage
+      const { error: deleteError } = await supabase.storage
+        .from(bucket)
+        .remove([profile.profile_path]);
+      if (deleteError) throw deleteError;
+
+      // Unset path in database
+      const { error: updateError } = await supabase
+        .from('members' as any)
+        .update({ profile_path: null })
+        .eq('mem_id', profile.mem_id);
+      if (updateError) throw updateError;
+
+      setAvatarUrl(undefined);
+      toast.success('Profile picture removed');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove image');
+    } finally {
+      setUploading(false);
+    }
+  };;
 
   const profileData = {
     photo: avatarUrl,
@@ -290,6 +333,17 @@ const ProfilePage: React.FC = () => {
                 <ImageAvatar photo={profileData.photo} alt={profileData.fullName} isDark={isDark} />
                 <span className="sr-only">Edit profile photo</span>
               </button>
+              {profileData.photo && !uploading && (
+                <button
+                  type="button"
+                  className="absolute top-0 right-0 bg-red-500/80 text-white rounded-full p-1 hover:bg-red-500 disabled:opacity-50"
+                  onClick={handleAvatarRemove}
+                  disabled={uploading}
+                  title="Remove photo"
+                >
+                  <span className="h-4 w-4 flex items-center justify-center text-xs">🗑️</span>
+                </button>
+              )}
               <input
                 ref={avatarInputRef}
                 type="file"
