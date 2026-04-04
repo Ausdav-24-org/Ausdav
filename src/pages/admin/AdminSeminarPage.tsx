@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import { Plus, Pencil, Trash2, FileText, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { compressPDFBlob } from '@/lib/pdfCompression';
 
 interface Seminar {
   sem_id: number;
@@ -74,24 +75,48 @@ export default function AdminSeminarPage() {
       if (data.seminarPaperFile) {
         const fileExt = data.seminarPaperFile.name.split('.').pop();
         const fileName = `${data.yrs}_seminar_paper.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.seminarPaperFile, { quality: 'high' });
+        const originalSize = data.seminarPaperFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('seminar-papers')
-          .upload(fileName, data.seminarPaperFile);
+          .upload(fileName, compressedBlob);
 
         if (uploadError) throw uploadError;
         seminarPaperPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Seminar paper compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Upload answers if provided
       if (data.answersFile) {
         const fileExt = data.answersFile.name.split('.').pop();
         const fileName = `${data.yrs}_answers.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.answersFile, { quality: 'high' });
+        const originalSize = data.answersFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('answers')
-          .upload(fileName, data.answersFile);
+          .upload(fileName, compressedBlob);
 
         if (uploadError) throw uploadError;
         answersPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Answers compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Create database record
@@ -129,24 +154,48 @@ export default function AdminSeminarPage() {
       if (data.seminarPaperFile) {
         const fileExt = data.seminarPaperFile.name.split('.').pop();
         const fileName = `${data.yrs}_seminar_paper.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.seminarPaperFile, { quality: 'high' });
+        const originalSize = data.seminarPaperFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('seminar-papers')
-          .upload(fileName, data.seminarPaperFile, { upsert: true });
+          .upload(fileName, compressedBlob, { upsert: true });
 
         if (uploadError) throw uploadError;
         seminarPaperPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Seminar paper compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Upload new answers if provided
       if (data.answersFile) {
         const fileExt = data.answersFile.name.split('.').pop();
         const fileName = `${data.yrs}_answers.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.answersFile, { quality: 'high' });
+        const originalSize = data.answersFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('answers')
-          .upload(fileName, data.answersFile, { upsert: true });
+          .upload(fileName, compressedBlob, { upsert: true });
 
         if (uploadError) throw uploadError;
         answersPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Answers compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Update database record

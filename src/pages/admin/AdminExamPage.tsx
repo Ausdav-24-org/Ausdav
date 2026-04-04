@@ -25,6 +25,7 @@ import {
 import { Plus, Pencil, Trash2, FileText, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { compressPDFBlob, getPDFCompressionDetails } from '@/lib/pdfCompression';
 
 interface PastPaper {
   pp_id: number;
@@ -81,24 +82,48 @@ export default function AdminExamPage() {
       if (data.examPaperFile) {
         const fileExt = data.examPaperFile.name.split('.').pop();
         const fileName = `${data.yrs}_${data.subject.replace(/\s+/g, '_')}_exam_paper.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.examPaperFile, { quality: 'high' });
+        const originalSize = data.examPaperFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('exam-papers')
-          .upload(fileName, data.examPaperFile);
+          .upload(fileName, compressedBlob);
 
         if (uploadError) throw uploadError;
         examPaperPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Exam paper compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Upload scheme if provided
       if (data.schemeFile) {
         const fileExt = data.schemeFile.name.split('.').pop();
         const fileName = `${data.yrs}_${data.subject.replace(/\s+/g, '_')}_scheme.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.schemeFile, { quality: 'high' });
+        const originalSize = data.schemeFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('schemes')
-          .upload(fileName, data.schemeFile);
+          .upload(fileName, compressedBlob);
 
         if (uploadError) throw uploadError;
         schemePath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Marking scheme compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Create database record
@@ -137,24 +162,48 @@ export default function AdminExamPage() {
       if (data.examPaperFile) {
         const fileExt = data.examPaperFile.name.split('.').pop();
         const fileName = `${data.yrs}_${data.subject.replace(/\s+/g, '_')}_exam_paper.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.examPaperFile, { quality: 'high' });
+        const originalSize = data.examPaperFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('exam-papers')
-          .upload(fileName, data.examPaperFile, { upsert: true });
+          .upload(fileName, compressedBlob, { upsert: true });
 
         if (uploadError) throw uploadError;
         examPaperPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Exam paper compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Upload new scheme if provided
       if (data.schemeFile) {
         const fileExt = data.schemeFile.name.split('.').pop();
         const fileName = `${data.yrs}_${data.subject.replace(/\s+/g, '_')}_scheme.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.schemeFile, { quality: 'high' });
+        const originalSize = data.schemeFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('schemes')
-          .upload(fileName, data.schemeFile, { upsert: true });
+          .upload(fileName, compressedBlob, { upsert: true });
 
         if (uploadError) throw uploadError;
         schemePath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Marking scheme compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Update database record

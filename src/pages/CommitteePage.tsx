@@ -108,9 +108,36 @@ const Card = ({
   onToggle: () => void;
 }) => {
   const [imgOk, setImgOk] = useState<boolean>(!!m.photo);
+  const [isVisible, setIsVisible] = useState<boolean>(false);
+  const imgRef = React.useRef<HTMLDivElement>(null);
   const name = lang === "en" ? m.name : m.nameTA;
   const role = lang === "en" ? m.role : m.roleTA;
   const work = (lang === "en" ? m.Work : m.WorkTA ?? m.Work).split(",");
+
+  // Lazy load image using Intersection Observer
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { rootMargin: "100px" } // Start loading 100px before image enters viewport
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => {
+      if (imgRef.current) {
+        observer.unobserve(imgRef.current);
+      }
+    };
+  }, []);
 
   // Mobile condensed view
   if (isMobile) {
@@ -127,25 +154,26 @@ const Card = ({
           isExpanded && "ring-2 ring-cyan-400"
         )}
       >
-        {/* Avatar */}
-        {imgOk && m.photo ? (
-          <div className="w-12 h-12 mx-auto mb-2 rounded-lg bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
-            <img
-              src={m.photo}
-              alt={name}
-              className="w-full h-full rounded-lg object-cover"
-              loading="lazy"
-              onError={() => setImgOk(false)}
-            />
-          </div>
-        ) : (
-          <div className="w-12 h-12 mx-auto mb-2 rounded-lg bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
-            <span className="text-xl font-bold text-primary-foreground">
-              {name.charAt(0)}
-            </span>
-          </div>
-        )}
-
+        {/* Avatar - Lazy loaded */}
+        <div ref={imgRef}>
+          {imgOk && m.photo && isVisible ? (
+            <div className="w-12 h-12 mx-auto mb-2 rounded-lg bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
+              <img
+                src={m.photo}
+                alt={name}
+                className="w-full h-full rounded-lg object-cover"
+                loading="lazy"
+                onError={() => setImgOk(false)}
+              />
+            </div>
+          ) : (
+            <div className="w-12 h-12 mx-auto mb-2 rounded-lg bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
+              <span className="text-xl font-bold text-primary-foreground">
+                {name.charAt(0)}
+              </span>
+            </div>
+          )}
+        </div>
         {/* Name and Role */}
         <h3 className={cn("font-bold mb-1 break-words", isMobile ? "text-xs leading-tight" : "text-base", isDark ? "text-white" : "")}>
           {name}
@@ -184,7 +212,7 @@ const Card = ({
     );
   }
 
-  // Desktop view (unchanged)
+  // Desktop view
   return (
     <motion.div
       initial={{ opacity: 0, y: 28 }}
@@ -211,23 +239,26 @@ const Card = ({
         </a>
       )}
 
-      {imgOk && m.photo ? (
-        <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
-          <img
-            src={m.photo}
-            alt={m.role === "Patron" ? "" : name}
-            className="w-full h-full rounded-2xl object-cover"
-            loading="lazy"
-            onError={() => setImgOk(false)}
-          />
-        </div>
-      ) : (
-        <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
-          <span className="text-3xl font-bold text-primary-foreground">
-            {name.charAt(0)}
-          </span>
-        </div>
-      )}
+      {/* Photo - Lazy loaded */}
+      <div ref={imgRef}>
+        {imgOk && m.photo && isVisible ? (
+          <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
+            <img
+              src={m.photo}
+              alt={m.role === "Patron" ? "" : name}
+              className="w-full h-full rounded-2xl object-cover"
+              loading="lazy"
+              onError={() => setImgOk(false)}
+            />
+          </div>
+        ) : (
+          <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
+            <span className="text-3xl font-bold text-primary-foreground">
+              {name.charAt(0)}
+            </span>
+          </div>
+        )}
+      </div>
 
       <h3 className={cn("font-bold text-xl mb-1", isDark ? "text-white" : "")}>
         {name}
@@ -402,19 +433,73 @@ const CommitteePage: React.FC = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  // Fetch members from DB with designations
+  // Fetch members from DB with designations - PAGINATED approach
+  const [selectedBatch, setSelectedBatch] = useState<number | null>(null);
+  const [availableBatches, setAvailableBatches] = useState<number[]>([]);
+  const [batchMembersMap, setBatchMembersMap] = useState<Map<number, MemberRow[]>>(new Map());
+
+  // Fetch unique batch years - optimized to fetch minimal data
+  const { data: batchesData } = useQuery<number[]>({
+    queryKey: ["committee-batches"],
+    queryFn: async () => {
+      // Fetch only batch column, deduplicate in JS (Supabase doesn't support DISTINCT in select yet)
+      const { data, error } = await supabase
+        .from("members")
+        .select("batch", { count: "estimated" })
+        .not("designation", "is", null)
+        .neq("designation", "none")
+        .neq("designation", "")
+        .order("batch", { ascending: false });
+      
+      if (error) throw error;
+      
+      // Get unique batches from minimal response
+      const uniqueBatches = Array.from(
+        new Set((data || []).map((row: any) => row.batch))
+      ).sort((a, b) => b - a); // Sort descending
+      
+      setSelectedBatch(uniqueBatches[0] || null);
+      setAvailableBatches(uniqueBatches);
+      return uniqueBatches;
+    },
+    staleTime: 1000 * 60 * 30, // 30 minutes
+  });
+
+  // Fetch members for CURRENT batch + adjacent batches only
+  const batchesToFetch = useMemo(() => {
+    if (!selectedBatch || !availableBatches.length) return [];
+    
+    const idx = availableBatches.indexOf(selectedBatch);
+    const batches = [selectedBatch];
+    
+    // Add previous batch
+    if (idx < availableBatches.length - 1) {
+      batches.push(availableBatches[idx + 1]);
+    }
+    
+    // Add next batch
+    if (idx > 0) {
+      batches.push(availableBatches[idx - 1]);
+    }
+    
+    return batches;
+  }, [selectedBatch, availableBatches]);
+
   const {
     data: membersRows,
     isLoading: membersLoading,
     error: membersError,
   } = useQuery<MemberRow[]>({
-    queryKey: ["committee-members"],
+    queryKey: ["committee-members-batches", batchesToFetch],
     queryFn: async () => {
+      if (batchesToFetch.length === 0) return [];
+      
       const { data, error } = await supabase
         .from("members")
         .select(
           "mem_id, fullname, designation, batch, university, uni_degree, profile_bucket, profile_path"
         )
+        .in("batch", batchesToFetch)
         .not("designation", "is", null)
         .neq("designation", "none")
         .neq("designation", "")
@@ -428,6 +513,7 @@ const CommitteePage: React.FC = () => {
     },
     staleTime: 1000 * 60 * 5,
     retry: 2,
+    enabled: batchesToFetch.length > 0,
   });
 
   useEffect(() => {
@@ -439,20 +525,75 @@ const CommitteePage: React.FC = () => {
         return;
       }
 
-      const entries = await Promise.all(
-        membersRows.map(async (row) => {
-          if (!row.profile_path) return [row.mem_id, ""] as const;
-          const bucket = row.profile_bucket || "member-profiles";
-          const { data, error } = await supabase.storage
-            .from(bucket)
-            .createSignedUrl(row.profile_path, 60 * 60);
-          if (error || !data?.signedUrl) return [row.mem_id, ""] as const;
-          return [row.mem_id, data.signedUrl] as const;
-        })
-      );
+      try {
+        // Prepare batch request: only include rows with profile_path
+        const filesToSign = membersRows
+          .filter(row => row.profile_path) // Must have path
+          .map(row => ({
+            id: row.mem_id,
+            path: row.profile_path!,
+            bucket: row.profile_bucket || "member-profiles", // Default to member-profiles if not set
+          }));
 
-      if (!isActive) return;
-      setMemberPhotoUrls(new Map(entries));
+        console.log(`CommitteePage: Preparing to fetch ${filesToSign.length}/${membersRows.length} member photos`);
+
+        // If no files to sign, clear the map
+        if (filesToSign.length === 0) {
+          console.warn('No members with profile_path found');
+          if (isActive) setMemberPhotoUrls(new Map());
+          return;
+        }
+
+        // Generate signed URLs directly using Supabase storage API
+        const results = await Promise.all(
+          filesToSign.map(async (file) => {
+            try {
+              const { data, error } = await supabase.storage
+                .from(file.bucket)
+                .createSignedUrl(file.path, 3600); // 1 hour expiry
+
+              if (error) {
+                return { id: file.id, error: error.message, path: file.path, bucket: file.bucket };
+              }
+
+              return { id: file.id, signedUrl: data?.signedUrl, path: file.path, bucket: file.bucket };
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : 'Unknown error';
+              return { id: file.id, error: errMsg, path: file.path, bucket: file.bucket };
+            }
+          })
+        );
+
+        if (!isActive) return;
+
+        // Build map from response, mapping only successful URLs
+        const failed: any[] = [];
+        const entries = results
+          .filter((item: any) => {
+            if (item.error) {
+              failed.push({ id: item.id, memberId: item.id, error: item.error, path: item.path });
+              return false;
+            }
+            return !!item.signedUrl;
+          })
+          .map((item: any) => [item.id, item.signedUrl] as const);
+
+        // Log failures with member details for debugging
+        if (failed.length > 0) {
+          console.warn(`Failed to fetch ${failed.length} profile pictures:`, failed);
+          // Try to find member names for debugging
+          const failedMembers = failed.map(f => {
+            const member = membersRows?.find(m => m.mem_id === f.id);
+            return { ...f, name: member?.fullname || 'Unknown', batch: member?.batch };
+          });
+          console.warn('Failed members details:', failedMembers);
+        }
+
+        setMemberPhotoUrls(new Map(entries));
+      } catch (error) {
+        console.error("Error loading member photos:", error);
+        if (isActive) setMemberPhotoUrls(new Map());
+      }
     };
 
     loadMemberPhotos();

@@ -68,6 +68,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { compressImageBlob } from "@/lib/imageCompression";
 import { Tables } from "@/integrations/supabase/types";
 
 interface Transaction {
@@ -535,18 +536,33 @@ export default function FinanceLedgerPage() {
     try {
       setReceiptUploading(true);
 
+      // Compress receipt image before uploading
+      const compressedBlob = await compressImageBlob(receiptFile, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: "image/jpeg",
+      });
+
+      const compressedSize = compressedBlob.size;
+      const originalSize = receiptFile.size;
+      const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+
       const safeName = receiptFile.name.replace(/[^\w.-]/g, "_");
       const path = `${user?.id || "admin"}/${Date.now()}-${safeName}`;
 
       const { error } = await supabase.storage
         .from(RECEIPT_BUCKET)
-        .upload(path, receiptFile, {
+        .upload(path, compressedBlob, {
           cacheControl: "3600",
           upsert: true,
-          contentType: receiptFile.type || "image/*",
+          contentType: "image/jpeg",
         });
 
       if (error) throw error;
+
+      if (savingsPercent > 0) {
+        toast.success(`Receipt compressed! (${savingsPercent}% smaller)`);
+      }
 
       return path;
     } finally {

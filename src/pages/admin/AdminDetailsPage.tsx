@@ -34,6 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 // Types
 interface AdminContact {
@@ -519,11 +520,23 @@ export default function AdminDetailsPage() {
 
     try {
       setLoadingImages(true);
+      
+      // Auto-compress image (1200px max, 92% quality)
+      const compressedBlob = await compressImageBlob(selectedImageFile, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: 'image/jpeg',
+      });
+      
+      const originalSize = selectedImageFile.size;
+      const compressedSize = compressedBlob.size;
+      const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+      
       // Upload to storage
       const filePath = `images/${Date.now()}-${selectedImageFile.name}`;
       const { error: uploadError } = await (supabase as any).storage
         .from('admin-documents')
-        .upload(filePath, selectedImageFile);
+        .upload(filePath, compressedBlob);
 
       if (uploadError) throw uploadError;
 
@@ -534,11 +547,18 @@ export default function AdminDetailsPage() {
           document_name: imageName,
           document_type: 'image',
           file_path: filePath,
-          file_size: selectedImageFile.size,
+          file_size: compressedSize,
         });
 
       if (dbError) throw dbError;
-      toast({ title: 'Success', description: 'Image uploaded successfully' });
+      
+      // Show compression feedback
+      if (savingsPercent > 0) {
+        toast({ title: 'Success', description: `Image uploaded and compressed! (${savingsPercent}% smaller)` });
+      } else {
+        toast({ title: 'Success', description: 'Image uploaded successfully' });
+      }
+      
       setImageName('');
       setSelectedImageFile(null);
       setShowImageDialog(false);

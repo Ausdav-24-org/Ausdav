@@ -203,16 +203,26 @@ export default function AdminProfilePage() {
     try {
       const oldProfilePath = profile.profile_path;
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `${profile.auth_user_id || profile.mem_id}/avatar-${Date.now()}.${ext}`;
+      // Organized storage: batch/username_memberid.jpg
+      const filename = `${profile.username}_${profile.mem_id}.${ext}`;
+      const path = `${profile.batch}/${filename}`;
+
+      // Auto-compress with best quality (92% = minimal information loss)
+      const compressedBlob = await compressImageBlob(file, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: 'image/jpeg',
+      });
+
       const { error: uploadError } = await supabase.storage
         .from('member-profiles')
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, compressedBlob, { upsert: true, contentType: 'image/jpeg' });
 
       if (uploadError) throw uploadError;
 
       const { error: updateError } = await supabase
         .from('members' as any)
-        .update({ profile_path: path })
+        .update({ profile_path: path, profile_bucket: 'member-profiles' })
         .eq('mem_id', profile.mem_id);
 
       if (updateError) throw updateError;
@@ -226,7 +236,10 @@ export default function AdminProfilePage() {
           console.warn('Failed to delete old profile image:', deleteError);
         }
       }
-      toast.success('Profile picture updated');
+
+      const savings = file.size - compressedBlob.size;
+      const savingsPercent = Math.round((savings / file.size) * 100);
+      toast.success(`Profile picture updated! (Compressed ${savingsPercent}%)`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload image');
     } finally {

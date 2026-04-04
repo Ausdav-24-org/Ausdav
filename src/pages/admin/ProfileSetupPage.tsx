@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { UserPlus, Save, Loader2, Shield, UploadCloud } from 'lucide-react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImageBlob } from '@/lib/imageCompression';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -140,10 +141,20 @@ export default function ProfileSetupPage() {
 
       if (photoFile) {
         const ext = photoFile.name.split('.').pop() || 'jpg';
-        const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+        // Organized storage: batch/username_userid.jpg
+        const filename = `${form.username}_${user.id}.${ext}`;
+        const path = `${batchNum}/${filename}`;
+
+        // Auto-compress with best quality (92% = minimal information loss)
+        const compressedBlob = await compressImageBlob(photoFile, {
+          maxSize: 1200,
+          quality: 0.92,
+          mimeType: 'image/jpeg',
+        });
+
         const { error: uploadError } = await supabase.storage
           .from('member-profiles')
-          .upload(path, photoFile, { upsert: true, contentType: photoFile.type });
+          .upload(path, compressedBlob, { upsert: true, contentType: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
         uploadedPath = path;
