@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Receipt,
@@ -36,7 +36,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { compressImageBlob } from '@/lib/imageCompression';
-
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { Tables } from '@/integrations/supabase/types';
 
 interface FinanceRecord {
   fin_id: number;
@@ -55,9 +56,12 @@ export default function FinanceSubmitPage() {
   const { user } = useAdminAuth();
   const [loading, setLoading] = useState(false);
   const [submissions, setSubmissions] = useState<FinanceRecord[]>([]);
+  const [approvedRecords, setApprovedRecords] = useState<FinanceRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [allowFinanceSubmissions, setAllowFinanceSubmissions] = useState<boolean | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [descriptions, setDescriptions] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     exp_type: 'income' as 'income' | 'expense',
@@ -68,10 +72,53 @@ export default function FinanceSubmitPage() {
   });
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
+  const filteredDescriptions = useMemo(() => {
+    if (!formData.category) return [];
+    // Filter from approved records (same as FinanceLedgerPage)
+    return [
+      ...new Set(
+        approvedRecords
+          .filter((t) => t.category === formData.category)
+          .map((t) => t.description)
+          .filter(Boolean)
+      ),
+    ] as string[];
+  }, [formData.category, approvedRecords]);
+
   useEffect(() => {
     fetchSettings();
     fetchSubmissions();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      // Fetch all approved records once to get categories and descriptions (same as FinanceLedgerPage)
+      const { data: allApproved } = await supabase
+        .from('finance')
+        .select('*')
+        .eq('approved', true);
+
+      if (allApproved && allApproved.length > 0) {
+        // Extract unique categories
+        const uniqueCats = [
+          ...new Set(allApproved.map(row => row.category).filter(Boolean))
+        ];
+        setCategories(uniqueCats);
+        
+        // Extract unique descriptions (all, not filtered by category - filtering happens in useMemo)
+        const uniqueDescs = [
+          ...new Set(allApproved.map(row => row.description).filter(Boolean))
+        ];
+        setDescriptions(uniqueDescs);
+        
+        // Store approved records for filtering descriptions in form
+        setApprovedRecords(allApproved);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -314,29 +361,22 @@ export default function FinanceSubmitPage() {
 
                     <div className="space-y-2">
                       <Label>Event *</Label>
-                    <Input
-                      value={formData.category}
-                      onChange={(e) =>
-                        setFormData({ ...formData, category: e.target.value })
-                      }
-                      placeholder="e.g. Pentathlon"
-                      className="bg-background/50"
-                      required
-                    />
-                  </div>
+                      <SearchableSelect
+                        value={formData.category}
+                        onChange={(value) => setFormData({ ...formData, category: value })}
+                        options={categories.length > 0 ? categories : ["Pentathlon", "Annual Sports", "Cultural Event"]}
+                        placeholder="Type or select event..."
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Description *</Label>
-                    <Textarea
+                    <SearchableSelect
                       value={formData.description}
-                      onChange={(e) =>
-                        setFormData({ ...formData, description: e.target.value })
-                      }
-                      placeholder="Details about this transaction..."
-                      className="bg-background/50"
-                      rows={3}
-                      required
+                      onChange={(value) => setFormData({ ...formData, description: value })}
+                      options={filteredDescriptions.length > 0 ? filteredDescriptions : ["Event expense", "Prizes", "Refreshments", "Venue"]}
+                      placeholder="Type or select description..."
                     />
                   </div>
 

@@ -69,6 +69,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { compressImageBlob } from "@/lib/imageCompression";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Tables } from "@/integrations/supabase/types";
 
 interface Transaction {
@@ -149,11 +150,24 @@ export default function FinanceLedgerPage() {
   const [formData, setFormData] = useState<TransactionFormData>(emptyFormData);
   const [saving, setSaving] = useState(false);
 
+  const filteredDescriptions = useMemo(() => {
+    if (!formData.category) return [];
+    return [
+      ...new Set(
+        transactions
+          .filter((t) => t.category === formData.category)
+          .map((t) => t.description)
+          .filter(Boolean)
+      ),
+    ] as string[];
+  }, [formData.category, transactions]);
+
   // ✅ NEW: Receipt upload state
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(
     null
   );
+  const [receiptFileSize, setReceiptFileSize] = useState<number | null>(null);
   const [existingReceiptUrl, setExistingReceiptUrl] = useState<string | null>(
     null
   );
@@ -165,6 +179,12 @@ export default function FinanceLedgerPage() {
   const [transactionToDelete, setTransactionToDelete] =
     useState<Transaction | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Bulk delete state
+  const [bulkDeleteCategory, setBulkDeleteCategory] = useState("All Categories");
+  const [bulkDeleteDescription, setBulkDeleteDescription] = useState("all");
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // View Receipt modal state
   const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
@@ -308,16 +328,30 @@ export default function FinanceLedgerPage() {
         .createSignedUrl(photoPath, 300);
 
       if (error) throw error;
-      const response = await fetch(data.signedUrl);
+      
+      // Add timeout to prevent hanging on slow images
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(data.signedUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
       if (!response.ok) return null;
       const blob = await response.blob();
 
+      // Defer FileReader operation to next microtask to prevent blocking main thread
       return await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () =>
-          reject(new Error("Failed to read receipt image"));
-        reader.readAsDataURL(blob);
+        // Use setTimeout with 0 to defer to next task execution
+        const timerId = setTimeout(() => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () =>
+            reject(new Error("Failed to read receipt image"));
+          reader.readAsDataURL(blob);
+        }, 1); // 1ms deferral for FileReader
+        
+        // Clear timeout if promise is rejected
+        return () => clearTimeout(timerId);
       });
     } catch (error) {
       console.error("Failed to load receipt image:", error);
@@ -421,6 +455,19 @@ export default function FinanceLedgerPage() {
   const exportPDF = async () => {
     setExportingPdf(true);
     try {
+      // Use requestIdleCallback to prevent blocking the main thread
+      if (typeof requestIdleCallback !== 'undefined') {
+        await new Promise<void>((resolve) => {
+          requestIdleCallback(() => {
+            resolve();
+          });
+        });
+      } else {
+        await new Promise<void>((resolve) => {
+          setTimeout(() => resolve(), 100);
+        });
+      }
+      
       const doc = await buildLedgerPdfDoc();
       doc.save(`finance-ledger-${new Date().toISOString().split("T")[0]}.pdf`);
       toast.success("PDF exported successfully");
@@ -434,6 +481,7 @@ export default function FinanceLedgerPage() {
 
   const resetReceiptState = () => {
     setReceiptFile(null);
+    setReceiptFileSize(null);
     if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
     setReceiptPreviewUrl(null);
     setExistingReceiptUrl(null);
@@ -521,6 +569,7 @@ export default function FinanceLedgerPage() {
     }
 
     setReceiptFile(file);
+    setReceiptFileSize(file ? file.size : null);
     if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
     setReceiptPreviewUrl(file ? URL.createObjectURL(file) : null);
     if (file) setExistingReceiptUrl(null);
@@ -537,9 +586,10 @@ export default function FinanceLedgerPage() {
       setReceiptUploading(true);
 
       // Compress receipt image before uploading
+      // Use smaller max size to speed up canvas operations
       const compressedBlob = await compressImageBlob(receiptFile, {
-        maxSize: 1200,
-        quality: 0.92,
+        maxSize: 800, // Reduced from 1200 for faster processing
+        quality: 0.85, // Slightly reduced from 0.92 for faster compression
         mimeType: "image/jpeg",
       });
 
@@ -746,6 +796,55 @@ export default function FinanceLedgerPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (!canEdit) {
+      toast.error("You don't have permission to delete transactions");
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      let query = supabase.from("finance").delete();
+
+      // Filter by category
+      if (bulkDeleteCategory !== "All Categories") {
+        query = query.eq("category", bulkDeleteCategory);
+      }
+
+      // Filter by description
+      if (bulkDeleteDescription !== "all") {
+        query = query.eq("description", bulkDeleteDescription);
+      }
+
+      const { error } = await query;
+
+      if (error) throw error;
+
+      toast.success(
+        `Deleted all transactions from ${bulkDeleteCategory}${
+          bulkDeleteDescription !== "all" ? " with description " + bulkDeleteDescription : ""
+        }`
+      );
+
+      // Batch updates and defer refresh to avoid blocking
+      setBulkDeleteCategory("All Categories");
+      setBulkDeleteDescription("all");
+      setBulkDeleteDialogOpen(false);
+      
+      // Defer the fetch to prevent handler timeout
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(() => fetchTransactions());
+      } else {
+        setTimeout(() => fetchTransactions(), 0);
+      }
+    } catch (err) {
+      console.error("Bulk delete error:", err);
+      toast.error("Failed to delete transactions");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   return (
     <PermissionGate permissionKey="finance" permissionName="Finance Handling">
       <div className="min-h-screen">
@@ -823,6 +922,38 @@ export default function FinanceLedgerPage() {
               </Card>
             </motion.div>
           </div>
+
+          <Card className="bg-card/50 backdrop-blur-sm border-border">
+            <CardHeader>
+              <CardTitle>Audit Summary Instructions</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground space-y-3">
+              <div>
+                Use the filters below to prepare the event-wise ledger summary.
+              </div>
+              <div>
+                Click{" "}
+                <span className="font-medium text-foreground">
+                  Upload Audit PDF
+                </span>{" "}
+                to generate the filtered PDF and save it in the Audit page.
+              </div>
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setAuditDialogOpen(true)}
+                  disabled={
+                    !canEdit ||
+                    filterCategory === "All Categories" ||
+                    filteredTransactions.length === 0
+                  }
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Audit PDF
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Filters */}
           <Card className="bg-card/50 backdrop-blur-sm border-border">
@@ -931,38 +1062,6 @@ export default function FinanceLedgerPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/50 backdrop-blur-sm border-border">
-            <CardHeader>
-              <CardTitle>Audit Summary Instructions</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-3">
-              <div>
-                Use the filters above to prepare the event-wise ledger summary.
-              </div>
-              <div>
-                Click{" "}
-                <span className="font-medium text-foreground">
-                  Upload Audit PDF
-                </span>{" "}
-                to generate the filtered PDF and save it in the Audit page.
-              </div>
-              <div className="pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setAuditDialogOpen(true)}
-                  disabled={
-                    !canEdit ||
-                    filterCategory === "All Categories" ||
-                    filteredTransactions.length === 0
-                  }
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Audit PDF
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Transactions Table */}
           <Card className="bg-card/50 backdrop-blur-sm border-border">
             <CardHeader className="pb-3">
@@ -985,19 +1084,20 @@ export default function FinanceLedgerPage() {
                   <p className="text-muted-foreground">No transactions found</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Event</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="w-[80px]">Receipt</TableHead>
-                      {canEdit && <TableHead className="w-[40px]"></TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <div className="max-h-[600px] overflow-y-auto border-t border-border scrollbar-thin scrollbar-thumb-border scrollbar-track-background/50" style={{ contain: "layout style" }}>
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background/80 backdrop-blur-sm border-b border-border" style={{ contain: "layout style" }}>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Event</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="w-[80px]">Receipt</TableHead>
+                        {canEdit && <TableHead className="w-[40px]"></TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                     {filteredTransactions.map((txn) => (
                       <TableRow key={txn.fin_id}>
                         <TableCell>
@@ -1081,15 +1181,114 @@ export default function FinanceLedgerPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Bulk Delete Danger Zone */}
+          {canEdit && (
+            <Card className="bg-red-500/5 border-red-500/20">
+              <CardHeader>
+                <CardTitle className="text-red-400 flex items-center gap-2">
+                  <Trash2 className="h-5 w-5" />
+                  Danger Zone: Bulk Delete
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Delete multiple transactions based on event and description. This action cannot be undone.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs sm:text-sm mb-2 block">Event to Delete</Label>
+                    <Select
+                      value={bulkDeleteCategory}
+                      onValueChange={setBulkDeleteCategory}
+                    >
+                      <SelectTrigger className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs sm:text-sm mb-2 block">Description to Delete</Label>
+                    <Select
+                      value={bulkDeleteDescription}
+                      onValueChange={setBulkDeleteDescription}
+                    >
+                      <SelectTrigger className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9">
+                        <SelectValue placeholder="All Descriptions" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Descriptions</SelectItem>
+                        {descriptions.map((desc) => (
+                          <SelectItem key={desc} value={desc}>
+                            {desc}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <Button
+                    variant="destructive"
+                    onClick={() => setBulkDeleteDialogOpen(true)}
+                    disabled={bulkDeleteCategory === "All Categories" || bulkDeleting}
+                    className="w-full sm:w-auto"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    {bulkDeleting ? "Deleting..." : "Delete Transactions"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
+
+        {/* Bulk Delete Confirmation Dialog */}
+        <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-red-400">
+                Delete All Matching Transactions?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                You are about to delete all transactions from event <strong>{bulkDeleteCategory}</strong>
+                {bulkDeleteDescription !== "all" && (
+                  <>
+                    {" "}
+                    with description <strong>{bulkDeleteDescription}</strong>
+                  </>
+                )}
+                . This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {bulkDeleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Add/Edit Transaction Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="w-[90vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
-            <DialogHeader className="space-y-1 sm:space-y-2">
+          <DialogContent className="w-[90vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4" style={{ contain: "layout style paint" }}>
+            <DialogHeader className="space-y-1 sm:space-y-2" style={{ contain: "layout" }}>
               <DialogTitle className="text-base sm:text-lg">
                 {editingTransaction
                   ? "Edit Transaction"
@@ -1102,8 +1301,8 @@ export default function FinanceLedgerPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-2 sm:space-y-4 py-2 sm:py-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+            <div className="space-y-2 sm:space-y-4 py-2 sm:py-4" style={{ contain: "layout style" }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4" style={{ contain: "layout" }}>
                 <div className="space-y-1 sm:space-y-2">
                   <Label className="text-xs sm:text-sm">Transaction Type *</Label>
                   <Select
@@ -1157,27 +1356,22 @@ export default function FinanceLedgerPage() {
 
                 <div className="space-y-1 sm:space-y-2">
                   <Label className="text-xs sm:text-sm">Event *</Label>
-                  <Input
+                  <SearchableSelect
                     value={formData.category}
-                    onChange={(e) =>
-                      setFormData({ ...formData, category: e.target.value })
-                    }
-                    placeholder="e.g. Pentathlon"
-                    className="bg-background/50 text-xs sm:text-sm h-8 sm:h-9"
+                    onChange={(value) => setFormData({ ...formData, category: value })}
+                    options={categories.length > 0 ? categories : ["Pentathlon", "Annual Sports", "Cultural Event"]}
+                    placeholder="Type or select event..."
                   />
                 </div>
               </div>
 
               <div className="space-y-1 sm:space-y-2">
                 <Label className="text-xs sm:text-sm">Description *</Label>
-                <Textarea
+                <SearchableSelect
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  placeholder="Details about this transaction..."
-                  className="bg-background/50 text-xs sm:text-sm"
-                  rows={3}
+                  onChange={(value) => setFormData({ ...formData, description: value })}
+                  options={filteredDescriptions.length > 0 ? filteredDescriptions : ["Event expense", "Prizes", "Refreshments", "Venue"]}
+                  placeholder="Type or select description..."
                 />
               </div>
 
@@ -1216,12 +1410,28 @@ export default function FinanceLedgerPage() {
                 </div>
 
                 {receiptPreviewUrl && (
-                  <div className="mt-1 sm:mt-2 overflow-hidden rounded-lg border border-border bg-background/40">
-                    <img
-                      src={receiptPreviewUrl}
-                      alt="Receipt preview"
-                      className="w-full h-32 sm:h-48 object-contain"
-                    />
+                  <div className="mt-1 sm:mt-2 space-y-2">
+                    <div className="overflow-hidden rounded-lg border border-border bg-background/40">
+                      <img
+                        src={receiptPreviewUrl}
+                        alt="Receipt preview"
+                        className="w-full h-32 sm:h-48 object-contain"
+                      />
+                    </div>
+                    
+                    {/* File size and compression info */}
+                    <div className="text-xs text-muted-foreground space-y-1 p-2 bg-blue-500/5 rounded border border-blue-500/20">
+                      <div className="flex items-center justify-between">
+                        <span>Original size:</span>
+                        <span className="font-semibold">{receiptFileSize ? (receiptFileSize / 1024).toFixed(2) : '0'} KB</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>Compression will happen before upload</span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
