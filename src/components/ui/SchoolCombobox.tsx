@@ -8,11 +8,12 @@ interface SchoolComboboxProps {
   onChange: (value: string) => void;
   options: string[];
   placeholder?: string;
+  autoOpenWhen?: boolean;
 }
 
-export const SchoolCombobox: React.FC<SchoolComboboxProps> = ({ value, onChange, options, placeholder }) => {
+export const SchoolCombobox: React.FC<SchoolComboboxProps> = ({ value, onChange, options, placeholder, autoOpenWhen = false }) => {
   const [inputValue, setInputValue] = React.useState(value || "");
-  const [showList, setShowList] = React.useState(false);
+  const [showList, setShowList] = React.useState(autoOpenWhen && options.length > 0);
   const filtered = options.filter(option => option.toLowerCase().includes(inputValue.toLowerCase()));
 
   // dropdown sizing: show up to 3 items at once, shrink to 2/1 when filtered is smaller
@@ -20,35 +21,85 @@ export const SchoolCombobox: React.FC<SchoolComboboxProps> = ({ value, onChange,
   const visibleCount = Math.min(Math.max(filtered.length, 1), 3);
 
   React.useEffect(() => {
+    // Sync inputValue when value prop changes from parent
     setInputValue(value || "");
   }, [value]);
 
+  React.useEffect(() => {
+    if (autoOpenWhen && options.length > 0) {
+      setShowList(true);
+    }
+  }, [autoOpenWhen, options.length]);
+
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [portalStyle, setPortalStyle] = React.useState<React.CSSProperties>({});
+  const rafRef = React.useRef<number | null>(null);
+  const debounceTimerRef = React.useRef<number | null>(null);
 
   const updatePortalPosition = React.useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setPortalStyle({
-      position: "fixed",
-      left: rect.left,
-      top: rect.bottom,
-      width: rect.width,
-      zIndex: 9999,
+    // Cancel any pending updates
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
+    
+    // Use requestAnimationFrame to batch DOM reads with renders
+    rafRef.current = requestAnimationFrame(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      
+      const rect = el.getBoundingClientRect();
+      setPortalStyle({
+        position: "fixed",
+        left: rect.left,
+        top: rect.bottom,
+        width: rect.width,
+        zIndex: 9999,
+      });
     });
   }, []);
 
+  const debouncedUpdatePosition = React.useCallback(() => {
+    // Cancel previous timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Debounce scroll/resize events by 100ms
+    debounceTimerRef.current = window.setTimeout(() => {
+      updatePortalPosition();
+    }, 100);
+  }, [updatePortalPosition]);
+
   React.useEffect(() => {
-    if (!showList) return;
+    if (!showList) {
+      // Cleanup RAF
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      return;
+    }
+    
+    // Initial position update
     updatePortalPosition();
-    window.addEventListener("resize", updatePortalPosition);
-    window.addEventListener("scroll", updatePortalPosition, true);
+    
+    // Use debounced position updates for resize/scroll
+    window.addEventListener("resize", debouncedUpdatePosition);
+    window.addEventListener("scroll", debouncedUpdatePosition, true);
+    
     return () => {
-      window.removeEventListener("resize", updatePortalPosition);
-      window.removeEventListener("scroll", updatePortalPosition, true);
+      window.removeEventListener("resize", debouncedUpdatePosition);
+      window.removeEventListener("scroll", debouncedUpdatePosition, true);
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
-  }, [showList, updatePortalPosition]);
+  }, [showList, updatePortalPosition, debouncedUpdatePosition]);
 
   return (
     <div className="relative font-sans" ref={containerRef}>
@@ -59,7 +110,11 @@ export const SchoolCombobox: React.FC<SchoolComboboxProps> = ({ value, onChange,
           setShowList(true);
         }}
         onFocus={() => setShowList(true)}
-        onBlur={() => setTimeout(() => setShowList(false), 100)}
+        onBlur={() => {
+          // Defer dropdown closing to allow selection to be processed
+          // Reduced from 100ms to 75ms for better responsiveness
+          setTimeout(() => setShowList(false), 75);
+        }}
         placeholder={placeholder}
         className="w-full rounded-sm"
       />
@@ -77,10 +132,13 @@ export const SchoolCombobox: React.FC<SchoolComboboxProps> = ({ value, onChange,
                 "px-3 py-2 cursor-pointer hover:bg-primary/20 whitespace-normal",
                 option === value && "bg-primary text-primary-foreground"
               )}
-              onMouseDown={() => {
+              onMouseDown={(e) => {
+                e.preventDefault();
+                // Call onChange first to update parent
                 onChange(option);
-                setInputValue(option);
+                // Close dropdown
                 setShowList(false);
+                // Let the useEffect sync inputValue from the updated value prop
               }}
             >
               {option}
