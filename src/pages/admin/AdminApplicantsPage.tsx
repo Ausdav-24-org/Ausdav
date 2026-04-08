@@ -1304,6 +1304,7 @@ export default function AdminApplicantsPage() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Applicant Details</DialogTitle>
+                  <DialogDescription>View the complete applicant information</DialogDescription>
                 </DialogHeader>
                 {selectedApplicant && (
                   <Card>

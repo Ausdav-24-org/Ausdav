@@ -45,7 +45,10 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     clickHandlerRef.current = (event: MouseEvent) => {
       const container = containerRef.current;
       if (container && !container.contains(event.target as Node)) {
-        setShowOptions(false);
+        // Defer state update to avoid forced reflow during event handler
+        requestAnimationFrame(() => {
+          setShowOptions(false);
+        });
       }
     };
 

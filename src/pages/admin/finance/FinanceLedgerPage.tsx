@@ -1597,6 +1597,7 @@ export default function FinanceLedgerPage() {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Receipt Image</DialogTitle>
+              <DialogDescription>View the receipt image attached to this transaction</DialogDescription>
             </DialogHeader>
             <div className="flex items-center justify-center p-4">
               {viewingReceiptUrl ? (
