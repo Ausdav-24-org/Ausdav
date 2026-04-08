@@ -42,18 +42,33 @@ export const useLiveViewerCount = () => {
         clearTimeout(updateTimeoutRef.current);
       }
       
-      updateTimeoutRef.current = setTimeout(() => {
-        if (mounted) {
+      // Use longer debounce (200ms) to batch multiple rapid presence updates
+      // Defer to requestIdleCallback to avoid blocking main thread
+      updateTimeoutRef.current = window.setTimeout(() => {
+        if (mounted && typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(() => {
+            if (mounted) {
+              const state = channel.presenceState();
+              const count = Object.keys(state).length;
+              
+              // Only update if count changed
+              if (count !== lastCountRef.current) {
+                lastCountRef.current = count;
+                setViewerCount(count);
+              }
+            }
+          }, { timeout: 1000 }); // Max 1 second wait
+        } else if (mounted) {
+          // Fallback if requestIdleCallback not available
           const state = channel.presenceState();
           const count = Object.keys(state).length;
           
-          // Only update if count changed
           if (count !== lastCountRef.current) {
             lastCountRef.current = count;
             setViewerCount(count);
           }
         }
-      }, 50); // 50ms debounce to batch rapid updates
+      }, 200); // 200ms debounce to batch presence updates
     };
 
     channel

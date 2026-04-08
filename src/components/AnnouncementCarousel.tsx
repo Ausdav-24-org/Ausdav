@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   Carousel,
@@ -114,6 +115,7 @@ const AnnouncementCarousel: React.FC<AnnouncementCarouselProps> = ({ announcemen
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{activeAnnouncement?.title}</DialogTitle>
+            <DialogDescription>School announcement details</DialogDescription>
           </DialogHeader>
           {activeAnnouncement && (
             <div className="space-y-4">

@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -177,18 +178,16 @@ const AdminEventsPage: React.FC = () => {
     return true;
   };
 
-  // Fetch galleries for a specific year
+  // Fetch galleries for a specific event (all years)
   const { data: galleries, isLoading: galleriesLoading } = useQuery({
     queryKey: ['galleries', selectedEventForGallery?.id ?? null],
     queryFn: async () => {
       if (!selectedEventForGallery) return [];
-      const year = new Date(selectedEventForGallery.event_date).getFullYear();
       const { data, error } = await supabaseDb
         .from('galleries')
         .select('id, event_id, year, title, description_en, description_ta, max_images, created_at')
         .eq('event_id', selectedEventForGallery.id)
-        .eq('year', year)
-        .order('created_at', { ascending: false });
+        .order('year', { ascending: false });
       if (error) throw error;
       return (data || []) as Gallery[];
     },
@@ -637,6 +636,9 @@ const AdminEventsPage: React.FC = () => {
               <DialogTitle className="text-lg sm:text-xl">
                 {editingEvent ? 'Edit Event' : 'Create New Event'}
               </DialogTitle>
+              <DialogDescription>
+                {editingEvent ? 'Update the event details and images' : 'Enter the event details and add an event image'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -759,6 +761,9 @@ const AdminEventsPage: React.FC = () => {
             <DialogTitle className="text-lg sm:text-xl">
               {showBulkUpload ? 'Bulk Image Upload' : `Gallery Management - ${selectedEventForGallery ? new Date(selectedEventForGallery.event_date).getFullYear() : ''}`}
             </DialogTitle>
+            <DialogDescription>
+              {showBulkUpload ? 'Upload multiple images to the gallery' : 'Manage event galleries and upload images'}
+            </DialogDescription>
           </DialogHeader>
           {showBulkUpload && selectedEventForGallery ? (
             <GalleryBulkUpload

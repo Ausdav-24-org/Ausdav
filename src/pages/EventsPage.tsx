@@ -507,6 +507,8 @@ const EventsPage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Facebook Embeds Section removed - now displayed on individual event detail pages */}
     </div>
   );
 };
