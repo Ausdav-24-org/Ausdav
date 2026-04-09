@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
-import { Users, Shield, DollarSign, FileText, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Users, Shield, DollarSign, FileText, Plus, Trash2, RefreshCw, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { MasterAdmin, MemberDetails, AdminPermission, FinanceTransaction, AuditAction } from '@/types/admin';
 
@@ -30,11 +31,13 @@ export function ActivityFeed({
   transactions,
   auditLogs,
 }: ActivityFeedProps) {
-  const activities = useMemo(() => {
+  const [itemsPerCategory, setItemsPerCategory] = useState(5);
+
+  const { activities, hasMore } = useMemo(() => {
     const events: ActivityEvent[] = [];
 
     // Recent master admin assignments
-    masterAdmins.slice(0, 5).forEach((admin) => {
+    masterAdmins.slice(0, itemsPerCategory).forEach((admin) => {
       events.push({
         id: `admin-${admin.mem_id}`,
         type: 'admin',
@@ -48,7 +51,7 @@ export function ActivityFeed({
     });
 
     // Recent member joins
-    members.slice(0, 5).forEach((member) => {
+    members.slice(0, itemsPerCategory).forEach((member) => {
       events.push({
         id: `member-${member.mem_id}`,
         type: 'member',
@@ -62,7 +65,7 @@ export function ActivityFeed({
     });
 
     // Recent permissions
-    permissions.slice(0, 5).forEach((perm) => {
+    permissions.slice(0, itemsPerCategory).forEach((perm) => {
       events.push({
         id: `perm-${perm.id}`,
         type: 'permission',
@@ -76,7 +79,7 @@ export function ActivityFeed({
     });
 
     // Recent transactions
-    transactions.slice(0, 5).forEach((txn) => {
+    transactions.slice(0, itemsPerCategory).forEach((txn) => {
       events.push({
         id: `txn-${txn.fin_id}`,
         type: 'finance',
@@ -90,7 +93,7 @@ export function ActivityFeed({
     });
 
     // Recent audit logs
-    auditLogs.slice(0, 5).forEach((log) => {
+    auditLogs.slice(0, itemsPerCategory).forEach((log) => {
       events.push({
         id: `audit-${log.id}`,
         type: 'audit',
@@ -104,8 +107,21 @@ export function ActivityFeed({
     });
 
     // Sort by timestamp (newest first)
-    return events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 15);
-  }, [masterAdmins, members, permissions, transactions, auditLogs]);
+    const sorted = events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    
+    // Check if there are more items to load in any category
+    const hasMoreItems =
+      masterAdmins.length > itemsPerCategory ||
+      members.length > itemsPerCategory ||
+      permissions.length > itemsPerCategory ||
+      transactions.length > itemsPerCategory ||
+      auditLogs.length > itemsPerCategory;
+
+    return {
+      activities: sorted,
+      hasMore: hasMoreItems,
+    };
+  }, [masterAdmins, members, permissions, transactions, auditLogs, itemsPerCategory]);
 
   const getTimeAgo = (date: Date): string => {
     const now = new Date();
@@ -126,7 +142,9 @@ export function ActivityFeed({
     <Card className="bg-card/50 border-border">
       <CardHeader>
         <CardTitle className="text-lg">Activity Feed</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">Latest system activities (last 15 events)</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Latest system activities ({activities.length} events {hasMore ? '- more available' : '- all shown'})
+        </p>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
@@ -136,47 +154,68 @@ export function ActivityFeed({
               <p className="text-sm text-muted-foreground">No recent activities</p>
             </div>
           ) : (
-            activities.map((activity, index) => {
-              const IconComponent = activity.icon;
-              return (
+            <>
+              {activities.map((activity, index) => {
+                const IconComponent = activity.icon;
+                return (
+                  <motion.div
+                    key={activity.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="p-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Icon */}
+                      <div className="flex-shrink-0 mt-1">
+                        <div className={`p-2 rounded-lg bg-muted/50`}>
+                          <IconComponent className={`h-4 w-4 ${activity.color}`} />
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-sm">{activity.action}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                              {activity.description}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                            {getTimeAgo(activity.timestamp)}
+                          </span>
+                        </div>
+
+                        {/* Actor */}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          By: <span className="font-medium text-foreground">{activity.actor}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+
+              {/* Load More Button */}
+              {hasMore && (
                 <motion.div
-                  key={activity.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="p-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors"
+                  transition={{ delay: activities.length * 0.05 }}
+                  className="pt-3"
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Icon */}
-                    <div className="flex-shrink-0 mt-1">
-                      <div className={`p-2 rounded-lg bg-muted/50`}>
-                        <IconComponent className={`h-4 w-4 ${activity.color}`} />
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-semibold text-sm">{activity.action}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                            {activity.description}
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                          {getTimeAgo(activity.timestamp)}
-                        </span>
-                      </div>
-
-                      {/* Actor */}
-                      <p className="text-xs text-muted-foreground mt-2">
-                        By: <span className="font-medium text-foreground">{activity.actor}</span>
-                      </p>
-                    </div>
-                  </div>
+                  <Button
+                    onClick={() => setItemsPerCategory((prev) => prev + 5)}
+                    variant="outline"
+                    className="w-full text-xs h-auto py-2"
+                  >
+                    <ChevronDown className="h-3 w-3 mr-1" />
+                    Load More Activities
+                  </Button>
                 </motion.div>
-              );
-            })
+              )}
+            </>
           )}
         </div>
       </CardContent>
