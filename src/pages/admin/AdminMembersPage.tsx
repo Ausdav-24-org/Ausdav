@@ -961,22 +961,6 @@ export default function AdminMembersPage() {
                   placeholder=""
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="invite-role">Role</Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="honourable">Honourable</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    {isSuperAdmin && (
-                      <SelectItem value="super_admin">Super Admin</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setInviteOpen(false)}>
