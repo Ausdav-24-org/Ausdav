@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -37,6 +38,7 @@ export default function AdminPatronsPage() {
   const isDark = theme === 'dark';
   const { isSuperAdmin } = useAdminAuth();
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PatronRow | null>(null);
   const [name, setName] = useState('');
@@ -137,9 +139,19 @@ export default function AdminPatronsPage() {
           console.warn('Failed to remove storage file', e);
         }
       }
+      return p;
     },
-    onSuccess: () => {
+    onSuccess: (p) => {
       queryClient.invalidateQueries({ queryKey: ['patrons'] });
+      
+      // Log danger zone action
+      logDangerAction({
+        page: 'patrons',
+        action: 'delete_patron',
+        targetId: p.id,
+        targetName: p.name || 'Unknown',
+      });
+      
       toast.success('Patron deleted');
     },
     onError: (err: any) => {

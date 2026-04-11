@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -136,6 +137,7 @@ type EventFormState = {
 
 const AdminEventsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabaseDb = supabase as unknown as SupabaseClient<any, any, any, any>;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -285,6 +287,17 @@ const AdminEventsPage: React.FC = () => {
     mutationFn: async (galleryId: string) => {
       console.log('Starting gallery deletion for:', galleryId);
 
+      // First get the gallery data to log
+      const { data: galleryData, error: galleryFetchError } = await supabaseDb
+        .from('galleries')
+        .select('id,year,title')
+        .eq('id', galleryId)
+        .maybeSingle();
+
+      if (galleryFetchError) {
+        console.error('Failed to fetch gallery data:', galleryFetchError);
+      }
+
       // First, get all images associated with this gallery
       const { data: galleryImages, error: fetchError } = await supabaseDb
         .from('gallery_images')
@@ -341,9 +354,22 @@ const AdminEventsPage: React.FC = () => {
       }
 
       console.log('Successfully deleted gallery record');
+      
+      return galleryData;
     },
-    onSuccess: () => {
+    onSuccess: (galleryData) => {
       queryClient.invalidateQueries({ queryKey: ['galleries', selectedEventForGallery?.id ?? null] });
+      
+      // Log danger zone action
+      if (galleryData) {
+        logDangerAction({
+          page: 'events',
+          action: 'delete_gallery',
+          targetId: galleryData.id,
+          targetName: galleryData.title || `Gallery ${galleryData.year}`,
+        });
+      }
+      
       toast.success('Gallery and all associated images deleted successfully');
     },
     onError: (error) => {
@@ -357,7 +383,7 @@ const AdminEventsPage: React.FC = () => {
     mutationFn: async (id: number) => {
       const { data: eventData, error: fetchError } = await supabaseDb
         .from('events')
-        .select('image_bucket,image_path')
+        .select('id,title_en,image_bucket,image_path')
         .eq('id', id)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -373,9 +399,22 @@ const AdminEventsPage: React.FC = () => {
         .delete()
         .eq('id', id.toString());
       if (error) throw error;
+      
+      return eventData;
     },
-    onSuccess: () => {
+    onSuccess: (eventData) => {
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
+      
+      // Log danger zone action
+      if (eventData) {
+        logDangerAction({
+          page: 'events',
+          action: 'delete_event',
+          targetId: String(eventData.id),
+          targetName: eventData.title_en || 'Unknown',
+        });
+      }
+      
       toast.success('Event deleted successfully');
     },
     onError: (error) => {

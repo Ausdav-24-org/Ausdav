@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ export default function AdminAuditPage() {
   const { role, isSuperAdmin, isAdmin } = useAdminAuth();
 
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AuditAction | null>(null);
@@ -287,9 +289,20 @@ export default function AdminAuditPage() {
         console.error("Database deletion error:", error);
         throw error;
       }
+      
+      return record;
     },
-    onSuccess: () => {
+    onSuccess: (record) => {
       queryClient.invalidateQueries({ queryKey: ["audit-actions"] });
+      
+      // Log danger zone action
+      logDangerAction({
+        page: 'audit',
+        action: 'delete_audit_record',
+        targetId: record.id,
+        targetName: `${record.event} ${record.year}`,
+      });
+      
       toast.success("Audit file deleted successfully");
     },
     onError: (error: unknown) => {

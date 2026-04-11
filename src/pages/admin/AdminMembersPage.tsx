@@ -53,6 +53,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminRefresh } from '@/hooks/useAdminRefresh';
 import { invokeFunction } from '@/integrations/supabase/functions';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import Papa from 'papaparse';
 import { cn } from '@/lib/utils';
 
@@ -78,6 +79,7 @@ type RawMember = Pick<
 
 export default function AdminMembersPage() {
   const { isSuperAdmin, isAdmin, role } = useAdminAuth();
+  const { logDangerAction } = useDangerZoneLog();
   const [members, setMembers] = useState<Member[]>([]);
   const [committeeChangingPhase, setCommitteeChangingPhase] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -299,6 +301,17 @@ export default function AdminMembersPage() {
         return;
       }
       const deletedIds = (deleted as any[]).map((d) => d.mem_id);
+      
+      // Log danger zone action for each deleted member
+      for (const deletedMember of deleted as any[]) {
+        await logDangerAction({
+          page: 'members',
+          action: 'delete_member',
+          targetId: String(deletedMember.mem_id),
+          targetName: deletedMember.fullname || 'Unknown',
+        });
+      }
+      
       setMembers((prev) => prev.filter((m) => !deletedIds.includes(m.mem_id)));
       setSelectedIds([]);
       toast.success('Member(s) removed');

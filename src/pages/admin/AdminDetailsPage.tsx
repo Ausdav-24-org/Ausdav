@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +62,7 @@ interface AdminDocument {
 export default function AdminDetailsPage() {
   const { isSuperAdmin } = useAdminAuth();
   const { toast } = useToast();
+  const { logDangerAction } = useDangerZoneLog();
 
   // Contacts & Patrons state (unified)
   const [allContacts, setAllContacts] = useState<AdminContact[]>([]);
@@ -272,6 +274,10 @@ export default function AdminDetailsPage() {
 
     try {
       setLoading(true);
+      // Get patron name for logging
+      const patronToDelete = contacts.find(c => c.id === id);
+      const patronName = patronToDelete?.name || 'Unknown Patron';
+      
       const { error } = await (supabase as any)
         .from('admin_contacts')
         .delete()
@@ -279,6 +285,15 @@ export default function AdminDetailsPage() {
 
       if (error) throw error;
       toast({ title: 'Success', description: 'Patron deleted successfully' });
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'details',
+        action: 'delete_contact',
+        targetId: String(id),
+        targetName: patronName,
+      });
+      
       await loadContacts();
     } catch (error: any) {
       toast({
@@ -462,6 +477,10 @@ export default function AdminDetailsPage() {
 
     try {
       setLoadingDocs(true);
+      // Get document name for logging
+      const docToDelete = documents.find(d => d.id === id);
+      const docName = docToDelete?.document_name || 'Unknown Document';
+      
       const { error } = await (supabase as any)
         .from('admin_documents')
         .delete()
@@ -469,6 +488,15 @@ export default function AdminDetailsPage() {
 
       if (error) throw error;
       toast({ title: 'Success', description: 'Document deleted successfully' });
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'details',
+        action: 'delete_document',
+        targetId: String(id),
+        targetName: docName,
+      });
+      
       await loadDocuments();
     } catch (error: any) {
       toast({
@@ -579,6 +607,10 @@ export default function AdminDetailsPage() {
 
     try {
       setLoadingImages(true);
+      // Get image name for logging
+      const imgToDelete = documents.find(d => d.id === id && d.document_type === 'image');
+      const imgName = imgToDelete?.document_name || 'Unknown Image';
+      
       const { error } = await (supabase as any)
         .from('admin_documents')
         .delete()
@@ -586,6 +618,15 @@ export default function AdminDetailsPage() {
 
       if (error) throw error;
       toast({ title: 'Success', description: 'Image deleted successfully' });
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'details',
+        action: 'delete_image',
+        targetId: String(id),
+        targetName: imgName,
+      });
+      
       await loadDocuments();
     } catch (error: any) {
       toast({

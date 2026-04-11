@@ -16,6 +16,7 @@ import {
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -105,6 +106,7 @@ interface Applicant {
 
 export default function AdminApplicantsPage() {
   const { isSuperAdmin, isAdmin } = useAdminAuth();
+  const { logDangerAction } = useDangerZoneLog();
 
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -588,6 +590,14 @@ export default function AdminApplicantsPage() {
       if (errorDb2) throw errorDb2;
 
       toast.success(`Successfully deleted ${applicantsToDelete.length} applicants from ${selectedYear} (both databases)`);
+      
+      // Log the bulk deletion
+      await logDangerAction({
+        page: 'applicants',
+        action: 'delete_batch_applicants',
+        targetId: String(selectedYear),
+        targetName: `${applicantsToDelete.length} applicants from ${selectedYear}`,
+      });
 
       const remainingApplicants = applicants.filter(a => a.year !== selectedYear);
       setApplicants(remainingApplicants);
