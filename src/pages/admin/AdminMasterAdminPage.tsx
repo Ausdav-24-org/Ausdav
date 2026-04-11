@@ -16,6 +16,8 @@ import {
   DollarSign,
   TrendingUp,
   TrendingDown,
+  Trash2,
+  Filter,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -125,6 +127,20 @@ interface AuditAction {
   created_at: string;
 }
 
+interface DangerZoneLog {
+  id: string;
+  admin_id: string;
+  page: string;
+  action: string;
+  target_id: string | null;
+  target_name: string | null;
+  reason_note: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  admin_name?: string;
+}
+
 export default function AdminMasterAdminPage() {
   const { isMasterAdmin } = useAdminAuth();
   const { toast } = useToast();
@@ -133,10 +149,12 @@ export default function AdminMasterAdminPage() {
   const [permissions, setPermissions] = useState<AdminPermission[]>([]);
   const [financeTransactions, setFinanceTransactions] = useState<FinanceTransaction[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditAction[]>([]);
+  const [dangerZoneLogs, setDangerZoneLogs] = useState<DangerZoneLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [financeLoading, setFinanceLoading] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'members' | 'master-admins' | 'finance' | 'permissions' | 'audit' | 'analytics' | 'monitoring'>('dashboard');
+  const [dangerZoneLoading, setDangerZoneLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'user-management' | 'access-control' | 'finance' | 'audit-compliance' | 'monitoring'>('dashboard');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [financeSearchQuery, setFinanceSearchQuery] = useState('');
   const [financeFilterType, setFinanceFilterType] = useState<string>('all');
@@ -156,6 +174,10 @@ export default function AdminMasterAdminPage() {
   const [revokePassword, setRevokePassword] = useState('');
   const [revokeTarget, setRevokeTarget] = useState<{ memId: number; fullname: string } | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [dangerZoneSearchQuery, setDangerZoneSearchQuery] = useState('');
+  const [dangerZoneFilterPage, setDangerZoneFilterPage] = useState<string>('all');
+  const [dangerZoneFilterAction, setDangerZoneFilterAction] = useState<string>('all');
+  const [dangerZoneSortBy, setDangerZoneSortBy] = useState<'newest' | 'oldest'>('newest');
 
   useEffect(() => {
     fetchData();
@@ -164,10 +186,9 @@ export default function AdminMasterAdminPage() {
   useEffect(() => {
     if (activeTab === 'finance') {
       fetchFinanceTransactions();
-    } else if (activeTab === 'audit') {
+    } else if (activeTab === 'audit-compliance') {
       fetchAuditLogs();
-    } else if (activeTab === 'analytics') {
-      fetchFinanceTransactions();
+      fetchDangerZoneLogs();
     } else if (activeTab === 'monitoring') {
       // Load all data for monitoring
       if (financeTransactions.length === 0) fetchFinanceTransactions();
@@ -263,6 +284,40 @@ export default function AdminMasterAdminPage() {
       });
     } finally {
       setAuditLoading(false);
+    }
+  };
+
+  const fetchDangerZoneLogs = async () => {
+    setDangerZoneLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('admin_danger_zone_logs')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Enrich logs with admin names from members table
+      const enrichedLogs = await Promise.all(
+        ((data as DangerZoneLog[]) || []).map(async (log) => {
+          const member = members.find(m => m.auth_user_id === log.admin_id);
+          return {
+            ...log,
+            admin_name: member?.fullname || 'Unknown Admin',
+          };
+        })
+      );
+      
+      setDangerZoneLogs(enrichedLogs);
+    } catch (err: any) {
+      console.error('Error fetching danger zone logs:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to load danger zone audit logs',
+      });
+    } finally {
+      setDangerZoneLoading(false);
     }
   };
 
@@ -552,7 +607,7 @@ export default function AdminMasterAdminPage() {
 
       {/* Tabs */}
       <div className="mt-6 border-b border-border overflow-x-auto">
-        <div className="flex flex-wrap gap-2 sm:gap-4 lg:gap-8">
+        <div className="flex flex-wrap gap-2 sm:gap-4 lg:gap-6">
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
@@ -565,26 +620,26 @@ export default function AdminMasterAdminPage() {
             Dashboard
           </button>
           <button
-            onClick={() => setActiveTab('members')}
+            onClick={() => setActiveTab('user-management')}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
-              activeTab === 'members'
+              activeTab === 'user-management'
                 ? 'text-primary border-b-2 border-primary'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Users className="inline mr-2 h-4 w-4" />
-            Members ({members.length})
+            Users & Admins ({members.length})
           </button>
           <button
-            onClick={() => setActiveTab('master-admins')}
+            onClick={() => setActiveTab('access-control')}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
-              activeTab === 'master-admins'
+              activeTab === 'access-control'
                 ? 'text-primary border-b-2 border-primary'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Shield className="inline mr-2 h-4 w-4" />
-            Master Admins
+            <ShieldAlert className="inline mr-2 h-4 w-4" />
+            Access Control ({permissions.length})
           </button>
           <button
             onClick={() => setActiveTab('finance')}
@@ -595,39 +650,18 @@ export default function AdminMasterAdminPage() {
             }`}
           >
             <DollarSign className="inline mr-2 h-4 w-4" />
-            Finance Ledger
+            Finance
           </button>
           <button
-            onClick={() => setActiveTab('permissions')}
+            onClick={() => setActiveTab('audit-compliance')}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
-              activeTab === 'permissions'
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <ShieldAlert className="inline mr-2 h-4 w-4" />
-            Access Permissions ({permissions.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('audit')}
-            className={`px-4 py-3 font-medium text-sm transition-colors ${
-              activeTab === 'audit'
+              activeTab === 'audit-compliance'
                 ? 'text-primary border-b-2 border-primary'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <FileText className="inline mr-2 h-4 w-4" />
-            Audit Logs
-          </button>
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`px-4 py-3 font-medium text-sm transition-colors ${
-              activeTab === 'analytics'
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            📊 Analytics
+            Audit & Compliance
           </button>
           <button
             onClick={() => setActiveTab('monitoring')}
@@ -788,32 +822,32 @@ export default function AdminMasterAdminPage() {
                       <CardContent>
                         <div className="space-y-3">
                           <button
-                            onClick={() => setActiveTab('members')}
+                            onClick={() => setActiveTab('user-management')}
                             className="w-full px-4 py-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
                           >
                             <Users className="h-4 w-4" />
-                            View All Members
-                          </button>
-                          <button
-                            onClick={() => setActiveTab('master-admins')}
-                            className="w-full px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
-                          >
-                            <Shield className="h-4 w-4" />
-                            Manage Master Admins
+                            Users & Admins
                           </button>
                           <button
                             onClick={() => setActiveTab('finance')}
                             className="w-full px-4 py-2 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
                           >
                             <DollarSign className="h-4 w-4" />
-                            View Finance Ledger
+                            View Finance
                           </button>
                           <button
-                            onClick={() => setActiveTab('permissions')}
+                            onClick={() => setActiveTab('access-control')}
                             className="w-full px-4 py-2 bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
                           >
                             <ShieldAlert className="h-4 w-4" />
-                            Check Permissions
+                            Access Control
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('audit-compliance')}
+                            className="w-full px-4 py-2 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 rounded-lg transition-colors text-sm font-medium flex items-center gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            Audit & Compliance
                           </button>
                         </div>
                       </CardContent>
@@ -852,7 +886,7 @@ export default function AdminMasterAdminPage() {
           )}
 
           {/* MASTER ADMINS TAB */}
-          {activeTab === 'master-admins' && (
+          {activeTab === 'user-management' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -924,8 +958,8 @@ export default function AdminMasterAdminPage() {
             </motion.div>
           )}
 
-          {/* MEMBERS TAB */}
-          {activeTab === 'members' && (
+          {/* MEMBERS TAB - Part of USER MANAGEMENT */}
+          {activeTab === 'user-management' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1037,7 +1071,7 @@ export default function AdminMasterAdminPage() {
           )}
 
           {/* ACCESS PERMISSIONS TAB */}
-          {activeTab === 'permissions' && (
+          {activeTab === 'access-control' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1328,8 +1362,8 @@ export default function AdminMasterAdminPage() {
             </motion.div>
           )}
 
-          {/* AUDIT LOGS TAB */}
-          {activeTab === 'audit' && (
+          {/* AUDIT LOGS TAB - Part of AUDIT & COMPLIANCE */}
+          {activeTab === 'audit-compliance' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1416,31 +1450,6 @@ export default function AdminMasterAdminPage() {
             </motion.div>
           )}
 
-          {/* ANALYTICS TAB */}
-          {activeTab === 'analytics' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="space-y-6">
-                {/* Finance Analytics */}
-                {financeLoading ? (
-                  <div className="flex items-center justify-center min-h-[50vh]">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : (
-                  <>
-                    <FinanceAnalyticsChart transactions={financeTransactions} />
-                    <ActivityHeatmap auditLogs={auditLogs} />
-                    <MemberGrowthChart members={members} />
-                    <PermissionTrendChart permissions={permissions} />
-                  </>
-                )}
-              </div>
-            </motion.div>
-          )}
-
           {/* MONITORING TAB */}
           {activeTab === 'monitoring' && (
             <motion.div
@@ -1511,6 +1520,147 @@ export default function AdminMasterAdminPage() {
                   </div>
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {/* DANGER ZONE AUDIT TAB - Part of AUDIT & COMPLIANCE */}
+          {activeTab === 'audit-compliance' && dangerZoneLogs.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {dangerZoneLoading ? (
+                <div className="flex items-center justify-center min-h-[50vh]">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : dangerZoneLogs.length === 0 ? (
+                <div className="text-center py-12">
+                  <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No deletion logs found</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Filters */}
+                  <Card className="bg-card/50 backdrop-blur-sm border-border">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col sm:flex-row gap-3 w-full">
+                        <div className="flex-1 relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="Search by admin name or target..."
+                            value={dangerZoneSearchQuery}
+                            onChange={(e) => setDangerZoneSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-xs sm:text-sm"
+                          />
+                        </div>
+                        <select
+                          value={dangerZoneFilterPage}
+                          onChange={(e) => setDangerZoneFilterPage(e.target.value)}
+                          className="px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-xs sm:text-sm"
+                        >
+                          <option value="all">All Pages</option>
+                          {Array.from(new Set(dangerZoneLogs.map(log => log.page)))
+                            .sort()
+                            .map(page => (
+                              <option key={page} value={page}>{page}</option>
+                            ))}
+                        </select>
+                        <select
+                          value={dangerZoneFilterAction}
+                          onChange={(e) => setDangerZoneFilterAction(e.target.value)}
+                          className="px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-xs sm:text-sm"
+                        >
+                          <option value="all">All Actions</option>
+                          {Array.from(new Set(dangerZoneLogs.map(log => log.action)))
+                            .sort()
+                            .map(action => (
+                              <option key={action} value={action}>{action}</option>
+                            ))}
+                        </select>
+                        <select
+                          value={dangerZoneSortBy}
+                          onChange={(e) => setDangerZoneSortBy(e.target.value as 'newest' | 'oldest')}
+                          className="px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-xs sm:text-sm"
+                        >
+                          <option value="newest">Newest First</option>
+                          <option value="oldest">Oldest First</option>
+                        </select>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Logs Table */}
+                  <Card className="bg-card/50 backdrop-blur-sm border-border">
+                    <CardContent className="p-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Admin</TableHead>
+                            <TableHead>Page</TableHead>
+                            <TableHead>Action</TableHead>
+                            <TableHead>Target</TableHead>
+                            <TableHead>Reason</TableHead>
+                            <TableHead>Timestamp</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {dangerZoneLogs
+                            .filter(log => {
+                              const matchesSearch =
+                                log.admin_name?.toLowerCase().includes(dangerZoneSearchQuery.toLowerCase()) ||
+                                log.target_name?.toLowerCase().includes(dangerZoneSearchQuery.toLowerCase()) ||
+                                false;
+                              const matchesPage = dangerZoneFilterPage === 'all' || log.page === dangerZoneFilterPage;
+                              const matchesAction = dangerZoneFilterAction === 'all' || log.action === dangerZoneFilterAction;
+                              return matchesSearch && matchesPage && matchesAction;
+                            })
+                            .sort((a, b) => {
+                              const dateA = new Date(a.created_at).getTime();
+                              const dateB = new Date(b.created_at).getTime();
+                              return dangerZoneSortBy === 'newest' ? dateB - dateA : dateA - dateB;
+                            })
+                            .map((log) => (
+                              <TableRow key={log.id}>
+                                <TableCell>
+                                  <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                                    {log.admin_name}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30">
+                                    {log.page}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">
+                                    {log.action}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-muted-foreground max-w-[200px] truncate block">
+                                    {log.target_name || log.target_id || '—'}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-muted-foreground max-w-[150px] truncate block">
+                                    {log.reason_note || '—'}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                    {new Date(log.created_at).toLocaleDateString() + ' ' + new Date(log.created_at).toLocaleTimeString()}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </motion.div>
           )}
         </div>
