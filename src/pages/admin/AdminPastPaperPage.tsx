@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +62,7 @@ export default function AdminPastPaperPage() {
   const canDelete = isAdmin || isSuperAdmin;
 
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
 
   // Fetch past papers
   const { data: pastPapers, isLoading } = useQuery({
@@ -255,9 +257,20 @@ export default function AdminPastPaperPage() {
         .eq('pp_id', pastPaper.pp_id);
 
       if (error) throw error;
+      
+      return pastPaper;
     },
-    onSuccess: () => {
+    onSuccess: (pastPaper) => {
       queryClient.invalidateQueries({ queryKey: ['past-papers'] });
+      
+      // Log danger zone action
+      logDangerAction({
+        page: 'past_papers',
+        action: 'delete_past_paper',
+        targetId: String(pastPaper.pp_id),
+        targetName: `${pastPaper.subject} ${pastPaper.yrs}`,
+      });
+      
       toast.success('Past paper deleted successfully');
     },
     onError: (error) => {

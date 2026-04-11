@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,6 +51,7 @@ export default function AdminSeminarPage() {
   const canDelete = isAdmin || isSuperAdmin;
 
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
 
   // Fetch seminars
   const { data: seminars, isLoading } = useQuery({
@@ -242,9 +244,20 @@ export default function AdminSeminarPage() {
         .eq('sem_id', seminar.sem_id);
 
       if (error) throw error;
+      
+      return seminar;
     },
-    onSuccess: () => {
+    onSuccess: (seminar) => {
       queryClient.invalidateQueries({ queryKey: ['seminars'] });
+      
+      // Log danger zone action
+      logDangerAction({
+        page: 'seminars',
+        action: 'delete_seminar',
+        targetId: String(seminar.sem_id),
+        targetName: `Seminar ${seminar.yrs}`,
+      });
+      
       toast.success('Seminar deleted successfully');
     },
     onError: (error) => {

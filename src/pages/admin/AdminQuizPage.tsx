@@ -10,6 +10,7 @@ import 'katex/dist/katex.min.css';
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ type SchoolQuizResult = {
 
 const AdminQuizPage: React.FC = () => {
   const { language } = useLanguage();
+  const { logDangerAction } = useDangerZoneLog();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [schoolResults, setSchoolResults] = useState<SchoolQuizResult[]>([]);
   // allow negative scores as low as -1500; upper bound 5000
@@ -574,6 +576,14 @@ const AdminQuizPage: React.FC = () => {
       fetchSchoolAnswersMap().catch(() => {});
 
       toast.success("All school results and answers deleted successfully");
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'quiz',
+        action: 'delete_all_results',
+        targetId: 'all',
+        targetName: `${allResults?.length || 0} quiz results`,
+      });
 
       // Verify deletion by fetching fresh data
       setTimeout(() => fetchSchoolResults(), 500);
@@ -609,6 +619,15 @@ const AdminQuizPage: React.FC = () => {
       if (aErr) console.error("Error deleting school answers:", aErr);
 
       toast.success(`Deleted results for ${schoolName}`);
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'quiz',
+        action: 'delete_school_results',
+        targetId: schoolName,
+        targetName: `Results for ${schoolName}`,
+      });
+      
       fetchSchoolResults();
       fetchSchoolAnswersMap().catch(() => {});
     } catch (err) {
@@ -714,6 +733,15 @@ const AdminQuizPage: React.FC = () => {
       if (error) throw error;
 
       toast.success("Question deleted");
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'quiz',
+        action: 'delete_question',
+        targetId: String(id),
+        targetName: `Question #${id}`,
+      });
+      
       fetchQuestions();
     } catch (error) {
       console.error("Error deleting question:", error);

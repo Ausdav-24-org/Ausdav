@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -57,6 +58,7 @@ export default function AdminExamPage() {
   const [schemeFile, setSchemeFile] = useState<File | null>(null);
 
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
 
   // Fetch past papers
   const { data: pastPapers, isLoading } = useQuery({
@@ -251,9 +253,20 @@ export default function AdminExamPage() {
         .eq('pp_id', paper.pp_id);
 
       if (error) throw error;
+      
+      return paper;
     },
-    onSuccess: () => {
+    onSuccess: (paper) => {
       queryClient.invalidateQueries({ queryKey: ['past-papers'] });
+      
+      // Log danger zone action
+      logDangerAction({
+        page: 'exam',
+        action: 'delete_exam_paper',
+        targetId: String(paper.pp_id),
+        targetName: `${paper.subject} ${paper.yrs}`,
+      });
+      
       toast.success('Past paper deleted successfully');
     },
     onError: (error) => {

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ThumbsUp, ThumbsDown, Trash2, Loader2 } from 'lucide-react';
@@ -14,10 +15,12 @@ const db = supabase as any;
 export default function AdminFeedbackPage() {
   const { isAdmin, isSuperAdmin } = useAdminAuth();
   const { hasPermission, loading: permsLoading } = useAdminGrantedPermissions();
+  const { logDangerAction } = useDangerZoneLog();
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [toDeleteId, setToDeleteId] = useState<string | null>(null);
+  const [toDeleteFeedback, setToDeleteFeedback] = useState<any | null>(null);
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null);
   const [classifyingFeedbackId, setClassifyingFeedbackId] = useState<string | null>(null);
 
@@ -80,6 +83,17 @@ export default function AdminFeedbackPage() {
     try {
       const { error } = await db.from('feedback').delete().eq('id', id);
       if (error) throw error;
+      
+      // Log danger zone action
+      if (toDeleteFeedback) {
+        logDangerAction({
+          page: 'feedback',
+          action: 'delete_feedback',
+          targetId: id,
+          targetName: (toDeleteFeedback.message || 'Untitled').substring(0, 100),
+        });
+      }
+      
       toast({ title: 'Deleted', description: 'Feedback removed' });
       fetchFeedback();
     } catch (err) {
@@ -88,12 +102,14 @@ export default function AdminFeedbackPage() {
     } finally {
       setDeletingFeedbackId(null);
       setToDeleteId(null);
+      setToDeleteFeedback(null);
       setDeleteConfirmOpen(false);
     }
   }; 
 
-  const requestDelete = (id: string) => {
-    setToDeleteId(id);
+  const requestDelete = (feedback: any) => {
+    setToDeleteId(feedback.id);
+    setToDeleteFeedback(feedback);
     setDeleteConfirmOpen(true);
   };
 
@@ -126,7 +142,7 @@ export default function AdminFeedbackPage() {
                         <div className="flex items-start justify-between">
                           <p className="text-sm text-muted-foreground">{new Date(f.created_at).toLocaleString()}</p>
                           {canClassify && (
-                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => requestDelete(f.id)} disabled={!!deletingFeedbackId}>
+                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => requestDelete(f)} disabled={!!deletingFeedbackId}>
                               {deletingFeedbackId === f.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                             </Button>
                           )}
@@ -165,7 +181,7 @@ export default function AdminFeedbackPage() {
                         <p className="mt-1">{f.message}</p>
                       </div>
                       {canClassify && (
-                        <Button size="sm" variant="ghost" className="text-destructive ml-3" onClick={() => requestDelete(f.id)}>
+                        <Button size="sm" variant="ghost" className="text-destructive ml-3" onClick={() => requestDelete(f)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
@@ -188,7 +204,7 @@ export default function AdminFeedbackPage() {
                         <p className="mt-1">{f.message}</p>
                       </div>
                       {canClassify && (
-                        <Button size="sm" variant="ghost" className="text-destructive ml-3" onClick={() => requestDelete(f.id)}>
+                        <Button size="sm" variant="ghost" className="text-destructive ml-3" onClick={() => requestDelete(f)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
