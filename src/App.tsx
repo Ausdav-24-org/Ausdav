@@ -57,7 +57,9 @@ const AdminResultsPage = lazy(() => import("@/pages/admin/AdminResultsPage"));
 const AdminDesignationsPage = lazy(() => import("@/pages/admin/AdminDesignationsPage"));
 const AdminDetailsPage = lazy(() => import("@/pages/admin/AdminDetailsPage"));
 const AdminMasterAdminPage = lazy(() => import("@/pages/admin/AdminMasterAdminPage"));
+const AdminBulkQRGeneratorPage = lazy(() => import("@/pages/admin/AdminBulkQRGeneratorPage"));
 const AdminProfileMigrationPage = lazy(() => import("@/pages/admin/AdminProfileMigrationPage"));
+const VerifyMemberPage = lazy(() => import("@/pages/VerifyMemberPage"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -288,6 +290,18 @@ const App = () => {
                     element={<Navigate to="/signup" replace />}
                   />
 
+                  {/* Member QR Code Verification - Public Route */}
+                  <Route
+                    path="/verify-member"
+                    element={
+                      <Layout>
+                        <Suspense fallback={<PageLoader />}>
+                          <VerifyMemberPage />
+                        </Suspense>
+                      </Layout>
+                    }
+                  />
+
                   <Route
                     path="/profile"
                     element={
@@ -340,6 +354,7 @@ const App = () => {
                     <Route path="claim-permission" element={<Suspense fallback={<PageLoader />}><ClaimPermissionPage /></Suspense>} />
                     <Route path="permissions" element={<Suspense fallback={<PageLoader />}><AdminPermissionsPage /></Suspense>} />
                     <Route path="master-admin" element={<Suspense fallback={<PageLoader />}><AdminMasterAdminPage /></Suspense>} />
+                    <Route path="bulk-qr-generator" element={<Suspense fallback={<PageLoader />}><AdminBulkQRGeneratorPage /></Suspense>} />
                     <Route path="profile-migration" element={<Suspense fallback={<PageLoader />}><AdminProfileMigrationPage /></Suspense>} />
                     <Route path="contact" element={<Suspense fallback={<PageLoader />}><ContactSettingsPage /></Suspense>} />
                     <Route path="audit" element={<Suspense fallback={<PageLoader />}><AdminAuditPage /></Suspense>} />

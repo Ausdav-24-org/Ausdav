@@ -18,6 +18,9 @@ import {
   TrendingDown,
   Trash2,
   Filter,
+  QrCode,
+  Download,
+  Link2,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -34,6 +37,13 @@ import { PermissionTrendChart } from '@/components/admin/PermissionTrendChart';
 import { SystemAlerts } from '@/components/admin/SystemAlerts';
 import { ActivityFeed } from '@/components/admin/ActivityFeed';
 import { NotificationPanel, Notification } from '@/components/admin/NotificationPanel';
+import { 
+  createQRCode, 
+  generateQRImage, 
+  expireQRCode, 
+  getAllQRCodes, 
+  downloadQRCodeAsImage 
+} from '@/services/memberQRService';
 
 interface MasterAdmin {
   mem_id: number;
@@ -98,6 +108,7 @@ interface MemberDetails {
   state: string;
   profile_bucket: string;
   profile_path: string | null;
+  batch?: number;
   created_at: string;
   updated_at: string;
 }
@@ -161,6 +172,27 @@ interface AdminActivity {
   activity_types: string[];
 }
 
+interface QRCode {
+  id: string;
+  mem_id: number;
+  qr_token: string;
+  generated_at: string;
+  expires_at: string;
+  is_active: boolean;
+  is_expired_manually: boolean;
+  scanned_count: number;
+  last_scanned_at?: string;
+}
+
+interface QRScanLog {
+  id: string;
+  qr_code_id: string;
+  mem_id: number;
+  scanned_at: string;
+  scanned_from_ip?: string;
+  verification_status: string;
+}
+
 export default function AdminMasterAdminPage() {
   const { isMasterAdmin } = useAdminAuth();
   const { toast } = useToast();
@@ -174,7 +206,7 @@ export default function AdminMasterAdminPage() {
   const [financeLoading, setFinanceLoading] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
   const [dangerZoneLoading, setDangerZoneLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'user-management' | 'access-control' | 'finance' | 'audit-compliance' | 'monitoring'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'user-management' | 'access-control' | 'finance' | 'audit-compliance' | 'monitoring' | 'qr-codes'>('dashboard');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [financeSearchQuery, setFinanceSearchQuery] = useState('');
   const [financeFilterType, setFinanceFilterType] = useState<string>('all');
@@ -202,6 +234,19 @@ export default function AdminMasterAdminPage() {
   const [permissionChangesLoading, setPermissionChangesLoading] = useState(false);
   const [adminActivityData, setAdminActivityData] = useState<AdminActivity[]>([]);
   const [adminActivityLoading, setAdminActivityLoading] = useState(false);
+  const [qrCodes, setQRCodes] = useState<QRCode[]>([]);
+  const [qrLoading, setQRLoading] = useState(false);
+  const [qrCodesMonitoring, setQRCodesMonitoring] = useState<any[]>([]);
+  const [qrMonitoringLoading, setQRMonitoringLoading] = useState(false);
+  const [qrSearchQuery, setQRSearchQuery] = useState('');
+  const [qrFilterActive, setQRFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedMemberForQR, setSelectedMemberForQR] = useState<MemberDetails | null>(null);
+  const [qrExpiryDays, setQRExpiryDays] = useState(30);
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [generatedQRImage, setGeneratedQRImage] = useState<string | null>(null);
+  const [generatedQRToken, setGeneratedQRToken] = useState<string | null>(null);
+  const [qrScanLogs, setQRScanLogs] = useState<QRScanLog[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -213,12 +258,18 @@ export default function AdminMasterAdminPage() {
     } else if (activeTab === 'audit-compliance') {
       fetchAuditLogs();
       fetchDangerZoneLogs();
+    } else if (activeTab === 'user-management') {
+      // Load QR codes for user management tab
+      fetchQRCodes();
     } else if (activeTab === 'monitoring') {
       // Load all data for monitoring
       if (financeTransactions.length === 0) fetchFinanceTransactions();
       if (auditLogs.length === 0) fetchAuditLogs();
       fetchPermissionChanges();
       fetchAdminActivityData();
+    } else if (activeTab === 'qr-codes') {
+      // Load QR codes for monitoring tab
+      fetchQRCodesMonitoring();
     }
     // Dashboard uses data from initial fetchData call
   }, [activeTab, financeTransactions.length, auditLogs.length]);
@@ -459,6 +510,147 @@ export default function AdminMasterAdminPage() {
     }
   };
 
+  const fetchQRCodes = async () => {
+    setQRLoading(true);
+    try {
+      const data = await getAllQRCodes(200);
+      setQRCodes(data);
+    } catch (err: any) {
+      console.error('Error fetching QR codes:', err);
+      setQRCodes([]);
+    } finally {
+      setQRLoading(false);
+    }
+  };
+
+  const fetchQRCodesMonitoring = async () => {
+    setQRMonitoringLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('member_qr_codes')
+        .select(`
+          id,
+          mem_id,
+          qr_token,
+          is_active,
+          is_expired_manually,
+          generated_at,
+          expires_at,
+          scanned_count,
+          last_scanned_at,
+          members(fullname, batch)
+        `)
+        .order('generated_at', { ascending: false });
+      
+      if (error) throw error;
+      setQRCodesMonitoring(data || []);
+    } catch (err: any) {
+      console.error('Error fetching QR codes monitoring data:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to load QR codes data',
+      });
+      setQRCodesMonitoring([]);
+    } finally {
+      setQRMonitoringLoading(false);
+    }
+  };
+
+  const handleGenerateQRCode = async () => {
+    if (!selectedMemberForQR) return;
+    
+    setIsGeneratingQR(true);
+    try {
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + qrExpiryDays);
+
+      // Create QR code in database
+      // (If member already has a QR, old one will be auto-deactivated)
+      const qrRecord = await createQRCode({
+        mem_id: selectedMemberForQR.mem_id,
+        expires_at: expiryDate,
+        member_name: selectedMemberForQR.fullname,
+        member_batch: selectedMemberForQR.batch || 0,
+      });
+
+      // Generate QR image
+      const qrImage = await generateQRImage(qrRecord.qr_token, selectedMemberForQR.fullname);
+      
+      setGeneratedQRImage(qrImage);
+      setGeneratedQRToken(qrRecord.qr_token);
+      
+      toast({
+        title: 'Success',
+        description: `New QR code generated for ${selectedMemberForQR.fullname}`,
+      });
+
+      // Refresh QR codes list
+      fetchQRCodes();
+    } catch (err: any) {
+      console.error('Error generating QR code:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err.message || 'Failed to generate QR code',
+      });
+    } finally {
+      setIsGeneratingQR(false);
+    }
+  };
+
+  const handleExpireQRCode = async (qrCodeId: string, memberName: string) => {
+    if (!window.confirm(`Delete QR code for ${memberName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await expireQRCode(qrCodeId);
+      
+      // Remove from local state immediately
+      setQRCodes(prev => prev.filter(qr => qr.id !== qrCodeId));
+      
+      toast({
+        title: 'Success',
+        description: 'QR code has been deleted',
+      });
+    } catch (err: any) {
+      console.error('Error deleting QR code:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete QR code',
+      });
+    }
+  };
+
+  const handleDownloadQRCode = async (qrToken: string, memberName: string) => {
+    try {
+      const qrImage = await generateQRImage(qrToken, memberName);
+      await downloadQRCodeAsImage(qrImage, memberName);
+      
+      toast({
+        title: 'Success',
+        description: 'QR code downloaded',
+      });
+    } catch (err: any) {
+      console.error('Error downloading QR code:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to download QR code',
+      });
+    }
+  };
+
+  const handleOpenQRModal = (member: MemberDetails) => {
+    setSelectedMemberForQR(member);
+    setGeneratedQRImage(null);
+    setGeneratedQRToken(null);
+    setQRExpiryDays(30);
+    setShowQRModal(true);
+  };
+
   const handleOpenAuditFile = async (record: AuditAction) => {
     try {
       const { data, error } = await supabase.storage
@@ -689,6 +881,13 @@ export default function AdminMasterAdminPage() {
 
   const uniqueRoles = useMemo(() => [...new Set(members.map((m) => m.role))].sort(), [members]);
 
+  // Helper to find active QR for a member
+  const getMemberActiveQR = useMemo(() => {
+    return (memberId: number) => {
+      return qrCodes.find(qr => qr.mem_id === memberId && qr.is_active);
+    };
+  }, [qrCodes]);
+
   const filteredFinanceTransactions = useMemo(() => {
     return financeTransactions.filter((txn) => {
       const matchesSearch =
@@ -810,6 +1009,17 @@ export default function AdminMasterAdminPage() {
             }`}
           >
             ⚡ Monitoring
+          </button>
+          <button
+            onClick={() => setActiveTab('qr-codes')}
+            className={`px-4 py-3 font-medium text-sm transition-colors ${
+              activeTab === 'qr-codes'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <QrCode className="inline mr-2 h-4 w-4" />
+            QR Codes ({qrCodesMonitoring.length})
           </button>
         </div>
       </div>
@@ -1193,13 +1403,40 @@ export default function AdminMasterAdminPage() {
                             Joined: {new Date(member.created_at).toLocaleDateString()}
                           </p>
                         </div>
-                        <button
-                          onClick={() => handleViewMemberDetails(member)}
-                          className="px-3 py-2 text-xs bg-primary/20 text-primary hover:bg-primary/30 rounded-lg transition-colors flex items-center gap-1"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View Details
-                        </button>
+                        <div className="flex gap-2 flex-col sm:flex-row">
+                          <button
+                            onClick={() => handleViewMemberDetails(member)}
+                            className="px-3 py-2 text-xs bg-primary/20 text-primary hover:bg-primary/30 rounded-lg transition-colors flex items-center justify-center gap-1"
+                          >
+                            <Eye className="h-4 w-4" />
+                            <span className="hidden sm:inline">View Details</span>
+                            <span className="sm:hidden">Details</span>
+                          </button>
+                          {getMemberActiveQR(member.mem_id) ? (
+                            <button
+                              onClick={() => {
+                                const activeQR = getMemberActiveQR(member.mem_id);
+                                if (activeQR) {
+                                  handleExpireQRCode(activeQR.id, member.fullname);
+                                }
+                              }}
+                              className="px-3 py-2 text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg transition-colors flex items-center justify-center gap-1"
+                            >
+                              <QrCode className="h-4 w-4" />
+                              <span className="hidden sm:inline">Deactivate QR</span>
+                              <span className="sm:hidden">Deactivate</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenQRModal(member)}
+                              className="px-3 py-2 text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 rounded-lg transition-colors flex items-center justify-center gap-1"
+                            >
+                              <QrCode className="h-4 w-4" />
+                              <span className="hidden sm:inline">Generate QR</span>
+                              <span className="sm:hidden">QR</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   ))}
@@ -1985,6 +2222,175 @@ export default function AdminMasterAdminPage() {
               )}
             </motion.div>
           )}
+
+          {/* QR CODES TAB */}
+          {activeTab === 'qr-codes' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {qrMonitoringLoading ? (
+                <div className="flex items-center justify-center min-h-[50vh]">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {/* Filters */}
+                  <Card className="bg-card/50 border-border">
+                    <CardContent className="p-4 space-y-4">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1 relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <input
+                            type="text"
+                            placeholder="Search by member name or token..."
+                            value={qrSearchQuery}
+                            onChange={(e) => setQRSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                          />
+                        </div>
+                        <select
+                          value={qrFilterActive}
+                          onChange={(e) => setQRFilterActive(e.target.value as 'all' | 'active' | 'inactive')}
+                          className="px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                        >
+                          <option value="all">All QR Codes</option>
+                          <option value="active">Active Only</option>
+                          <option value="inactive">Inactive Only</option>
+                        </select>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* QR Codes Table */}
+                  <Card className="bg-card/50 border-border">
+                    <CardHeader>
+                      <CardTitle>QR Codes Database</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto border border-border rounded-lg">
+                        <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-primary/40 scrollbar-track-muted/20">
+                          <table className="w-full text-sm">
+                            <thead className="sticky top-0 bg-card/95 backdrop-blur-sm z-10">
+                              <tr className="border-b border-border">
+                                <th className="text-left p-3 font-semibold w-1/5">Member</th>
+                                <th className="text-left p-3 font-semibold w-1/5">QR Token</th>
+                                <th className="text-left p-3 font-semibold w-1/6">Status</th>
+                                <th className="text-left p-3 font-semibold w-1/6">Generated</th>
+                                <th className="text-left p-3 font-semibold w-1/6">Expires</th>
+                                <th className="text-center p-3 font-semibold w-1/12">Scans</th>
+                                <th className="text-left p-3 font-semibold w-1/6">Last Scan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {qrCodesMonitoring
+                                .filter(qr => {
+                                  // Filter by status
+                                  if (qrFilterActive === 'active' && !qr.is_active) return false;
+                                  if (qrFilterActive === 'inactive' && qr.is_active) return false;
+                                  
+                                  // Filter by search query
+                                  if (qrSearchQuery) {
+                                    const query = qrSearchQuery.toLowerCase();
+                                    const memberName = qr.members?.fullname?.toLowerCase() || '';
+                                    const token = qr.qr_token?.toLowerCase() || '';
+                                    return memberName.includes(query) || token.includes(query);
+                                  }
+                                  return true;
+                                })
+                                .map((qr) => (
+                                  <tr key={qr.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                                    <td className="p-3 w-1/5">
+                                      <div>
+                                        <div className="font-medium">{qr.members?.fullname}</div>
+                                        <div className="text-xs text-muted-foreground">Batch {qr.members?.batch || 'N/A'}</div>
+                                      </div>
+                                    </td>
+                                    <td className="p-3 w-1/5">
+                                      <code className="text-xs bg-muted/50 px-2 py-1 rounded break-all">
+                                        {qr.qr_token?.substring(0, 12)}...
+                                      </code>
+                                    </td>
+                                    <td className="p-3 w-1/6">
+                                      {qr.is_expired_manually ? (
+                                        <Badge className="bg-red-500/20 text-red-400">Deleted</Badge>
+                                      ) : qr.is_active ? (
+                                        <Badge className="bg-emerald-500/20 text-emerald-400">Active</Badge>
+                                      ) : (
+                                        <Badge className="bg-orange-500/20 text-orange-400">Inactive</Badge>
+                                      )}
+                                    </td>
+                                    <td className="p-3 w-1/6 text-xs text-muted-foreground">
+                                      {new Date(qr.generated_at).toLocaleDateString()}
+                                    </td>
+                                    <td className="p-3 w-1/6 text-xs">
+                                      {new Date(qr.expires_at) < new Date() ? (
+                                        <span className="text-red-400">Expired</span>
+                                      ) : (
+                                        <span className="text-green-400">{new Date(qr.expires_at).toLocaleDateString()}</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3 w-1/12 text-center">
+                                      <Badge variant="outline">{qr.scanned_count || 0}</Badge>
+                                    </td>
+                                    <td className="p-3 w-1/6 text-xs text-muted-foreground">
+                                      {qr.last_scanned_at ? new Date(qr.last_scanned_at).toLocaleString() : '—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {qrCodesMonitoring.length === 0 && (
+                          <div className="text-center p-8 text-muted-foreground">
+                            No QR codes found
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Card className="bg-emerald-500/10 border-emerald-500/20">
+                      <CardContent className="p-6">
+                        <p className="text-sm text-muted-foreground">Active QR Codes</p>
+                        <p className="text-3xl font-bold text-emerald-400 mt-2">
+                          {qrCodesMonitoring.filter(qr => qr.is_active && !qr.is_expired_manually).length}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-orange-500/10 border-orange-500/20">
+                      <CardContent className="p-6">
+                        <p className="text-sm text-muted-foreground">Inactive QR Codes</p>
+                        <p className="text-3xl font-bold text-orange-400 mt-2">
+                          {qrCodesMonitoring.filter(qr => !qr.is_active || qr.is_expired_manually).length}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-blue-500/10 border-blue-500/20">
+                      <CardContent className="p-6">
+                        <p className="text-sm text-muted-foreground">Total Scans</p>
+                        <p className="text-3xl font-bold text-blue-400 mt-2">
+                          {qrCodesMonitoring.reduce((sum, qr) => sum + (qr.scanned_count || 0), 0)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-purple-500/10 border-purple-500/20">
+                      <CardContent className="p-6">
+                        <p className="text-sm text-muted-foreground">Total QR Codes</p>
+                        <p className="text-3xl font-bold text-purple-400 mt-2">
+                          {qrCodesMonitoring.length}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
         </div>
       )}
 
@@ -2268,6 +2674,164 @@ export default function AdminMasterAdminPage() {
                 )}
               </button>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* QR Code Generation Modal */}
+      {showQRModal && selectedMemberForQR && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            className="bg-card border border-border rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <QrCode className="h-6 w-6 text-primary" />
+              <h2 className="text-lg font-semibold">Generate Member QR Code</h2>
+            </div>
+
+            {!generatedQRImage ? (
+              <div className="space-y-4">
+                {/* Member Info */}
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Member Name</p>
+                    <p className="font-semibold">{selectedMemberForQR.fullname}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Batch</p>
+                    <p className="font-semibold">{selectedMemberForQR.batch || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="font-semibold text-sm">{selectedMemberForQR.email}</p>
+                  </div>
+                </div>
+
+                {/* Expiry Duration */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">QR Code Expiry (Days)</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="1"
+                      max="365"
+                      value={qrExpiryDays}
+                      onChange={(e) => setQRExpiryDays(parseInt(e.target.value))}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-medium bg-primary/20 text-primary px-3 py-1 rounded-lg">
+                      {qrExpiryDays}d
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Expires: {new Date(Date.now() + qrExpiryDays * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                  </p>
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                  <p className="text-xs text-blue-700">
+                    ℹ️ This QR code will be reusable until its expiration date or until manually expired by admin.
+                  </p>
+                </div>
+
+                {/* Generate Button */}
+                <button
+                  onClick={handleGenerateQRCode}
+                  disabled={isGeneratingQR}
+                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isGeneratingQR ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <QrCode className="h-4 w-4" />
+                      Generate QR Code
+                    </>
+                  )}
+                </button>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    setShowQRModal(false);
+                    setSelectedMemberForQR(null);
+                  }}
+                  className="w-full px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Generated QR Code Display */}
+                <div className="border-2 border-dashed border-primary rounded-lg p-4 bg-white flex items-center justify-center" style={{ aspectRatio: '1' }}>
+                  <img src={generatedQRImage} alt="Generated QR Code" className="w-full h-full object-contain" />
+                </div>
+
+                {/* QR Details */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <p className="text-sm font-semibold text-green-700">QR Code Generated Successfully!</p>
+                  </div>
+                  <p className="text-xs text-green-600">
+                    This code can be scanned by anyone to verify {selectedMemberForQR.fullname} as an AUSDAV member.
+                  </p>
+                </div>
+
+                {/* Share Options */}
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleDownloadQRCode(generatedQRToken!, selectedMemberForQR.fullname)}
+                    className="w-full px-4 py-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download as PNG
+                  </button>
+
+                  <div className="bg-muted/50 rounded-lg p-3 flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">Verification URL:</p>
+                      <p className="text-xs font-mono break-all text-primary">
+                        {`${window.location.origin}/verify-member?token=${encodeURIComponent(generatedQRToken || '')}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setGeneratedQRImage(null);
+                      setGeneratedQRToken(null);
+                    }}
+                    className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
+                  >
+                    Generate Another
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowQRModal(false);
+                      setSelectedMemberForQR(null);
+                      setGeneratedQRImage(null);
+                      setGeneratedQRToken(null);
+                    }}
+                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         </div>
       )}
