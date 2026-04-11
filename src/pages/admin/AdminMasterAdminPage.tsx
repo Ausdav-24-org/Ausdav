@@ -141,6 +141,26 @@ interface DangerZoneLog {
   admin_name?: string;
 }
 
+interface PermissionChange {
+  id: string;
+  admin_name: string;
+  admin_id: string;
+  permission_type: string;
+  action: 'granted' | 'revoked';
+  granted_by_name: string;
+  timestamp: string;
+  reason?: string;
+}
+
+interface AdminActivity {
+  admin_id: string;
+  admin_name: string;
+  hour: number;
+  date: string;
+  activity_count: number;
+  activity_types: string[];
+}
+
 export default function AdminMasterAdminPage() {
   const { isMasterAdmin } = useAdminAuth();
   const { toast } = useToast();
@@ -178,6 +198,10 @@ export default function AdminMasterAdminPage() {
   const [dangerZoneFilterPage, setDangerZoneFilterPage] = useState<string>('all');
   const [dangerZoneFilterAction, setDangerZoneFilterAction] = useState<string>('all');
   const [dangerZoneSortBy, setDangerZoneSortBy] = useState<'newest' | 'oldest'>('newest');
+  const [permissionChanges, setPermissionChanges] = useState<PermissionChange[]>([]);
+  const [permissionChangesLoading, setPermissionChangesLoading] = useState(false);
+  const [adminActivityData, setAdminActivityData] = useState<AdminActivity[]>([]);
+  const [adminActivityLoading, setAdminActivityLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -193,6 +217,8 @@ export default function AdminMasterAdminPage() {
       // Load all data for monitoring
       if (financeTransactions.length === 0) fetchFinanceTransactions();
       if (auditLogs.length === 0) fetchAuditLogs();
+      fetchPermissionChanges();
+      fetchAdminActivityData();
     }
     // Dashboard uses data from initial fetchData call
   }, [activeTab, financeTransactions.length, auditLogs.length]);
@@ -318,6 +344,118 @@ export default function AdminMasterAdminPage() {
       });
     } finally {
       setDangerZoneLoading(false);
+    }
+  };
+
+  const fetchPermissionChanges = async () => {
+    setPermissionChangesLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('admin_granted_permissions')
+        .select('*')
+        .order('granted_at', { ascending: false })
+        .limit(50);
+      
+      if (error) throw error;
+      
+      // Transform permission records into timeline changes
+      const changes: PermissionChange[] = (data || []).map((perm: any) => {
+        const admin = members.find(m => m.auth_user_id === perm.admin_id);
+        const grantedBy = members.find(m => m.auth_user_id === perm.granted_by);
+        
+        return {
+          id: perm.id,
+          admin_name: admin?.fullname || 'Unknown',
+          admin_id: perm.admin_id,
+          permission_type: perm.permission_key,
+          action: perm.is_active ? 'granted' : 'revoked',
+          granted_by_name: grantedBy?.fullname || 'Super Admin',
+          timestamp: perm.granted_at,
+        };
+      });
+      
+      setPermissionChanges(changes);
+    } catch (err: any) {
+      console.error('Error fetching permission changes:', err);
+    } finally {
+      setPermissionChangesLoading(false);
+    }
+  };
+
+  const fetchAdminActivityData = async () => {
+    setAdminActivityLoading(true);
+    try {
+      // Fetch danger zone logs and audit logs to build activity heatmap
+      const { data: dangerLogs } = await (supabase as any)
+        .from('admin_danger_zone_logs')
+        .select('*')
+        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Last 30 days
+      
+      const { data: auditLogData } = await (supabase as any)
+        .from('audit_actions')
+        .select('*')
+        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+      
+      // Build activity map by admin and hour
+      const activityMap: Record<string, AdminActivity> = {};
+      
+      (dangerLogs || []).forEach((log: any) => {
+        const date = new Date(log.created_at);
+        const hour = date.getHours();
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const admin = members.find(m => m.auth_user_id === log.admin_id);
+        const key = `${log.admin_id}-${dateStr}-${hour}`;
+        
+        if (!activityMap[key]) {
+          activityMap[key] = {
+            admin_id: log.admin_id,
+            admin_name: admin?.fullname || 'Unknown',
+            hour,
+            date: dateStr,
+            activity_count: 0,
+            activity_types: [],
+          };
+        }
+        
+        activityMap[key].activity_count++;
+        if (!activityMap[key].activity_types.includes(log.action)) {
+          activityMap[key].activity_types.push(log.action);
+        }
+      });
+      
+      (auditLogData || []).forEach((log: any) => {
+        const date = new Date(log.created_at);
+        const hour = date.getHours();
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const admin = members.find(m => m.auth_user_id === log.uploaded_by);
+        const key = `${log.uploaded_by}-${dateStr}-${hour}`;
+        
+        if (!activityMap[key] && admin) {
+          activityMap[key] = {
+            admin_id: log.uploaded_by,
+            admin_name: admin.fullname,
+            hour,
+            date: dateStr,
+            activity_count: 0,
+            activity_types: [],
+          };
+        }
+        
+        if (activityMap[key]) {
+          activityMap[key].activity_count++;
+          if (!activityMap[key].activity_types.includes('audit_upload')) {
+            activityMap[key].activity_types.push('audit_upload');
+          }
+        }
+      });
+      
+      setAdminActivityData(Object.values(activityMap));
+    } catch (err: any) {
+      console.error('Error fetching admin activity data:', err);
+    } finally {
+      setAdminActivityLoading(false);
     }
   };
 
@@ -1519,6 +1657,190 @@ export default function AdminMasterAdminPage() {
                     </Card>
                   </div>
                 </div>
+
+                {/* Permission Changes Timeline */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <Card className="bg-card/50 border-border">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Clock className="h-5 w-5 text-blue-400" />
+                          Permission Changes Timeline
+                        </CardTitle>
+                        {permissionChangesLoading && (
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Recent permission grants and revocations</p>
+                    </CardHeader>
+                    <CardContent>
+                      {permissionChangesLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      ) : permissionChanges.length === 0 ? (
+                        <div className="text-center py-8">
+                          <ShieldAlert className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">No permission changes recorded</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {permissionChanges.slice(0, 10).map((change, idx) => (
+                            <motion.div
+                              key={change.id}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: idx * 0.05 }}
+                              className="flex items-start gap-4 pb-4 border-b border-border last:border-b-0 last:pb-0"
+                            >
+                              <div className="flex-shrink-0">
+                                <div className={`w-2 h-2 rounded-full mt-2 ${change.action === 'granted' ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge className={change.action === 'granted' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}>
+                                    {change.action === 'granted' ? 'Granted' : 'Revoked'}
+                                  </Badge>
+                                  <span className="font-medium text-sm">{change.admin_name}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Permission: <span className="text-foreground">{change.permission_type}</span>
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  By: {change.granted_by_name} • {new Date(change.timestamp).toLocaleString()}
+                                </p>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+
+                {/* Admin Activity Heatmap */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <Card className="bg-card/50 border-border">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5 text-orange-400" />
+                          Admin Activity Heatmap
+                        </CardTitle>
+                        {adminActivityLoading && (
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">Activity patterns by admin (last 30 days)</p>
+                    </CardHeader>
+                    <CardContent>
+                      {adminActivityLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      ) : adminActivityData.length === 0 ? (
+                        <div className="text-center py-8">
+                          <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">No activity data available</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {/* Grouped by admin */}
+                          {Array.from(new Set(adminActivityData.map(a => a.admin_id))).map((adminId) => {
+                            const adminActivities = adminActivityData.filter(a => a.admin_id === adminId);
+                            const adminName = adminActivities[0].admin_name;
+                            const totalActivity = adminActivities.reduce((sum, a) => sum + a.activity_count, 0);
+                            const uniqueDates = new Set(adminActivities.map(a => a.date)).size;
+
+                            return (
+                              <div key={adminId} className="border border-border rounded-lg p-4 bg-card/30">
+                                <div className="mb-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-medium text-sm">{adminName}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {totalActivity} actions across {uniqueDates} days
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Hour-by-hour heatmap */}
+                                  <div className="grid grid-cols-12 gap-1 mt-3 mb-2">
+                                    {Array.from({ length: 24 }, (_, i) => {
+                                      const hourActivity = adminActivities.filter(a => a.hour === i);
+                                      const maxActivity = Math.max(...adminActivityData.map(a => a.activity_count), 1);
+                                      const avgActivity = hourActivity.reduce((sum, a) => sum + a.activity_count, 0) / (hourActivity.length || 1);
+                                      const intensity = hourActivity.length > 0 ? Math.min(avgActivity / maxActivity, 1) : 0;
+                                      
+                                      return (
+                                        <div
+                                          key={i}
+                                          className={cn(
+                                            'aspect-square rounded-sm transition-colors cursor-pointer relative group border border-border/50',
+                                            intensity === 0
+                                              ? 'bg-slate-700/30'
+                                              : intensity < 0.3
+                                                ? 'bg-blue-500/30'
+                                                : intensity < 0.6
+                                                  ? 'bg-blue-500/60'
+                                                  : 'bg-blue-500/90'
+                                          )}
+                                          title={`Hour ${i}: ${hourActivity.reduce((sum, a) => sum + a.activity_count, 0)} actions`}
+                                        >
+                                          <span className="text-[10px] font-bold opacity-0 group-hover:opacity-100 absolute inset-0 flex items-center justify-center text-foreground">
+                                            {i}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
+                                    <span>00:00</span>
+                                    <span>12:00</span>
+                                    <span>23:00</span>
+                                  </div>
+                                </div>
+
+                                {/* Activity types badge */}
+                                {adminActivities.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 mt-3">
+                                    <span className="text-xs text-muted-foreground">Activity types:</span>
+                                    {Array.from(new Set(adminActivities.flatMap(a => a.activity_types))).map((type) => (
+                                      <Badge key={type} variant="outline" className="text-xs">
+                                        {type}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Legend */}
+                          <div className="flex items-center justify-between text-xs text-muted-foreground pt-4 border-t border-border">
+                            <span>Intensity:</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 rounded-sm bg-slate-700/30 border border-border/50"></div>
+                              <span>None</span>
+                              <div className="w-4 h-4 rounded-sm bg-blue-500/30"></div>
+                              <span>Low</span>
+                              <div className="w-4 h-4 rounded-sm bg-blue-500/60"></div>
+                              <span>Medium</span>
+                              <div className="w-4 h-4 rounded-sm bg-blue-500/90"></div>
+                              <span>High</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
               </div>
             </motion.div>
           )}
