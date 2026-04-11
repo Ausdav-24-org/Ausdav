@@ -60,6 +60,68 @@ export async function getAllMembersWithProfiles(): Promise<MemberProfile[]> {
 }
 
 /**
+ * Get all members WITHOUT profile pictures (profile_path is null or empty)
+ */
+export async function getMembersWithoutProfiles(): Promise<MemberProfile[]> {
+  try {
+    // Query 1: Get members where profile_path is NULL
+    const { data: nullData, error: nullError } = await supabase
+      .from('members')
+      .select('mem_id, username, batch, profile_path, profile_bucket')
+      .is('profile_path', null);
+
+    if (nullError) {
+      console.error('Query error fetching null profiles:', nullError);
+      throw nullError;
+    }
+
+    // Query 2: Get members where profile_path is empty string
+    const { data: emptyData, error: emptyError } = await supabase
+      .from('members')
+      .select('mem_id, username, batch, profile_path, profile_bucket')
+      .eq('profile_path', '');
+
+    if (emptyError) {
+      console.error('Query error fetching empty profiles:', emptyError);
+      throw emptyError;
+    }
+
+    // Combine results and remove duplicates
+    const combined = [...(nullData || []), ...(emptyData || [])];
+    const uniqueIds = new Set<number>();
+    const result: MemberProfile[] = [];
+
+    combined.forEach(m => {
+      if (!uniqueIds.has(m.mem_id)) {
+        uniqueIds.add(m.mem_id);
+        result.push({
+          mem_id: m.mem_id,
+          username: m.username,
+          batch: m.batch,
+          profile_path: m.profile_path,
+          profile_bucket: m.profile_bucket,
+          format_status: 'none' as const,
+        });
+      }
+    });
+
+    // Sort by batch desc, then by mem_id asc
+    result.sort((a, b) => {
+      if (b.batch !== a.batch) return b.batch - a.batch;
+      return a.mem_id - b.mem_id;
+    });
+
+    console.log('Fetched members without profiles. Count:', result.length);
+    console.log('Data:', result);
+
+    return result;
+  } catch (err: any) {
+    console.error('Failed to get members without profiles:', err);
+    throw err;
+  }
+}
+
+/**
  * Migrate a single member's profile picture
  */
 export async function migrateSingleMemberProfile(memId: number): Promise<MigrationResult> {

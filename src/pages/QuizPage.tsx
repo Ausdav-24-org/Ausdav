@@ -231,44 +231,15 @@ const QuizTamilMCQ: React.FC = () => {
   const [questionStack, setQuestionStack] = useState<Question[]>([]);
   const activeQuestions = questionStack; // alias for readability
 
-  // build/refresh stack when dependency changes
+  // Set question stack when questions are ready
+  // handleStartQuiz already handles shuffle order creation/loading for password quizzes
+  // This effect just ensures activeQuestions is always in sync with questionsToRender
   useEffect(() => {
-    const filtered = selectedQuizNo
-      ? questionsToRender.filter(
-          (q: any) => (q?.quiz_no ?? 1) === selectedQuizNo,
-        )
-      : questionsToRender;
-
-    if (!filtered.length) {
-      setQuestionStack(filtered);
-      return;
+    if (questionsToRender.length > 0) {
+      console.log(`✓ Setting question stack: ${questionsToRender.length} questions ready`);
+      setQuestionStack(questionsToRender);
     }
-
-    if (!schoolName) {
-      // without school name we can't seed; just keep order
-      setQuestionStack(filtered);
-      return;
-    }
-
-    // seed based on school name so order is deterministic per client
-    const seed = schoolName
-      .split("")
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const shuffled = [...filtered];
-
-    let random = seed;
-    const seededRandom = () => {
-      random = (random * 9301 + 49297) % 233280;
-      return random / 233280;
-    };
-
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    setQuestionStack(shuffled);
-  }, [questionsToRender, schoolName, selectedQuizNo]);
+  }, [questionsToRender]);
 
   // periodically refresh quizQuestions from server cache when password is known
   useEffect(() => {
@@ -1254,48 +1225,55 @@ const QuizTamilMCQ: React.FC = () => {
       }));
 
       // --------- per-school order logic ---------
-      // table `school_quiz_order` stores { school_name, quiz_password_id, order_ids }
+      // Only shuffle if in QUIZ mode. Test mode uses same order for all schools.
       let orderedQuestions: Question[] = formattedQuestions;
-      try {
-        const { data: orderRow } = await supabase
-          .from('school_quiz_order' as any)
-          .select('order_ids')
-          .eq('school_name', schoolName)
-          .eq('quiz_password_id', passwordId)
-          .maybeSingle();
+      if (isQuizMode) {
+        try {
+          const { data: orderRow } = await supabase
+            .from('school_quiz_order' as any)
+            .select('order_ids')
+            .eq('school_name', schoolName)
+            .eq('quiz_password_id', passwordId)
+            .maybeSingle();
 
-        if (orderRow && (orderRow as any).order_ids) {
-          const idList: string[] = (orderRow as any).order_ids as string[];
-          orderedQuestions = idList
-            .map((id) => formattedQuestions.find((q) => q.id === id))
-            .filter(Boolean) as Question[];
-        } else {
-          // generate new order and persist it
-          const ids = formattedQuestions.map((q) => q.id);
-          // simple Fisher-Yates shuffle seeded by school name
-          const shuffledIds = [...ids];
-          let random = schoolName
-            .split('')
-            .reduce((acc, c) => acc + c.charCodeAt(0), 0);
-          const seededRandom = () => {
-            random = (random * 9301 + 49297) % 233280;
-            return random / 233280;
-          };
-          for (let i = shuffledIds.length - 1; i > 0; i--) {
-            const j = Math.floor(seededRandom() * (i + 1));
-            [shuffledIds[i], shuffledIds[j]] = [shuffledIds[j], shuffledIds[i]];
+          if (orderRow && (orderRow as any).order_ids) {
+            const idList: string[] = (orderRow as any).order_ids as string[];
+            orderedQuestions = idList
+              .map((id) => formattedQuestions.find((q) => q.id === id))
+              .filter(Boolean) as Question[];
+            console.log(`✓ Loaded existing shuffle for school: ${schoolName}`);
+          } else {
+            // generate new order and persist it
+            const ids = formattedQuestions.map((q) => q.id);
+            // simple Fisher-Yates shuffle seeded by school name
+            const shuffledIds = [...ids];
+            let random = schoolName
+              .split('')
+              .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+            const seededRandom = () => {
+              random = (random * 9301 + 49297) % 233280;
+              return random / 233280;
+            };
+            for (let i = shuffledIds.length - 1; i > 0; i--) {
+              const j = Math.floor(seededRandom() * (i + 1));
+              [shuffledIds[i], shuffledIds[j]] = [shuffledIds[j], shuffledIds[i]];
+            }
+            await supabase.from('school_quiz_order' as any).insert({
+              school_name: schoolName,
+              quiz_password_id: passwordId,
+              order_ids: shuffledIds,
+            });
+            orderedQuestions = shuffledIds
+              .map((id) => formattedQuestions.find((q) => q.id === id))
+              .filter((q): q is Question => !!q);
+            console.log(`✓ Created new shuffle for school: ${schoolName} (${shuffledIds.length} questions)`);
           }
-          await supabase.from('school_quiz_order' as any).insert({
-            school_name: schoolName,
-            quiz_password_id: passwordId,
-            order_ids: shuffledIds,
-          });
-          orderedQuestions = shuffledIds
-            .map((id) => formattedQuestions.find((q) => q.id === id))
-            .filter((q): q is Question => !!q);
+        } catch (e) {
+          console.warn('could not load/save school order, falling back:', e);
         }
-      } catch (e) {
-        console.warn('could not load/save school order, falling back:', e);
+      } else {
+        // Test mode: no shuffle, all schools get same question order
+        console.log(`Test mode: using original question order (no shuffle)`);
       }
 
       setQuizQuestions(orderedQuestions);

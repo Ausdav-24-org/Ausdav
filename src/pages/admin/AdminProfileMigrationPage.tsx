@@ -6,20 +6,22 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle2, Clock, RefreshCw, Image as ImageIcon, X, Zap, FileText, Download, Upload, Loader2 } from 'lucide-react';
 import {
   getAllMembersWithProfiles,
+  getMembersWithoutProfiles,
   migrateSingleMemberProfile,
   getMemberProfileStats,
   MemberProfile,
   MigrationResult,
 } from '@/services/profileMigration';
 import { compressImageBlob } from '@/lib/imageCompression';
-import { compressPDFBlob, getPDFCompressionDetails } from '@/lib/pdfCompression';
 import { DownloadCompressionDialog } from '@/components/DownloadCompressionDialog';
 import { useDownloadWithCompression } from '@/hooks/useDownloadWithCompression';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { universityOptions, schoolOptions, designationOptions } from '@/utils/universityOptions';
 
 type MigrationState = 'idle' | 'migrating' | 'success' | 'error';
 
@@ -39,23 +41,10 @@ interface ImageViewerState {
   reUploading: boolean;
 }
 
-interface PDFFile {
-  name: string;
-  bucket: string;
-  path: string;
-  size: number;
-}
-
-interface PDFCompressionState {
-  pdfs: PDFFile[];
-  loading: boolean;
-  selectedQuality: 'low' | 'medium' | 'high';
-  compressing: Record<string, boolean>; // Track which PDFs are being compressed
-}
-
 export default function AdminProfileMigrationPage() {
   const { language } = useLanguage();
   const { theme } = useTheme();
+  const { isSuperAdmin, isAdmin } = useAdminAuth();
   const isDark = theme === 'dark';
 
   const {
@@ -69,6 +58,8 @@ export default function AdminProfileMigrationPage() {
 
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<MemberProfile[]>([]);
+  const [membersWithoutPictures, setMembersWithoutPictures] = useState<MemberProfile[]>([]);
+  const [activeTab, setActiveTab] = useState<'without-pictures'>('without-pictures');
   const [memberFileSizes, setMemberFileSizes] = useState<Record<number, number>>({});
   const [stats, setStats] = useState({ total: 0, newFormat: 0, oldFormat: 0 });
   const [memberMigrations, setMemberMigrations] = useState<Record<number, MemberMigrationState>>({});
@@ -83,19 +74,50 @@ export default function AdminProfileMigrationPage() {
     reUploading: false,
   });
 
-  const [pdfCompression, setPdfCompression] = useState<PDFCompressionState>({
-    pdfs: [],
-    loading: false,
-    selectedQuality: 'high',
-    compressing: {},
-  });
-
   const [imageUpload, setImageUpload] = useState<{
     member: MemberProfile | null;
     uploading: boolean;
   }>({
     member: null,
     uploading: false,
+  });
+
+  // State for single member upload card
+  const [singleMemberUpload, setSingleMemberUpload] = useState<{
+    selectedMemberId: number | null;
+    selectedFile: File | null;
+    previewUrl: string | null;
+    uploading: boolean;
+  }>({
+    selectedMemberId: null,
+    selectedFile: null,
+    previewUrl: null,
+    uploading: false,
+  });
+
+  // State for add new member form
+  const [newMemberForm, setNewMemberForm] = useState<{
+    fullname: string;
+    username: string;
+    nic: string;
+    gender: 'male' | 'female' | '';
+    batch: string;
+    university: string;
+    school: string;
+    designation: string;
+    role: 'member' | 'honourable';
+    submitting: boolean;
+  }>({
+    fullname: '',
+    username: '',
+    nic: '',
+    gender: '',
+    batch: '',
+    university: '',
+    school: '',
+    designation: '',
+    role: 'member',
+    submitting: false,
   });
 
   // Load members on mount
@@ -108,8 +130,12 @@ export default function AdminProfileMigrationPage() {
     setError(null);
     try {
       const membersData = await getAllMembersWithProfiles();
+      const membersNoPhotos = await getMembersWithoutProfiles();
       const statsData = await getMemberProfileStats();
+      console.log('Members with pictures:', membersData.length);
+      console.log('Members without pictures:', membersNoPhotos.length, membersNoPhotos);
       setMembers(membersData);
+      setMembersWithoutPictures(membersNoPhotos);
       setStats(statsData);
 
       // Fetch file sizes for each member
@@ -138,45 +164,6 @@ export default function AdminProfileMigrationPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadPDFs = async () => {
-    setPdfCompression(prev => ({ ...prev, loading: true }));
-    try {
-      const pdfBuckets = ['exam-papers', 'schemes', 'seminar-papers', 'answers'];
-      const allPDFs: PDFFile[] = [];
-
-      for (const bucket of pdfBuckets) {
-        try {
-          const { data } = await supabase.storage.from(bucket).list();
-          if (data) {
-            for (const file of data) {
-              if (file.name.endsWith('.pdf')) {
-                allPDFs.push({
-                  name: file.name,
-                  bucket,
-                  path: file.name,
-                  size: file.metadata?.size || 0,
-                });
-              }
-            }
-          }
-        } catch (err) {
-          // Silently skip buckets that don't exist
-        }
-      }
-
-      setPdfCompression(prev => ({ ...prev, pdfs: allPDFs }));
-    } catch (err: any) {
-      alert('Failed to load PDFs: ' + err.message);
-    } finally {
-      setPdfCompression(prev => ({ ...prev, loading: false }));
-    }
-  };
-
-  const downloadPDFWithQuality = async (pdf: PDFFile) => {
-    // Open the download dialog with compression quality options
-    openDownloadDialog(pdf.bucket, pdf.path, pdf.name, 'pdf', pdf.size);
   };
 
   const handleMigrateOne = (member: MemberProfile) => {
@@ -427,6 +414,97 @@ export default function AdminProfileMigrationPage() {
     }
   };
 
+  // Handler for adding new member
+  const handleAddNewMember = async () => {
+    // Check permissions
+    if (!isAdmin && !isSuperAdmin) {
+      toast.error('Only admins can add new members');
+      return;
+    }
+
+    // Validation
+    if (!newMemberForm.fullname.trim()) {
+      toast.error('Fullname is required');
+      return;
+    }
+    if (!newMemberForm.username.trim()) {
+      toast.error('Username is required');
+      return;
+    }
+    if (!newMemberForm.nic.trim() || newMemberForm.nic.length !== 12) {
+      toast.error('NIC must be 12 characters');
+      return;
+    }
+    if (!newMemberForm.gender) {
+      toast.error('Please select gender');
+      return;
+    }
+    if (!newMemberForm.batch.trim()) {
+      toast.error('Batch is required');
+      return;
+    }
+    if (!newMemberForm.university.trim()) {
+      toast.error('University is required');
+      return;
+    }
+    if (!newMemberForm.school.trim()) {
+      toast.error('School is required');
+      return;
+    }
+
+    setNewMemberForm(prev => ({ ...prev, submitting: true }));
+
+    try {
+      const { data, error } = await supabase
+        .from('members')
+        .insert({
+          fullname: newMemberForm.fullname.trim(),
+          username: newMemberForm.username.trim(),
+          nic: newMemberForm.nic.trim(),
+          gender: newMemberForm.gender === 'male',
+          batch: parseInt(newMemberForm.batch, 10),
+          university: newMemberForm.university.trim(),
+          school: newMemberForm.school.trim(),
+          phone: '',
+          designation: newMemberForm.designation.trim() || null,
+          role: newMemberForm.role,
+        })
+        .select();
+
+      if (error) throw error;
+
+      toast.success(`✅ New member "${newMemberForm.fullname}" added successfully!`);
+
+      // Reset form
+      setNewMemberForm({
+        fullname: '',
+        username: '',
+        nic: '',
+        gender: '',
+        batch: '',
+        university: '',
+        school: '',
+        designation: '',
+        role: 'member',
+        submitting: false,
+      });
+
+      // Reload members
+      loadMembers();
+    } catch (err: any) {
+      console.error('Add member error:', err);
+      const errorMsg = err.message || 'Failed to add member';
+      
+      // Check if it's an RLS error (404 from Supabase means RLS policy blocked)
+      if (err.status === 404 || errorMsg.includes('404')) {
+        toast.error('Permission denied: Only super admins/admins can add members');
+      } else {
+        toast.error(`Failed to add member: ${errorMsg}`);
+      }
+      setNewMemberForm(prev => ({ ...prev, submitting: false }));
+    }
+  };
+
   const bg = isDark ? 'bg-slate-900' : 'bg-slate-50';
   const cardClass = cn(
     'rounded-lg border',
@@ -438,6 +516,114 @@ export default function AdminProfileMigrationPage() {
   const pendingMembers = members.filter(m => m.format_status === 'old');
   const migratedMembers = members.filter(m => m.format_status === 'new');
 
+  // Handlers for single member upload card
+  const handleSelectMemberForUpload = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const memId = parseInt(e.target.value, 10);
+    setSingleMemberUpload(prev => ({
+      ...prev,
+      selectedMemberId: memId || null,
+    }));
+  };
+
+  const handleSelectFileForSingleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setSingleMemberUpload(prev => ({
+      ...prev,
+      selectedFile: file,
+      previewUrl: previewUrl,
+    }));
+  };
+
+  const handleSaveSingleMemberPicture = async () => {
+    if (!singleMemberUpload.selectedMemberId || !singleMemberUpload.selectedFile) {
+      toast.error('Please select both member and image');
+      return;
+    }
+
+    setSingleMemberUpload(prev => ({ ...prev, uploading: true }));
+
+    try {
+      // Get member details for path creation
+      const allMembersToSearch = [...members, ...membersWithoutPictures];
+      const member = allMembersToSearch.find(m => m.mem_id === singleMemberUpload.selectedMemberId);
+      
+      if (!member) {
+        throw new Error('Member not found');
+      }
+
+      // Compress image
+      const compressedBlob = await compressImageBlob(singleMemberUpload.selectedFile, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: 'image/jpeg',
+      });
+
+      const compressedSize = compressedBlob.size;
+      const originalSize = singleMemberUpload.selectedFile.size;
+      const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+
+      // Create path: {batch}/{username}_{mem_id}.jpg
+      const newPath = `${member.batch}/${member.username}_${member.mem_id}.jpg`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('member-profiles')
+        .upload(newPath, compressedBlob, { upsert: true, contentType: 'image/jpeg' });
+
+      if (uploadError) throw uploadError;
+
+      // Update member in database
+      const { error: updateError } = await supabase
+        .from('members')
+        .update({ profile_path: newPath })
+        .eq('mem_id', member.mem_id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setMembersWithoutPictures(prev => prev.filter(m => m.mem_id !== member.mem_id));
+      setMembers(prev => {
+        const exists = prev.find(m => m.mem_id === member.mem_id);
+        if (exists) {
+          return prev.map(m => m.mem_id === member.mem_id 
+            ? { ...m, profile_path: newPath, format_status: 'new' as const }
+            : m
+          );
+        }
+        return [...prev, { ...member, profile_path: newPath, format_status: 'new' as const }];
+      });
+
+      toast.success(`✅ Picture saved for ${member.username}! (${savingsPercent}% smaller)`);
+      
+      // Reset form
+      if (singleMemberUpload.previewUrl) {
+        URL.revokeObjectURL(singleMemberUpload.previewUrl);
+      }
+      setSingleMemberUpload({
+        selectedMemberId: null,
+        selectedFile: null,
+        previewUrl: null,
+        uploading: false,
+      });
+    } catch (err: any) {
+      toast.error(`Failed to save: ${err.message}`);
+      setSingleMemberUpload(prev => ({ ...prev, uploading: false }));
+    }
+  };
+
   return (
     <div className={cn('min-h-screen p-4 md:p-8', bg)}>
       <div className="max-w-6xl mx-auto">
@@ -446,55 +632,207 @@ export default function AdminProfileMigrationPage() {
           <p className={cn('text-sm', textSub)}>
             Migrate member profile pictures one-by-one to new organized folder structure
           </p>
+
+          {/* Add New Member Card */}
+          <div className="mt-6 mb-8">
+            <Card className={cardClass}>
+              <div className="p-6">
+                <h2 className={cn('text-lg font-semibold mb-4 flex items-center gap-2', textMain)}>
+                  + Add New Member
+                </h2>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Fullname */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>Fullname *</label>
+                    <input
+                      type="text"
+                      value={newMemberForm.fullname}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, fullname: e.target.value }))}
+                      placeholder="Enter fullname"
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    />
+                  </div>
+
+                  {/* Username */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>Username *</label>
+                    <input
+                      type="text"
+                      value={newMemberForm.username}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, username: e.target.value }))}
+                      placeholder="Enter username"
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    />
+                  </div>
+
+                  {/* NIC */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>NIC (12 digits) *</label>
+                    <input
+                      type="text"
+                      value={newMemberForm.nic}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, nic: e.target.value }))}
+                      placeholder="XXXXXXXXXX"
+                      maxLength={12}
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    />
+                  </div>
+
+                  {/* Gender */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>Gender *</label>
+                    <select
+                      value={newMemberForm.gender}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, gender: e.target.value as 'male' | 'female' | '' }))}
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    >
+                      <option value="">-- Select --</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+
+                  {/* Batch */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>Batch *</label>
+                    <input
+                      type="number"
+                      value={newMemberForm.batch}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, batch: e.target.value }))}
+                      placeholder="e.g., 2024"
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    />
+                  </div>
+
+                  {/* University */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>University *</label>
+                    <select
+                      value={newMemberForm.university}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, university: e.target.value }))}
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    >
+                      <option value="">-- Select University --</option>
+                      {universityOptions.map((uni) => (
+                        <option key={uni} value={uni}>
+                          {uni}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* School */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>School *</label>
+                    <select
+                      value={newMemberForm.school}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, school: e.target.value }))}
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    >
+                      <option value="">-- Select School --</option>
+                      {schoolOptions.map((school) => (
+                        <option key={school} value={school}>
+                          {school}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Designation */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>Designation</label>
+                    <select
+                      value={newMemberForm.designation}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, designation: e.target.value }))}
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    >
+                      <option value="">-- None --</option>
+                      {designationOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Role */}
+                  <div>
+                    <label className={cn('block text-sm font-medium mb-2', textMain)}>Role</label>
+                    <select
+                      value={newMemberForm.role}
+                      onChange={(e) => setNewMemberForm(prev => ({ ...prev, role: e.target.value as 'member' | 'honourable' }))}
+                      className={cn(
+                        'w-full px-3 py-2 rounded-lg border text-sm',
+                        isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      )}
+                      disabled={newMemberForm.submitting}
+                    >
+                      <option value="member">Member</option>
+                      <option value="honourable">Honourable</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Add Button */}
+                <Button
+                  onClick={handleAddNewMember}
+                  disabled={newMemberForm.submitting}
+                  className="w-full mt-6 bg-cyan-500 hover:bg-cyan-600"
+                >
+                  {newMemberForm.submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    'Add Member'
+                  )}
+                </Button>
+              </div>
+            </Card>
+          </div>
+
         </div>
 
-        {/* Stats */}
-        <Card className={cardClass}>
-          <div className="p-6">
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className={cn('p-4 rounded-lg', isDark ? 'bg-slate-700' : 'bg-slate-100')}>
-                <div className={cn('text-sm font-medium mb-1', textSub)}>Total Profiles</div>
-                <div className={cn('text-2xl font-bold', textMain)}>{stats.total}</div>
-              </div>
-
-              <div className={cn('p-4 rounded-lg', isDark ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-200')}>
-                <div className="text-sm font-medium text-green-600 mb-1">Migrated</div>
-                <div className="text-2xl font-bold text-green-600">{migratedMembers.length}</div>
-              </div>
-
-              <div className={cn('p-4 rounded-lg', isDark ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-yellow-50 border border-yellow-200')}>
-                <div className="text-sm font-medium text-yellow-600 mb-1">Pending</div>
-                <div className="text-2xl font-bold text-yellow-600">{pendingMembers.length}</div>
-              </div>
-            </div>
-
-            {/* Progress Bar */}
-            <div>
-              <div className="flex justify-between text-xs mb-2">
-                <span className={textSub}>Progress</span>
-                <span className={textMain}>
-                  {stats.total > 0 ? Math.round((migratedMembers.length / stats.total) * 100) : 0}%
-                </span>
-              </div>
-              <Progress value={(migratedMembers.length / Math.max(stats.total, 1)) * 100} className="h-2" />
-            </div>
-          </div>
-        </Card>
-
-        {/* Error Alert */}
-        {error && (
-          <Alert className="mt-6 border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-800">{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Members Table */}
+        {/* Members Without Profile Pictures */}
         <Card className={cn('mt-6', cardClass)}>
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className={cn('text-xl font-semibold', textMain)}>
-                Members ({members.length})
+                Members Without Profile Pictures ({membersWithoutPictures.length})
               </h2>
               <Button
                 onClick={loadMembers}
@@ -502,32 +840,29 @@ export default function AdminProfileMigrationPage() {
                 variant="outline"
                 size="sm"
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
 
-            {loading ? (
-              <div className={cn('text-center py-8', textSub)}>Loading members...</div>
-            ) : members.length === 0 ? (
-              <div className={cn('text-center py-8', textSub)}>No members with profile pictures</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className={cn('border-b', isDark ? 'border-slate-700' : 'border-slate-200')}>
-                      <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>ID</th>
-                      <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>Username</th>
-                      <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>Batch</th>
-                      <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>File Size</th>
-                      <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>Status</th>
-                      <th className={cn('text-right px-4 py-3 font-semibold', textSub)}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {members.map(member => {
-                      const migState = memberMigrations[member.mem_id];
-                      return (
+              {loading ? (
+                <div className={cn('text-center py-8', textSub)}>Loading members...</div>
+              ) : membersWithoutPictures.length === 0 ? (
+                <div className={cn('text-center py-8', textSub)}>Great! All members have uploaded profile pictures</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className={cn('border-b', isDark ? 'border-slate-700' : 'border-slate-200')}>
+                        <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>ID</th>
+                        <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>Username</th>
+                        <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>Batch</th>
+                        <th className={cn('text-left px-4 py-3 font-semibold', textSub)}>Status</th>
+                        <th className={cn('text-right px-4 py-3 font-semibold', textSub)}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {membersWithoutPictures.map(member => (
                         <tr
                           key={member.mem_id}
                           className={cn(
@@ -544,216 +879,55 @@ export default function AdminProfileMigrationPage() {
                           <td className={cn('px-4 py-3 font-mono', textMain)}>
                             {member.batch}
                           </td>
-                          <td className={cn('px-4 py-3 text-sm font-semibold', textMain)}>
-                            {memberFileSizes[member.mem_id] ? (
-                              <span className="text-blue-600">
-                                {(memberFileSizes[member.mem_id] / 1024).toFixed(2)} KB
-                              </span>
-                            ) : (
-                              <span className={textSub}>-</span>
-                            )}
-                          </td>
                           <td className="px-4 py-3">
-                            {migState?.status === 'migrating' && (
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-blue-500 animate-spin" />
-                                <span className="text-blue-600 text-xs">Migrating...</span>
-                              </div>
-                            )}
-                            {migState?.status === 'success' || member.format_status === 'new' ? (
-                              <div className="flex items-center gap-2">
-                                <CheckCircle2 className="w-4 h-4 text-green-600" />
-                                <span className="text-green-600 text-xs">Migrated</span>
-                              </div>
-                            ) : migState?.status === 'error' ? (
-                              <div className="flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4 text-red-600" />
-                                <span className="text-red-600 text-xs">Error</span>
-                              </div>
-                            ) : (
-                              <span className={cn('text-xs', 'text-yellow-600')}>Pending</span>
-                            )}
+                            <span className={cn('text-xs px-2 py-1 rounded', isDark ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-700')}>
+                              Missing Picture
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex gap-2 justify-end items-center">
-                              {member.profile_path ? (
-                                <Button
-                                  onClick={() => handleViewImage(member)}
-                                  size="sm"
-                                  variant="outline"
-                                  title="View and compress image"
-                                >
-                                  <ImageIcon className="w-3 h-3" />
-                                </Button>
-                              ) : (
-                                <>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) {
-                                        handleUploadImage(file, member);
-                                        e.target.value = '';
-                                      }
-                                    }}
-                                    className="hidden"
-                                    id={`upload-${member.mem_id}`}
-                                    disabled={imageUpload.uploading}
-                                  />
-                                  <Button
-                                    onClick={() => document.getElementById(`upload-${member.mem_id}`)?.click()}
-                                    disabled={imageUpload.uploading}
-                                    size="sm"
-                                    variant="outline"
-                                    title="Upload image"
-                                  >
-                                    {imageUpload.uploading && imageUpload.member?.mem_id === member.mem_id ? (
-                                      <>
-                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                      </>
-                                    ) : (
-                                      <Upload className="w-3 h-3" />
-                                    )}
-                                  </Button>
-                                </>
-                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    handleUploadImage(file, member);
+                                    e.target.value = '';
+                                  }
+                                }}
+                                className="hidden"
+                                id={`upload-no-pic-${member.mem_id}`}
+                                disabled={imageUpload.uploading}
+                              />
                               <Button
-                                onClick={() => handleMigrateOne(member)}
-                                disabled={migState?.status === 'migrating' || member.format_status === 'new'}
+                                onClick={() => document.getElementById(`upload-no-pic-${member.mem_id}`)?.click()}
+                                disabled={imageUpload.uploading}
                                 size="sm"
-                                variant={member.format_status === 'new' ? 'outline' : 'default'}
+                                variant="default"
+                                title="Upload image"
                               >
-                                {migState?.status === 'migrating' ? (
+                                {imageUpload.uploading && imageUpload.member?.mem_id === member.mem_id ? (
                                   <>
-                                    <Clock className="w-3 h-3 mr-1 animate-spin" />
-                                    Migrating
+                                    <Loader2 className="w-3 h-3 animate-spin" />
                                   </>
-                                ) : member.format_status === 'new' ? (
-                                  'Done'
                                 ) : (
-                                  'Migrate'
+                                  <>
+                                    <Upload className="w-3 h-3 mr-1" />
+                                    Upload
+                                  </>
                                 )}
                               </Button>
                             </div>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </Card>
-
-        {/* PDF Compression Card */}
-        <Card className={cn('mt-6', cardClass)}>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className={cn('text-xl font-semibold flex items-center gap-2', textMain)}>
-                <FileText className="w-5 h-5 text-red-500" />
-                PDF Compression
-              </h2>
-              <Button
-                onClick={loadPDFs}
-                disabled={pdfCompression.loading}
-                variant="outline"
-                size="sm"
-              >
-                <RefreshCw className={cn('w-4 h-4 mr-2', pdfCompression.loading && 'animate-spin')} />
-                Scan PDFs
-              </Button>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-
-            <p className={cn('text-sm mb-4', textSub)}>
-              Compress PDF files from exam papers, schemes, and seminar resources
-            </p>
-
-            {/* Quality Selection */}
-            <div className="mb-6 p-4 rounded-lg border" style={{ borderColor: isDark ? 'rgb(55, 65, 81)' : 'rgb(226, 232, 240)' }}>
-              <div className={cn('text-sm font-semibold mb-3', textMain)}>Compression Quality</div>
-              <div className="grid grid-cols-3 gap-3">
-                {(['low', 'medium', 'high'] as const).map(quality => (
-                  <button
-                    key={quality}
-                    onClick={() => setPdfCompression(prev => ({ ...prev, selectedQuality: quality }))}
-                    className={cn(
-                      'p-3 rounded-lg border-2 transition-all',
-                      pdfCompression.selectedQuality === quality
-                        ? isDark
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-blue-500 bg-blue-50'
-                        : isDark
-                        ? 'border-slate-600 hover:border-slate-500'
-                        : 'border-slate-300 hover:border-slate-400'
-                    )}
-                  >
-                    <div className={cn('text-sm font-semibold capitalize', quality === pdfCompression.selectedQuality ? 'text-blue-600' : textMain)}>
-                      {quality}
-                    </div>
-                    <div className={cn('text-xs', textSub)}>
-                      {quality === 'low' && '150 DPI (70% smaller)'}
-                      {quality === 'medium' && '200 DPI (50% smaller)'}
-                      {quality === 'high' && '300 DPI (30% smaller)'}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* PDFs List */}
-            {pdfCompression.loading ? (
-              <div className={cn('text-center py-8', textSub)}>Loading PDFs...</div>
-            ) : pdfCompression.pdfs.length === 0 ? (
-              <div className={cn('text-center py-8', textSub)}>No PDFs found. Click "Scan PDFs" to search.</div>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {pdfCompression.pdfs.map((pdf, idx) => {
-                  const details = getPDFCompressionDetails(pdf.size, pdfCompression.selectedQuality);
-                  return (
-                    <div
-                      key={`${pdf.bucket}-${pdf.path}-${idx}`}
-                      className={cn(
-                        'p-3 rounded-lg border flex items-center justify-between',
-                        isDark ? 'border-slate-700 hover:bg-slate-700/30' : 'border-slate-200 hover:bg-slate-50'
-                      )}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className={cn('text-sm font-semibold truncate', textMain)}>{pdf.name}</div>
-                        <div className={cn('text-xs', textSub)}>
-                          {pdf.bucket} • {(pdf.size / 1024).toFixed(2)} KB
-                        </div>
-                        <div className={cn('text-xs mt-1', pdfCompression.selectedQuality === 'high' ? 'text-green-600' : 'text-yellow-600')}>
-                          Est. {(details.estimatedCompressed / 1024).toFixed(2)} KB after compression ({details.savingsPercent}% smaller)
-                        </div>
-                      </div>
-                      <Button
-                        onClick={() => downloadPDFWithQuality(pdf)}
-                        disabled={pdfCompression.compressing[`${pdf.bucket}-${pdf.path}`] || false}
-                        size="sm"
-                        variant="outline"
-                        className="ml-2 flex-shrink-0"
-                      >
-                        {pdfCompression.compressing[`${pdf.bucket}-${pdf.path}`] ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 animate-spin mr-1" />
-                            Compressing...
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="w-4 h-4 mr-1" />
-                            Compress
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </Card>
+          </Card>
 
         {/* Error Details */}
         {Object.values(memberMigrations).some(m => m.status === 'error') && (

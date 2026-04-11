@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -109,7 +110,8 @@ export default function AdminAuditPage() {
 
       const safeEvent = data.event.trim().replace(/\s+/g, "_");
       const fileName = `${data.year}_${safeEvent}_audit_summary.pdf`;
-      const objectName = fileName.replace(/[^\w.-]/g, "_");
+      // Organize by year folder: 2025/2025_event_audit.pdf
+      const objectName = `${data.year}/${fileName}`.replace(/[^\w.\/-]/g, "_");
 
       // Compress PDF before upload
       const compressedBlob = await compressPDFBlob(data.auditFile, { quality: 'high' });
@@ -171,7 +173,8 @@ export default function AdminAuditPage() {
       if (data.auditFile) {
         const safeEvent = data.event.trim().replace(/\s+/g, "_");
         const newFileName = `${data.year}_${safeEvent}_audit_summary.pdf`;
-        const objectName = newFileName.replace(/[^\w.-]/g, "_");
+        // Organize by year folder: 2025/2025_event_audit.pdf
+        const objectName = `${data.year}/${newFileName}`.replace(/[^\w.\/-]/g, "_");
 
         // Compress PDF before upload
         const compressedBlob = await compressPDFBlob(data.auditFile, { quality: 'high' });
@@ -179,26 +182,40 @@ export default function AdminAuditPage() {
         const compressedSize = compressedBlob.size;
         const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from(DEFAULT_BUCKET)
-          .upload(objectName, compressedBlob, { upsert: true });
-
-        if (uploadError) throw uploadError;
-        if (
-          editingRecord?.object_path &&
-          editingRecord.object_path !== uploadData.path
-        ) {
-          await supabase.storage
+        try {
+          const { data: uploadData, error: uploadError } = await supabase.storage
             .from(DEFAULT_BUCKET)
-            .remove([editingRecord.object_path]);
-        }
-        objectPath = uploadData.path;
-        fileName = newFileName;
-        fileSize = compressedSize;
-        
-        // Show compression feedback
-        if (savingsPercent > 0) {
-          toast.success(`Audit file compressed! (${savingsPercent}% smaller)`);
+            .upload(objectName, compressedBlob, { upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          // Delete old file if it exists and path changed
+          if (editingRecord?.object_path && editingRecord.object_path !== objectName) {
+            console.log("Deleting old file:", editingRecord.object_path);
+            const { error: deleteError } = await supabase.storage
+              .from(DEFAULT_BUCKET)
+              .remove([editingRecord.object_path]);
+
+            if (deleteError) {
+              console.error("Failed to delete old file:", deleteError);
+              // Don't throw - old file deletion failure shouldn't block the update
+              toast.warning("New file saved, but old file could not be deleted");
+            } else {
+              console.log("Old file deleted successfully");
+            }
+          }
+
+          objectPath = uploadData.path;
+          fileName = newFileName;
+          fileSize = compressedSize;
+          
+          // Show compression feedback
+          if (savingsPercent > 0) {
+            toast.success(`Audit file compressed! (${savingsPercent}% smaller)`);
+          }
+        } catch (storageErr) {
+          console.error("Storage operation error:", storageErr);
+          throw storageErr;
         }
       }
 
@@ -227,6 +244,7 @@ export default function AdminAuditPage() {
       resetForm();
     },
     onError: (error: unknown) => {
+      console.error("Update mutation error:", error);
       toast.error(
         "Failed to update audit file: " +
           ((error as Error)?.message || "Unknown error")
@@ -236,22 +254,46 @@ export default function AdminAuditPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (record: AuditAction) => {
-      if (record.bucket_id && record.object_path) {
-        await supabase.storage
-          .from(record.bucket_id)
-          .remove([record.object_path]);
+      try {
+        // Delete from storage first
+        if (record.bucket_id && record.object_path) {
+          console.log("Deleting file from bucket:", {
+            bucket: record.bucket_id,
+            path: record.object_path,
+          });
+
+          const { error: storageError } = await supabase.storage
+            .from(record.bucket_id)
+            .remove([record.object_path]);
+
+          if (storageError) {
+            console.error("Storage deletion error:", storageError);
+            throw new Error(`Storage error: ${storageError.message}`);
+          }
+          console.log("File deleted from storage successfully");
+        }
+      } catch (storageErr) {
+        console.error("Failed to delete from storage:", storageErr);
+        throw storageErr;
       }
+
+      // Delete from database
       const { error } = await supabase
         .from("audit_actions")
         .delete()
         .eq("id", record.id);
-      if (error) throw error;
+      
+      if (error) {
+        console.error("Database deletion error:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["audit-actions"] });
       toast.success("Audit file deleted successfully");
     },
     onError: (error: unknown) => {
+      console.error("Delete mutation error:", error);
       toast.error(
         "Failed to delete audit file: " +
           ((error as Error)?.message || "Unknown error")
@@ -366,6 +408,11 @@ export default function AdminAuditPage() {
                 <DialogTitle>
                   {editingRecord ? "Edit Audit File" : "Add Audit File"}
                 </DialogTitle>
+                <DialogDescription>
+                  {editingRecord
+                    ? "Update the event details and upload a new PDF if needed"
+                    : "Add a new audit report for the selected committee year"}
+                </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4">

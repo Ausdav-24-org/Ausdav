@@ -1523,15 +1523,15 @@ export default function AdminResultsPage() {
 
             {/* Action Buttons - Responsive Stack */}
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" size="sm" onClick={downloadCsvTemplate} disabled={selectedYear === null} className="w-full sm:w-auto">
+              <Button variant="outline" size="sm" onClick={downloadCsvTemplate} className="w-full sm:w-auto">
                 <Download className="h-4 w-4 mr-1" />
                 Template
               </Button>
-              <Button variant="outline" size="sm" onClick={downloadFilteredApplicantsCsv} disabled={filteredApplicants.length === 0 || selectedYear === null} className="w-full sm:w-auto">
+              <Button variant="outline" size="sm" onClick={downloadFilteredApplicantsCsv} className="w-full sm:w-auto">
                 <Download className="h-4 w-4 mr-1" />
                 Export CSV
               </Button>
-              <Button size="sm" onClick={() => setUploadOpen(true)} disabled={selectedYear === null} className="w-full sm:w-auto">
+              <Button size="sm" onClick={() => setUploadOpen(true)} className="w-full sm:w-auto">
                 <Upload className="h-4 w-4 mr-1" />
                 Import
               </Button>
