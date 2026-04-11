@@ -25,6 +25,7 @@ import {
   ClipboardCheck,
   ShieldAlert,
   Database, // ✅ added for Profile Migration
+  QrCode, // ✅ added for Bulk QR Generator
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoImg from '@/assets/logo/AUSDAV_llogo.png';
@@ -165,6 +166,15 @@ export function AdminSidebar() {
     // Insert before last items for better UX
     const insertIndex = Math.max(0, filteredNavItems.length - 3);
     filteredNavItems.splice(insertIndex, 0, masterAdminItem);
+
+    // Add Bulk QR Generator item for Master Admins
+    const bulkQRItem: NavItem = {
+      title: 'Bulk QR Generator',
+      href: '/admin/bulk-qr-generator',
+      icon: QrCode,
+      roles: [],
+    };
+    filteredNavItems.splice(insertIndex + 1, 0, bulkQRItem);
   }
 
   return (
