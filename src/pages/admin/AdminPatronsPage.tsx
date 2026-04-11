@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Loader2, Trash2, PlusCircle } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -239,6 +239,9 @@ export default function AdminPatronsPage() {
             <DialogContent className="w-[95vw] sm:w-[90vw] md:w-[500px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-lg sm:text-xl">{editing ? 'Edit Patron' : 'Add Patron'}</DialogTitle>
+                <DialogDescription>
+                  {editing ? 'Update patron information' : 'Add a new patron to the platform'}
+                </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4">

@@ -1,0 +1,46 @@
+export const universityOptions = [
+  'University of Colombo',
+  'University of Peradeniya',
+  'University of Sri Jayewardenepura',
+  'University of Kelaniya',
+  'University of Moratuwa',
+  'University of Jaffna',
+  'University of Ruhuna',
+  'The Open University of Sri Lanka',
+  'Eastern University, Sri Lanka',
+  'South Eastern University of Sri Lanka',
+  'Rajarata University of Sri Lanka',
+  'Sabaragamuwa University of Sri Lanka',
+  'Wayamba University of Sri Lanka',
+  'Uva Wellassa University',
+  'University of the Visual & Performing Arts',
+  'Gampaha Wickramarachchi University of Indigenous Medicine',
+  'Institute of Technology University of Moratuwa',
+  'University of Vavuniya, Sri Lanka',
+];
+
+export const schoolOptions = [
+  'V/Rambaikulam Girls Maha Vidyalayam',
+  'V/Vavuniya Tamil Madhya Maha Vidyalayam',
+  'V/Vavuniya Muslim Maha Vidyalayam',
+  'V/Nelukkulam Kalaimagal Maha Vidyalayam',
+  'V/Vipulanantha College',
+  'V/Saivapiragasa Ladies College',
+  'V/Cheddikulam Maha Vidyalayam',
+  'Kanakarayankulam Maha Vidyalayam',
+  'Puthukkulam Maha Vidyalayam',
+];
+
+export const designationOptions = [
+  { value: 'president', label: 'President' },
+  { value: 'vice_president', label: 'Vice President' },
+  { value: 'secretary', label: 'Secretary' },
+  { value: 'vice_secretary', label: 'Vice Secretary' },
+  { value: 'treasurer', label: 'Treasurer' },
+  { value: 'assistant_treasurer', label: 'Assistant Treasurer' },
+  { value: 'editor', label: 'Editor' },
+  { value: 'web_designer', label: 'Web Designer' },
+  { value: 'general_committee_member', label: 'General Committee Member' },
+  { value: 'education_committee_member', label: 'Education Committee Member' },
+  { value: 'university_representative', label: 'University Representative' },
+];
