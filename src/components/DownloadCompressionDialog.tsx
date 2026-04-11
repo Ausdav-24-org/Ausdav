@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -11,7 +10,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Loader2, Download } from 'lucide-react';
-import { CompressionQuality, getCompressionDescription, formatBytes } from '@/lib/downloadWithCompression';
+import { CompressionQuality, formatBytes } from '@/lib/downloadWithCompression';
 
 interface DownloadCompressionDialogProps {
   open: boolean;
@@ -52,9 +51,6 @@ export const DownloadCompressionDialog: React.FC<DownloadCompressionDialogProps>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Download {fileType === 'pdf' ? 'PDF' : 'Image'}</DialogTitle>
-          <DialogDescription>
-            Choose compression quality for {filename}
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -71,42 +67,13 @@ export const DownloadCompressionDialog: React.FC<DownloadCompressionDialogProps>
                   <RadioGroupItem value={quality} id={`quality-${quality}`} className="mt-1" />
                   <Label htmlFor={`quality-${quality}`} className="flex-1 cursor-pointer">
                     <div className="capitalize font-medium">{quality} Quality</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      {getCompressionDescription(quality)}
-                    </div>
                   </Label>
                 </div>
               ))}
             </div>
           </RadioGroup>
 
-          <div className="bg-slate-100 dark:bg-slate-900 p-3 rounded-lg space-y-2 text-xs">
-            {fileType === 'pdf' ? (
-              <>
-                <p>
-                  <strong>Low:</strong> 50-60% reduction in file size
-                </p>
-                <p>
-                  <strong>Medium:</strong> 30-40% reduction in file size
-                </p>
-                <p>
-                  <strong>High:</strong> 10-20% reduction, best quality preservation
-                </p>
-              </>
-            ) : (
-              <>
-                <p>
-                  <strong>Low:</strong> 75% quality, significant compression
-                </p>
-                <p>
-                  <strong>Medium:</strong> 85% quality, balanced compression
-                </p>
-                <p>
-                  <strong>High:</strong> 92% quality, minimal compression
-                </p>
-              </>
-            )}
-          </div>
+
         </div>
 
         <DialogFooter className="sm:justify-between">
