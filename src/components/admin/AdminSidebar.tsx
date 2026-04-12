@@ -26,6 +26,7 @@ import {
   ShieldAlert,
   Database, // ✅ added for Profile Migration
   QrCode, // ✅ added for Bulk QR Generator
+  IdCard, // ✅ added for ID Card Generator
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoImg from '@/assets/logo/AUSDAV_llogo.png';
@@ -175,6 +176,15 @@ export function AdminSidebar() {
       roles: [],
     };
     filteredNavItems.splice(insertIndex + 1, 0, bulkQRItem);
+
+    // Add ID Card Generator item for Master Admins
+    const idCardItem: NavItem = {
+      title: 'ID Card Generator',
+      href: '/admin/id-card-generator',
+      icon: IdCard,
+      roles: [],
+    };
+    filteredNavItems.splice(insertIndex + 2, 0, idCardItem);
   }
 
   return (
