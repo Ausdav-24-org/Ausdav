@@ -59,7 +59,6 @@ const AdminDetailsPage = lazy(() => import("@/pages/admin/AdminDetailsPage"));
 const AdminMasterAdminPage = lazy(() => import("@/pages/admin/AdminMasterAdminPage"));
 const AdminBulkQRGeneratorPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
 const AdminIDCardPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
-const AdminProfileMigrationPage = lazy(() => import("@/pages/admin/AdminProfileMigrationPage"));
 const VerifyMemberPage = lazy(() => import("@/pages/VerifyMemberPage"));
 
 // Loading fallback component
@@ -357,7 +356,6 @@ const App = () => {
                     <Route path="master-admin" element={<Suspense fallback={<PageLoader />}><AdminMasterAdminPage /></Suspense>} />
                     <Route path="bulk-qr-generator" element={<Suspense fallback={<PageLoader />}><AdminBulkQRGeneratorPage /></Suspense>} />
                     <Route path="id-card-generator" element={<Suspense fallback={<PageLoader />}><AdminIDCardPage /></Suspense>} />
-                    <Route path="profile-migration" element={<Suspense fallback={<PageLoader />}><AdminProfileMigrationPage /></Suspense>} />
                     <Route path="contact" element={<Suspense fallback={<PageLoader />}><ContactSettingsPage /></Suspense>} />
                     <Route path="audit" element={<Suspense fallback={<PageLoader />}><FinanceAuditLogPage /></Suspense>} />
                     <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettingsPage /></Suspense>} />
