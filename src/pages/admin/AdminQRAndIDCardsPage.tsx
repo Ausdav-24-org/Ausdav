@@ -77,6 +77,11 @@ export default function AdminQRAndIDCardsPage() {
   const [generatingMemberId, setGeneratingMemberId] = useState<number | null>(null);
   const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null);
 
+  // Individual members selection for QR
+  const [selectedMembersQR, setSelectedMembersQR] = useState<number[]>([]);
+  const [qrMode, setQrMode] = useState<'batch' | 'individual'>('batch');
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+
   // ID Card states
   const [selectedMember, setSelectedMember] = useState<MemberDetails | null>(null);
   const [searchQueryIdCard, setSearchQueryIdCard] = useState('');
@@ -158,6 +163,79 @@ export default function AdminQRAndIDCardsPage() {
 
   const deselectAllBatches = () => {
     setSelectedBatches([]);
+  };
+
+  // Individual member selection functions
+  const toggleMemberQR = (memberId: number) => {
+    setSelectedMembersQR(prev =>
+      prev.includes(memberId)
+        ? prev.filter(id => id !== memberId)
+        : [...prev, memberId]
+    );
+  };
+
+  const selectAllMembersQR = () => {
+    setSelectedMembersQR(members.map(m => m.mem_id));
+  };
+
+  const deselectAllMembersQR = () => {
+    setSelectedMembersQR([]);
+  };
+
+  const selectedMembersForQR = useMemo(() => {
+    return members.filter(m => selectedMembersQR.includes(m.mem_id));
+  }, [members, selectedMembersQR]);
+
+  const handleIndividualGenerateQR = async () => {
+    if (selectedMembersForQR.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Please select at least one member',
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    setGeneratedCount(0);
+    let successCount = 0;
+
+    try {
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + qrExpiryDays);
+
+      for (const member of selectedMembersForQR) {
+        try {
+          await createQRCode({
+            mem_id: member.mem_id,
+            expires_at: expiryDate,
+            member_name: member.fullname,
+            member_batch: member.batch || 0,
+          });
+          successCount++;
+          setGeneratedCount(successCount);
+        } catch (err) {
+          console.error(`Failed to generate QR for ${member.fullname}:`, err);
+        }
+      }
+
+      toast({
+        title: 'Success',
+        description: `Generated QR codes for ${successCount} member(s)`,
+      });
+
+      await fetchQRCodes();
+      setSelectedMembersQR([]);
+    } catch (err: any) {
+      console.error('Error in individual QR generation:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'QR generation failed',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleBulkGenerateQR = async () => {
@@ -527,6 +605,122 @@ export default function AdminQRAndIDCardsPage() {
                 </CardContent>
               </Card>
 
+              {/* Mode Toggle */}
+              <div className="flex gap-2 items-center">
+                <button
+                  onClick={() => setQrMode('batch')}
+                  className={`px-4 py-2 font-medium text-sm rounded-lg transition-colors flex items-center gap-2 ${
+                    qrMode === 'batch'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-card border border-border text-muted-foreground hover:border-primary'
+                  }`}
+                >
+                  <Filter className="h-4 w-4" />
+                  Batch Mode
+                </button>
+                <button
+                  onClick={() => setQrMode('individual')}
+                  className={`px-4 py-2 font-medium text-sm rounded-lg transition-colors flex items-center gap-2 ${
+                    qrMode === 'individual'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-card border border-border text-muted-foreground hover:border-primary'
+                  }`}
+                >
+                  <Users className="h-4 w-4" />
+                  Individual Mode
+                </button>
+              </div>
+
+              {/* Individual Member Selection */}
+              {qrMode === 'individual' && (
+                <Card className="bg-card/50 border-border">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Select Individual Members
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Search Input */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Search members by name or ID..."
+                        value={memberSearchQuery}
+                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+                      />
+                    </div>
+
+                    {/* Select All / Clear All Buttons */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={selectAllMembersQR}
+                        className="px-3 py-2 text-xs bg-primary/20 text-primary hover:bg-primary/30 rounded-lg transition-colors"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={deselectAllMembersQR}
+                        className="px-3 py-2 text-xs bg-destructive/20 text-destructive hover:bg-destructive/30 rounded-lg transition-colors"
+                      >
+                        Clear All
+                      </button>
+                      <span className="ml-auto text-sm text-muted-foreground">
+                        Selected: {selectedMembersQR.length} / {members.length}
+                      </span>
+                    </div>
+
+                    {/* Member Grid with Checkboxes */}
+                    <div className="space-y-2">
+                      {members.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">No members available</p>
+                      ) : (
+                        <div className="grid gap-3 max-h-96 overflow-y-auto p-2">
+                          {members
+                            .filter(m =>
+                              m.fullname.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+                              m.mem_id.toString().includes(memberSearchQuery) ||
+                              m.batch?.toString().includes(memberSearchQuery)
+                            )
+                            .map((member) => (
+                              <div
+                                key={member.mem_id}
+                                onClick={() => toggleMemberQR(member.mem_id)}
+                                className={`p-3 rounded-lg border cursor-pointer transition-all flex items-center gap-3 ${
+                                  selectedMembersQR.includes(member.mem_id)
+                                    ? 'bg-primary/10 border-primary'
+                                    : 'bg-card border-border hover:border-primary/50'
+                                }`}
+                              >
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                  selectedMembersQR.includes(member.mem_id)
+                                    ? 'bg-primary border-primary'
+                                    : 'border-border'
+                                }`}>
+                                  {selectedMembersQR.includes(member.mem_id) && (
+                                    <Check className="h-3 w-3 text-primary-foreground" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">{member.fullname}</div>
+                                  <div className="text-xs text-muted-foreground">ID: {member.mem_id}</div>
+                                </div>
+                                {member.batch && (
+                                  <Badge variant="outline" className="ml-auto">
+                                    Batch {member.batch}
+                                  </Badge>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Generation Settings */}
               <Card className="bg-card/50 border-border">
                 <CardHeader>
@@ -576,8 +770,8 @@ export default function AdminQRAndIDCardsPage() {
 
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
-                      onClick={handleBulkGenerateQR}
-                      disabled={isGenerating || filteredMembers.length === 0}
+                      onClick={() => qrMode === 'batch' ? handleBulkGenerateQR() : handleIndividualGenerateQR()}
+                      disabled={isGenerating || (qrMode === 'batch' ? filteredMembers.length === 0 : selectedMembersQR.length === 0)}
                       className="flex-1 px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                       {isGenerating ? (
@@ -588,7 +782,7 @@ export default function AdminQRAndIDCardsPage() {
                       ) : (
                         <>
                           <QrCode className="h-4 w-4" />
-                          Generate QR for {filteredMembers.length} Members
+                          Generate QR for {qrMode === 'batch' ? filteredMembers.length : selectedMembersQR.length} Member{qrMode === 'batch' ? (filteredMembers.length !== 1 ? 's' : '') : (selectedMembersQR.length !== 1 ? 's' : '')}
                         </>
                       )}
                     </button>
