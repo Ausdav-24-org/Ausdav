@@ -1,9 +1,9 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Home, Info, FileText, BookOpen, Calendar, Users, Heart } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { cn } from '@/lib/utils';
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Home, Info, FileText, BookOpen, Calendar, Users, Sparkles } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { cn } from "@/lib/utils";
 
 interface NavItem {
   href: string;
@@ -13,12 +13,13 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/', icon: Home, labelEn: 'Home', labelTa: 'முகப்பு' },
-  { href: '/about', icon: Info, labelEn: 'About', labelTa: 'எங்களை' },
-  { href: '/exam', icon: FileText, labelEn: 'Exam', labelTa: 'தேர்வு' },
-  { href: '/seminar', icon: BookOpen, labelEn: 'Seminar', labelTa: 'கருத்தரங்கு' },
-  { href: '/events', icon: Calendar, labelEn: 'Events', labelTa: 'நிகழ்வுகள்' },
-  { href: '/committee', icon: Users, labelEn: 'Committee', labelTa: 'குழு' },
+  { href: "/", icon: Home, labelEn: "Home", labelTa: "முகப்பு" },
+  { href: "/about", icon: Info, labelEn: "About", labelTa: "எங்களை" },
+  { href: "/exam", icon: FileText, labelEn: "Exam", labelTa: "தேர்வு" },
+  { href: "/quiz", icon: Sparkles, labelEn: "Quiz", labelTa: "வினாடிவினா" },
+  { href: "/resources", icon: BookOpen, labelEn: "Resources", labelTa: "வளங்கள்" },
+  { href: "/events", icon: Calendar, labelEn: "Events", labelTa: "நிகழ்வுகள்" },
+  { href: "/committee", icon: Users, labelEn: "Committee", labelTa: "குழு" },
 ];
 
 const MobileNavWidget: React.FC = () => {
@@ -31,25 +32,25 @@ const MobileNavWidget: React.FC = () => {
     <motion.nav
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.4, ease: 'easeOut' }}
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 lg:hidden"
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className={cn("fixed bottom-0  inset-x-0 flex justify-center z-[70] lg:hidden")}
       role="navigation"
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center gap-1 px-2 py-2 rounded-full glass-card border border-border/30 neon-glow">
+      <div className="flex items-center gap-1.5 px-2 py-3 rounded-t-3xl rounded-b-none glass-card border border-border/30 neon-glow">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
-          const label = language === 'en' ? item.labelEn : item.labelTa;
+          const label = language === "en" ? item.labelEn : item.labelTa;
 
           return (
             <Link
               key={item.href}
               to={item.href}
               aria-label={label}
-              aria-current={active ? 'page' : undefined}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex flex-col items-center justify-center w-11 h-11 rounded-full transition-all duration-300",
+                "relative flex bottom-1 flex-col items-center justify-center w-8 h-8 rounded-full transition-all duration-300",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 active
                   ? "text-primary"
@@ -60,24 +61,24 @@ const MobileNavWidget: React.FC = () => {
                 whileTap={{ scale: 0.9 }}
                 transition={{ duration: 0.1 }}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-4 h-4" />
               </motion.div>
-              
+
               {active && (
                 <motion.div
                   layoutId="mobileNavIndicator"
                   className="absolute inset-0 rounded-full bg-primary/15 border border-primary/30"
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                 />
               )}
-              
+
               {active && (
                 <motion.span
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={cn(
-                    "absolute -bottom-5 text-[10px] font-medium text-primary whitespace-nowrap",
-                    language === 'ta' && "font-tamil"
+                    "absolute -bottom-4 text-[10px] font-medium text-primary whitespace-nowrap",
+                    language === "ta" && "font-tamil"
                   )}
                 >
                   {label}
@@ -87,25 +88,6 @@ const MobileNavWidget: React.FC = () => {
           );
         })}
 
-        {/* Donate button - emphasized */}
-        <Link
-          to="/donate"
-          aria-label={language === 'en' ? 'Donate' : 'நன்கொடை'}
-          className={cn(
-            "relative flex items-center justify-center w-12 h-12 ml-1 rounded-full transition-all duration-300",
-            "bg-primary text-primary-foreground neon-glow",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            "hover:scale-105 active:scale-95",
-            isActive('/donate') && "ring-2 ring-primary-foreground/50"
-          )}
-        >
-          <motion.div
-            whileTap={{ scale: 0.9 }}
-            transition={{ duration: 0.1 }}
-          >
-            <Heart className="w-5 h-5" />
-          </motion.div>
-        </Link>
       </div>
     </motion.nav>
   );

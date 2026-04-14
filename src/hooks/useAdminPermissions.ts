@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/contexts/AdminAuthContext";
 
 export interface AdminPermission {
   id: string;
@@ -16,54 +16,54 @@ export const useAdminPermissions = () => {
   const [permissions, setPermissions] = useState<AdminPermission[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchPermissions = async () => {
+  const fetchPermissions = useCallback(async () => {
     if (!user) return;
-    
+
     try {
       const { data, error } = await supabase
-        .from('admin_permissions')
-        .select('*')
-        .order('display_name');
+        .from("admin_permissions")
+        .select("*")
+        .order("display_name");
 
       if (error) throw error;
       setPermissions(data || []);
     } catch (err) {
-      console.error('Error fetching permissions:', err);
+      console.error("Error fetching permissions:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchPermissions();
-  }, [user]);
+  }, [fetchPermissions]);
 
   const togglePermission = async (permissionKey: string, newValue: boolean) => {
     if (!isSuperAdmin) return false;
 
     try {
       const { error } = await supabase
-        .from('admin_permissions')
-        .update({ 
+        .from("admin_permissions")
+        .update({
           is_enabled: newValue,
-          updated_by: user?.id 
+          updated_by: user?.id,
         })
-        .eq('permission_key', permissionKey);
+        .eq("permission_key", permissionKey);
 
       if (error) throw error;
 
       // Log audit
-      await supabase.rpc('log_audit_event', {
-        _action: newValue ? 'enable_permission' : 'disable_permission',
-        _entity_type: 'admin_permission',
+      await supabase.rpc("log_audit_event", {
+        _action: newValue ? "enable_permission" : "disable_permission",
+        _entity_type: "admin_permission",
         _entity_id: permissionKey,
-        _details: { permission_key: permissionKey, new_value: newValue }
+        _details: { permission_key: permissionKey, new_value: newValue },
       });
 
       await fetchPermissions();
       return true;
     } catch (err) {
-      console.error('Error toggling permission:', err);
+      console.error("Error toggling permission:", err);
       return false;
     }
   };
@@ -71,13 +71,15 @@ export const useAdminPermissions = () => {
   const checkPermission = (permissionKey: string): boolean => {
     // Super admin always has all permissions
     if (isSuperAdmin) return true;
-    
+
     // Admin needs the permission to be enabled
     if (isAdmin) {
-      const permission = permissions.find(p => p.permission_key === permissionKey);
+      const permission = permissions.find(
+        (p) => p.permission_key === permissionKey
+      );
       return permission?.is_enabled ?? false;
     }
-    
+
     return false;
   };
 

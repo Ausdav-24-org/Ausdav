@@ -1,8 +1,14 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
-  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
+  content: [
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
+  ],
   prefix: "",
   theme: {
     container: {
@@ -14,9 +20,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Outfit', 'sans-serif'],
-        heading: ['Space Grotesk', 'sans-serif'],
-        tamil: ['Noto Sans Tamil', 'Outfit', 'sans-serif'],
+        sans: ["Outfit", "sans-serif"],
+        heading: ["Space Grotesk", "sans-serif"],
+        tamil: ["Kavivanar", "Outfit", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -105,12 +111,14 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
       },
       boxShadow: {
-        'glow': 'var(--shadow-glow)',
-        'glow-strong': 'var(--shadow-glow-strong)',
-        'glow-blue': 'var(--shadow-glow-blue)',
-        'glow-purple': 'var(--shadow-glow-purple)',
+        glow: "var(--shadow-glow)",
+        "glow-strong": "var(--shadow-glow-strong)",
+        "glow-blue": "var(--shadow-glow-blue)",
+        "glow-purple": "var(--shadow-glow-purple)",
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;
+
+

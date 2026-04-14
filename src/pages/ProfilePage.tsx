@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -17,7 +17,10 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImageBlob } from '@/lib/imageCompression';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { ImageCropper } from '@/components/ui/ImageCropper';
 
 /** ✅ SVG overlay ONLY (no background fill) so it matches your site's container background */
 const SpaceOverlay: React.FC<{ opacity?: number }> = ({ opacity = 0.35 }) => {
@@ -122,6 +125,10 @@ const ProfilePage: React.FC = () => {
   const { profile, user } = useAdminAuth();
   const isDark = theme === 'dark';
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSignedAvatar = async () => {
@@ -142,6 +149,85 @@ const ProfilePage: React.FC = () => {
 
     loadSignedAvatar();
   }, [profile?.profile_path, profile?.profile_bucket]);
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!profile) return;
+    setUploading(true);
+    try {
+      const oldProfilePath = profile.profile_path;
+      const ext = file.name.split('.').pop() || 'jpg';
+      const bucket = profile.profile_bucket || 'member-profiles';
+      // Organized storage: batch/username_memberid.jpg
+      const filename = `${profile.username}_${profile.mem_id}.${ext}`;
+      const path = `${bucket}/${profile.batch}/${filename}`;
+
+      // Auto-compress with best quality (92% = minimal information loss)
+      const compressedBlob = await compressImageBlob(file, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: 'image/jpeg',
+      });
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(path, compressedBlob, { upsert: true, contentType: 'image/jpeg' });
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from('members' as any)
+        .update({ profile_path: path, profile_bucket: bucket })
+        .eq('mem_id', profile.mem_id);
+      if (updateError) throw updateError;
+
+      if (oldProfilePath && oldProfilePath !== path) {
+        const { error: deleteError } = await supabase.storage
+          .from(bucket)
+          .remove([oldProfilePath]);
+        if (deleteError) {
+          console.warn('Failed to delete old profile image:', deleteError);
+        }
+      }
+
+      const savings = file.size - compressedBlob.size;
+      const savingsPercent = Math.round((savings / file.size) * 100);
+      toast.success(`Profile picture updated! (Compressed ${savingsPercent}%)`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Remove profile picture completely
+  const handleAvatarRemove = async () => {
+    if (!profile?.profile_path) {
+      toast.error('No profile picture to remove');
+      return;
+    }
+    setUploading(true);
+    try {
+      const bucket = profile.profile_bucket || 'member-profiles';
+      // Delete from storage
+      const { error: deleteError } = await supabase.storage
+        .from(bucket)
+        .remove([profile.profile_path]);
+      if (deleteError) throw deleteError;
+
+      // Unset path in database
+      const { error: updateError } = await supabase
+        .from('members' as any)
+        .update({ profile_path: null })
+        .eq('mem_id', profile.mem_id);
+      if (updateError) throw updateError;
+
+      setAvatarUrl(undefined);
+      toast.success('Profile picture removed');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove image');
+    } finally {
+      setUploading(false);
+    }
+  };;
 
   const profileData = {
     photo: avatarUrl,
@@ -238,7 +324,61 @@ const ProfilePage: React.FC = () => {
             )}
           >
             <div className="flex flex-col items-center text-center">
+              <button
+                type="button"
+                className="relative rounded-full"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploading}
+              >
                 <ImageAvatar photo={profileData.photo} alt={profileData.fullName} isDark={isDark} />
+                <span className="sr-only">Edit profile photo</span>
+              </button>
+              {profileData.photo && !uploading && (
+                <button
+                  type="button"
+                  className="absolute top-0 right-0 bg-red-500/80 text-white rounded-full p-1 hover:bg-red-500 disabled:opacity-50"
+                  onClick={handleAvatarRemove}
+                  disabled={uploading}
+                  title="Remove photo"
+                >
+                  <span className="h-4 w-4 flex items-center justify-center text-xs">🗑️</span>
+                </button>
+              )}
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      setSelectedImageSrc(reader.result as string);
+                      setCropperOpen(true);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                  e.target.value = '';
+                }}
+              />
+              {selectedImageSrc && (
+                <ImageCropper
+                  open={cropperOpen}
+                  onClose={() => {
+                    setCropperOpen(false);
+                    setSelectedImageSrc(null);
+                  }}
+                  imageSrc={selectedImageSrc}
+                  onCropComplete={(blob) => {
+                    const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    handleAvatarUpload(file);
+                    setCropperOpen(false);
+                    setSelectedImageSrc(null);
+                  }}
+                />
+              )}
 
               <h2 className={cn('mt-5 text-2xl md:text-3xl font-serif font-bold', textMain)}>
                 {profileData.fullName}

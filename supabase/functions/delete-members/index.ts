@@ -1,6 +1,6 @@
-// @ts-ignore - Deno remote imports
+// @ts-expect-error - Deno remote imports
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-// @ts-ignore
+// @ts-expect-error
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(key: string): string | undefined } };
@@ -140,7 +140,7 @@ serve(async (req: Request) => {
     for (const aid of authIds) {
       try {
         // supabase-js admin API: auth.admin.deleteUser
-        // @ts-ignore - runtime provides admin API
+        // @ts-expect-error - runtime provides admin API
         const { error: authErr } = await (adminClient as any).auth.admin.deleteUser(aid);
         if (authErr) {
           console.error('Failed to delete auth user', aid, authErr.message || authErr);

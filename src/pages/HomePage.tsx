@@ -1,95 +1,167 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, BookOpen, Users, Calendar, MessageSquare, ChevronRight, Sparkles, GraduationCap, Heart, Zap } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
-import AnnouncementCarousel from '@/components/AnnouncementCarousel';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
-type AnnouncementSeed = {
-  id: string;
-  en: string;
-  ta: string;
-  type: 'event' | 'news' | 'urgent';
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
+import { Link } from "react-router-dom";
+import { motion, useScroll, useTransform } from "framer-motion";
+import {
+  ArrowRight,
+  BookOpen,
+  Users,
+  Calendar,
+  MessageSquare,
+  ChevronRight,
+  Sparkles,
+  GraduationCap,
+  Heart,
+  Zap,
+} from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import AnnouncementCarousel from "@/components/AnnouncementCarousel";
+import ReviewCarousel from "@/components/ReviewCarousel";
+import YouTubeEmbed from "@/components/YouTubeEmbed";
+import LazyImage from "@/components/LazyImage";
+import { useQuery } from "@tanstack/react-query";
+import { renderCyanTail } from "@/utils/text";
+
+import { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
+import heroBg from "@/assets/Home/BG1.jpg";
+import logoImg from "@/assets/logo/AUSDAV_llogo.png";
+import mountainImg from "@/assets/Home/removed.png";
+
+type AnnouncementRow = Tables<"announcements"> & {
+  description_en?: string | null;
+  description_ta?: string | null;
+  announcement_id?: string;
+  is_permanent?: boolean;
+  category?: string | null;
 };
 
-type HomeAnnouncement = {
+interface Announcement {
   id: string;
   title: string;
   message: string;
   image_url?: string | null;
+  type?: 'urgent' | 'event' | 'news';
+}
+
+type SeedAnnouncement = {
+  id: string;
+  en: string;
+  ta: string;
+  img?: string | null;
 };
 
-const fallbackAnnouncements: AnnouncementSeed[] = [
-  { id: 'seed-1', en: '📚 A/L Exam Preparation Seminar - January 2025', ta: '📚 உ.த. தேர்வு தயாரிப்பு கருத்தரங்கு - ஜனவரி 2025', type: 'event' },
-  { id: 'seed-2', en: '🩸 Blood Donation Camp - Save Lives Today', ta: '🩸 இரத்ததான முகாம் - இன்றே உயிர்களைக் காப்பாற்றுங்கள்', type: 'urgent' },
-  { id: 'seed-3', en: '🌳 Anbuchangamam Tree Planting Event - Join Us!', ta: '🌳 அன்புசங்கமம் மரம் நடும் நிகழ்வு - எங்களுடன் இணையுங்கள்!', type: 'event' },
-  { id: 'seed-4', en: '🎓 New Scholarship Program Announced for 2025', ta: '🎓 2025 க்கான புதிய உதவித்தொகை திட்டம் அறிவிக்கப்பட்டது', type: 'news' },
+const fallbackAnnouncements: SeedAnnouncement[] = [
+  { id: 'a1', en: 'Welcome to AUSDAV', ta: 'AUSDAV-க்கு வரவேற்பு', img: null },
+  { id: 'a2', en: 'Check out our upcoming events', ta: 'எங்கள் வரவிருக்கும் நிகழ்வுகளைப் பார்க்கவும்', img: null },
 ];
 
-// Sample events
+
+// Annual Activities from AUSDAV 2025 Proposal
 const annualEvents = [
-  { id: 1, en: 'Practical Seminars', ta: 'நடைமுறை கருத்தரங்குகள்', icon: GraduationCap },
-  { id: 2, en: 'Monthly Exam', ta: 'மாதாந்திர தேர்வு', icon: BookOpen },
-  { id: 3, en: 'Kalvi Karam', ta: 'கல்வி கரம்', icon: Heart },
-  { id: 4, en: 'Annual Exam', ta: 'வருடாந்திர தேர்வு', icon: BookOpen },
-  { id: 5, en: 'Pentathlon', ta: 'பெண்டாத்லான்', icon: Zap },
-  { id: 6, en: 'Innovia', ta: 'இனோவியா', icon: Sparkles },
-  { id: 7, en: 'Anbuchangamam', ta: 'அன்புசங்கமம்', icon: Heart },
-  { id: 8, en: 'Blood Donation Camp', ta: 'இரத்ததான முகாம்', icon: Heart },
-  { id: 9, en: 'Medical Camp', ta: 'மருத்துவ முகாம்', icon: Heart },
-  { id: 10, en: 'Cricket', ta: 'கிரிக்கெட்', icon: Zap },
+  {
+    id: 1,
+    en: "Annual Pilot Examinations",
+    ta: "வருடாந்திர பைலட் தேர்வுகள்",
+    icon: GraduationCap,
+  },
+  { id: 2, en: "Monthly Examinations", ta: "மாதாந்திர தேர்வுகள்", icon: BookOpen },
+  { id: 3, en: "Practical Seminar", ta: "நடைமுறை கருத்தரங்கு", icon: GraduationCap },
+  { id: 4, en: "Kalvikaram Project", ta: "கல்விகரம் திட்டம்", icon: Heart },
+  { id: 5, en: "Pentathlon", ta: "பெண்டத்லான்", icon: Zap },
+  { id: 6, en: "INOVIA", ta: "இன்னோவியா", icon: Sparkles },
+  { id: 7, en: "Anpu Sangamam", ta: "அன்பு சங்கமம்", icon: Heart },
+  { id: 8, en: "Blood Donation Camp", ta: "இரத்ததான முகாம்", icon: Heart },
 ];
-
 
 // Sample committee
 const committeePreview = [
-  { id: 1, role: 'President', roleTA: 'தலைவர்', name: 'Dr. K. Suresh', batch: '2015' },
-  { id: 2, role: 'Secretary', roleTA: 'செயலாளர்', name: 'Ms. T. Priya', batch: '2018' },
-  { id: 3, role: 'Treasurer', roleTA: 'பொருளாளர்', name: 'Mr. S. Rajan', batch: '2017' },
+
 ];
 
 // Executive designations to show on the Home page
-const HOME_EXEC_DESIGNATIONS = ['president', 'secretary', 'treasurer', 'editor', 'web_designer'];
+const HOME_EXEC_DESIGNATIONS = [
+  "president",
+  "secretary",
+  "treasurer",
+  "editor",
+  "web_designer",
+];
 
+// Executive designation to role mapping
 const HOME_DESIGNATION_TO_ROLE: Record<string, { en: string; ta: string }> = {
-  president: { en: 'President', ta: 'தலைவர்' },
-  secretary: { en: 'Secretary', ta: 'செயலாளர்' },
-  treasurer: { en: 'Treasurer', ta: 'பொருளாளர்' },
-  editor: { en: 'Editor', ta: 'ஊடக தலைவர்' },
-  web_designer: { en: 'Web Developer', ta: 'இணைய நிர்வாகி' },
+  president: { en: "President", ta: "தலைவர்" },
+  secretary: { en: "Secretary", ta: "செயலாளர்" },
+  treasurer: { en: "Treasurer", ta: "பொருளாளர்" },
+  editor: { en: "Editor", ta: "ஊடக தலைவர்" },
+  web_designer: { en: "Web Developer", ta: "இணைய நிர்வாகி" },
 };
 
 const stats = [
-  { value: '500+', label: 'Students Helped', labelTA: 'உதவிய மாணவர்கள்' },
-  { value: '50+', label: 'Events Organized', labelTA: 'நிகழ்வுகள்' },
-  { value: '10+', label: 'Years of Service', labelTA: 'சேவை ஆண்டுகள்' },
-  { value: '100%', label: 'Commitment', labelTA: 'அர்ப்பணிப்பு' },
+  { value: "2500+", label: "Students Helped", labelTA: "உதவிய மாணவர்கள்" },
+  { value: "100+", label: "Events Organized", labelTA: "நிகழ்வுகள்" },
+  { value: "32+", label: "Years of Service", labelTA: "சேவை ஆண்டுகள்" },
+  { value: "100%", label: "Commitment", labelTA: "அர்ப்பணிப்பு" },
 ];
 
 const HomePage: React.FC = () => {
   const { language, t } = useLanguage();
-  const [feedbackForm, setFeedbackForm] = useState({ name: '', contact: '', message: '' });
-  const fallbackCards = useMemo<HomeAnnouncement[]>(() => {
-    const useTamil = language === 'ta';
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() =>
+    fallbackAnnouncements.map((s) => ({
+      id: s.id,
+      title: s.en,
+      message: s.en,
+      image_url: s.img || null,
+    }))
+  );
+  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [execPhotoUrls, setExecPhotoUrls] = useState<Map<number | string, string>>(
+    new Map()
+  );
+
+  // Exec committee row auto-scroll refs
+  const execRowRef = useRef<HTMLDivElement | null>(null);
+  const execAutoIntervalRef = useRef<number | null>(null);
+  const execAnimRef = useRef<number | null>(null);
+  const execIsPausedRef = useRef(false);
+
+  const mapCategoryToType = (
+    category?: string | null
+  ): Announcement["type"] => {
+    const normalized = (category || "").toLowerCase();
+    if (normalized === "urgent") return "urgent";
+    if (normalized === "event") return "event";
+    return "news";
+  };
+
+  const buildAnnouncementText = (
+    primary?: string | null,
+    fallback?: string | null
+  ) => {
+    const text = primary?.trim() || fallback?.trim() || "";
+    return text || "Announcement";
+  };
+
+  const [feedbackForm, setFeedbackForm] = useState({ name: "", contact: "", message: "" });
+
+  const fallbackCards = useMemo<Announcement[]>(() => {
+    const useTamil = language === "ta";
     return fallbackAnnouncements.map((seed) => ({
       id: seed.id,
       title: useTamil ? seed.ta : seed.en,
       message: useTamil ? seed.ta : seed.en,
-      image_url: null,
+      image_url: seed.img || null,
     }));
   }, [language]);
-  const [announcements, setAnnouncements] = useState<HomeAnnouncement[]>(fallbackCards);
-  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
-  const heroRef = useRef<HTMLDivElement>(null);
-
-  const buildAnnouncementText = (primary?: string | null, fallback?: string | null) => {
-    const text = primary?.trim() || fallback?.trim() || '';
-    return text || 'Announcement';
-  };
 
   const getAnnouncementImageUrl = (item: any) => {
     if (!item?.img_path) return null;
@@ -105,246 +177,431 @@ const HomePage: React.FC = () => {
 
     try {
       const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from("announcements")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      const activeItems = (data || []).filter((item: any) => {
+      const activeItems = (data || []).filter((item: AnnouncementRow) => {
         const withinStart = !item.start_at || item.start_at <= nowIso;
-        const withinEnd = item.is_permanent || !item.end_at || item.end_at >= nowIso;
+        const withinEnd =
+          item.is_permanent || !item.end_at || item.end_at >= nowIso;
         return item.is_active !== false && withinStart && withinEnd;
       });
 
-      const useTamil = language === 'ta';
-      const mapped = activeItems.map<HomeAnnouncement>((item: any) => {
-        const title = useTamil
-          ? buildAnnouncementText(item.title_ta, item.title_en)
-          : buildAnnouncementText(item.title_en, item.title_ta);
-        const message = useTamil
-          ? buildAnnouncementText(item.description_ta ?? item.message_ta, item.description_en ?? item.title_en)
-          : buildAnnouncementText(item.description_en ?? item.message_en, item.description_ta ?? item.title_ta);
-
+      const mapped = activeItems.map<Announcement>((item: AnnouncementRow) => {
+        const id = String(item.id || item.announcement_id || crypto.randomUUID());
+        const enText = buildAnnouncementText(
+          item.description_en ?? item.message_en ?? item.title_en,
+          item.title_en
+        );
+        const taText = buildAnnouncementText(
+          item.description_ta ?? item.message_ta ?? item.title_ta,
+          item.title_ta || item.description_en || item.title_en
+        );
+        const selected = language === "ta" ? taText : enText;
         return {
-          id: item.id || item.announcement_id || crypto.randomUUID(),
-          title,
-          message,
+          id,
+          title: selected,
+          message: selected,
           image_url: getAnnouncementImageUrl(item),
-        };
+          type: mapCategoryToType(item.category ?? item.tag ?? null),
+        } as Announcement;
       });
 
-      setAnnouncements(mapped.length ? mapped : fallbackCards);
+      if (mapped.length) {
+        setAnnouncements(mapped);
+      } else {
+        setAnnouncements(
+          fallbackAnnouncements.map((s) => ({
+            id: s.id,
+            title: language === "ta" ? s.ta : s.en,
+            message: language === "ta" ? s.ta : s.en,
+            image_url: s.img || null,
+          }))
+        );
+      }
     } catch (error) {
-      console.error('Error loading announcements:', error);
-      toast.error('Unable to load announcements right now.');
-      setAnnouncements(fallbackCards);
+      console.error("Error loading announcements:", error);
+      toast.error("Unable to load announcements right now.");
+      setAnnouncements(
+        fallbackAnnouncements.map((s) => ({
+          id: s.id,
+          title: language === "ta" ? s.ta : s.en,
+          message: language === "ta" ? s.ta : s.en,
+          image_url: s.img || null,
+        }))
+      );
     } finally {
       setIsLoadingAnnouncements(false);
     }
-  }, [fallbackCards, language]);
-  
+  }, [language]);
+
   useEffect(() => {
     loadAnnouncements();
   }, [loadAnnouncements]);
 
+
+
   // Fetch executive members for the Home page (current/latest batch)
-  const { data: execRows } = useQuery<any[]>({
-    queryKey: ['home-exec-members'],
+  const { data: execRows } = useQuery<Tables<"members">[]>({
+    queryKey: ["home-exec-members"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('members')
-        .select('mem_id, fullname, designation, batch, university, uni_degree, profile_bucket, profile_path')
-        .in('designation', HOME_EXEC_DESIGNATIONS as any)
-        .neq('designation', 'none')
-        .not('designation', 'is', null)
-        .order('batch', { ascending: false })
-        .order('fullname', { ascending: true });
+        .from("members")
+        .select(
+          "mem_id, fullname, designation, batch, university, uni_degree, profile_bucket, profile_path"
+        )
+        .in("designation", HOME_EXEC_DESIGNATIONS)
+        .neq("designation", "none")
+        .not("designation", "is", null)
+        .order("batch", { ascending: false })
+        .order("fullname", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as any[];
+      return (data ?? []) as Tables<"members">[];
     },
     staleTime: 1000 * 60 * 5,
   });
 
-  const execMembers = useMemo(() => {
-    if (!execRows || execRows.length === 0) return [] as any[];
-    const maxBatch = Math.max(...execRows.map((r) => r.batch || 0));
-    const rows = execRows.filter((r) => (r.batch || 0) === maxBatch);
-    return rows.map((r) => {
-      const roleInfo = HOME_DESIGNATION_TO_ROLE[r.designation] || { en: r.designation, ta: r.designation };
-      const workParts: string[] = [];
-      if (r.uni_degree) workParts.push(r.uni_degree);
-      if (r.university) workParts.push(r.university);
-      const work = workParts.join(',');
-      let photo: string | null = null;
-      if (r.profile_path && r.profile_bucket) {
-        const { data } = supabase.storage.from(r.profile_bucket).getPublicUrl(r.profile_path);
-        photo = data?.publicUrl || null;
+  useEffect(() => {
+    let isActive = true;
+
+    const loadExecPhotos = async () => {
+      if (!execRows?.length) {
+        if (isActive) setExecPhotoUrls(new Map());
+        return;
       }
+
+      const entries = await Promise.all(
+        execRows.map(async (row) => {
+          if (!row.profile_path) return [row.mem_id, ""] as const;
+          const bucket = row.profile_bucket || "member-profiles";
+          const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(row.profile_path, 60 * 60);
+          if (error || !data?.signedUrl) return [row.mem_id, ""] as const;
+          return [row.mem_id, data.signedUrl] as const;
+        })
+      );
+
+      if (!isActive) return;
+      setExecPhotoUrls(new Map(entries));
+    };
+
+    loadExecPhotos();
+
+    return () => {
+      isActive = false;
+    };
+  }, [execRows]);
+
+  type ExecMember = {
+    id: number | string;
+    role: string;
+    roleTA: string;
+    name: string;
+    nameTA: string;
+    Work?: string;
+    batch?: number | null;
+    photo?: string | null;
+  };
+
+  const execMembers = useMemo<ExecMember[]>(() => {
+    // choose latest batch
+    const maxBatch = execRows && execRows.length ? Math.max(...execRows.map((r) => r.batch || 0)) : 0;
+    const rows = (execRows || []).filter((r) => (r.batch || 0) === maxBatch);
+
+    const byDesignation = new Map(rows.map((r) => [r.designation, r] as const));
+
+    return HOME_EXEC_DESIGNATIONS.map((designation) => {
+      const r = byDesignation.get(designation as string) as Tables<"members"> | undefined;
+      if (r) {
+        const roleInfo = HOME_DESIGNATION_TO_ROLE[r.designation] || {
+          en: r.designation,
+          ta: r.designation,
+        };
+        const workParts: string[] = [];
+        if (r.uni_degree) workParts.push(r.uni_degree);
+        if (r.university) workParts.push(r.university);
+        const work = workParts.join(",");
+        const signedUrl = execPhotoUrls.get(r.mem_id) || "";
+        const photo: string | null = signedUrl || null;
+        return {
+          id: r.mem_id,
+          role: roleInfo.en,
+          roleTA: roleInfo.ta,
+          name: r.fullname,
+          nameTA: r.fullname,
+          Work: work,
+          batch: r.batch,
+          photo,
+        };
+      }
+
+      // fallback: try to use preview data or generic placeholder
+      const roleInfo = HOME_DESIGNATION_TO_ROLE[designation] || {
+        en: designation,
+        ta: designation,
+      };
+      const preview = committeePreview.find(
+        (p) => p.role.toLowerCase() === roleInfo.en.toLowerCase()
+      );
+      const nameFallback = preview ? preview.name : language === "en" ? "Unknown" : "தெரியவில்லை";
+
       return {
-        id: r.mem_id,
+        id: `placeholder-${designation}`,
         role: roleInfo.en,
         roleTA: roleInfo.ta,
-        name: r.fullname,
-        nameTA: r.fullname,
-        Work: work,
-        batch: r.batch,
-        photo,
+        name: nameFallback,
+        nameTA: nameFallback,
+        Work: "",
+        batch: null,
+        photo: null,
       };
     });
-  }, [execRows]);
+  }, [execRows, execPhotoUrls, language]);
+
+  // Auto-scroll for executive committee row: pause on hover/touch, resume on leave/click outside
+  // Native touch scrolling is preserved for mobile; custom drag only for mouse
+  const execDragActiveRef = useRef(false);
+  const execDragStartXRef = useRef(0);
+  const execDragScrollStartRef = useRef(0);
+
+  useEffect(() => {
+    const el = execRowRef.current;
+    if (!el) return;
+    // Respect reduced motion preference
+    const prefersReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) {
+      execIsPausedRef.current = true;
+    }
+
+    // ensure start at beginning
+    el.scrollLeft = 0;
+
+    let last = performance.now();
+    const speed = 50; // px per second
+
+    const step = (now: number) => {
+      const dt = now - last;
+      last = now;
+      if (!execIsPausedRef.current) {
+        el.scrollLeft += (speed * dt) / 1000;
+        const half = el.scrollWidth / 2;
+        if (el.scrollLeft >= half) {
+          // wrap seamlessly
+          el.scrollLeft -= half;
+        }
+      }
+      execAnimRef.current = requestAnimationFrame(step);
+    };
+
+    execAnimRef.current = requestAnimationFrame(step);
+
+    // Pause auto-scroll on hover/focus/touch
+    const pauseAutoScroll = () => { execIsPausedRef.current = true; };
+    // Resume auto-scroll on leave/blur
+    const resumeAutoScroll = () => {
+      if (!execDragActiveRef.current) {
+        execIsPausedRef.current = false;
+      }
+    };
+
+    // Touch start pauses, touch end resumes (native scroll works)
+    const onTouchStart = () => { pauseAutoScroll(); };
+    const onTouchEnd = () => { resumeAutoScroll(); };
+
+    // Mouse drag for desktop (not touch)
+    const onMouseDown = (e: MouseEvent) => {
+      // Ignore right-click
+      if (e.button !== 0) return;
+      pauseAutoScroll();
+      execDragActiveRef.current = true;
+      execDragStartXRef.current = e.clientX;
+      execDragScrollStartRef.current = el.scrollLeft;
+      el.style.scrollBehavior = 'auto';
+      el.style.userSelect = 'none';
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!execDragActiveRef.current) return;
+      e.preventDefault();
+      const delta = execDragStartXRef.current - e.clientX;
+      el.scrollLeft = execDragScrollStartRef.current + delta;
+    };
+
+    const onMouseUp = () => {
+      if (!execDragActiveRef.current) return;
+      execDragActiveRef.current = false;
+      el.style.scrollBehavior = '';
+      el.style.userSelect = '';
+      // Small delay before resuming to avoid immediate re-trigger
+      setTimeout(() => resumeAutoScroll(), 100);
+    };
+
+    // Click outside detection to resume auto-scroll
+    const onDocumentClick = (e: MouseEvent) => {
+      if (!el.contains(e.target as Node)) {
+        execIsPausedRef.current = false;
+      }
+    };
+
+    el.addEventListener('mouseenter', pauseAutoScroll);
+    el.addEventListener('mouseleave', resumeAutoScroll);
+    el.addEventListener('focusin', pauseAutoScroll);
+    el.addEventListener('focusout', resumeAutoScroll);
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('click', onDocumentClick);
+
+    return () => {
+      if (execAnimRef.current !== null) cancelAnimationFrame(execAnimRef.current);
+      el.removeEventListener('mouseenter', pauseAutoScroll);
+      el.removeEventListener('mouseleave', resumeAutoScroll);
+      el.removeEventListener('focusin', pauseAutoScroll);
+      el.removeEventListener('focusout', resumeAutoScroll);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('click', onDocumentClick);
+    };
+  }, [execMembers]);
 
   const { scrollYProgress } = useScroll({
     target: heroRef,
-    offset: ["start start", "end start"]
+    offset: ["start start", "end start"],
   });
-  
+
   const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
   const handleFeedbackSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!feedbackForm.message.trim()) {
-      toast.error(language === 'en' ? 'Please enter a message' : 'தயவுசெய்து செய்தியை உள்ளிடவும்');
+      toast.error(
+        language === "en"
+          ? "Please enter a message"
+          : "தயவுசெய்து செய்தியை உள்ளிடவும்"
+      );
       return;
     }
-    toast.success(t('home.feedback.success'));
-    setFeedbackForm({ name: '', contact: '', message: '' });
+    toast.success(t("home.feedback.success"));
+    setFeedbackForm({ name: "", contact: "", message: "" });
   };
 
   return (
-    <div className="relative overflow-hidden">
-      {/* Announcement Carousel */}
-      <div className="pt-24">
-        <AnnouncementCarousel announcements={announcements} />
-        {isLoadingAnnouncements && (
-          <p className="text-center text-sm text-muted-foreground mt-2">
-            Loading announcements...
-          </p>
-        )}
-      </div>
-
+    <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
       {/* Hero Section with Parallax */}
-      <section ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Background layers */}
-        <div className="absolute inset-0 bg-background" />
-        <motion.div
-          style={{ y, backgroundImage: 'var(--gradient-hero)' }}
-          className="absolute inset-0"
-        />
-        
-        {/* Animated glow orbs */}
-        <motion.div 
-          animate={{ 
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute w-[600px] h-[600px] -top-64 -right-64 rounded-full bg-primary/10 blur-3xl"
-        />
-        <motion.div 
-          animate={{ 
-            x: [0, -80, 0],
-            y: [0, 80, 0],
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute w-[500px] h-[500px] -bottom-64 -left-64 rounded-full bg-secondary/15 blur-3xl"
-        />
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.3, 1],
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute w-[400px] h-[400px] top-1/3 left-1/4 rounded-full bg-accent/15 blur-3xl"
-        />
-
-        {/* Content */}
-        <motion.div 
-          style={{ opacity }}
-          className="container mx-auto px-4 relative z-10 py-32"
+      <section
+        ref={heroRef}
+        className="relative min-h-screen flex items-center justify-center overflow-hidden bg-cover bg-center"
+        style={{
+          backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.6)), url('${heroBg}')`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          backgroundAttachment: "fixed",
+        }}
+      >
+        {/* Animated Rising Logo (Sun) */}
+        {/* <motion.div
+          initial={{ opacity: 0, y: 150 }}
+          animate={{ opacity: 1, y: -50 }}
+          transition={{ duration: 2.5, ease: "easeOut", delay: 0.3 }}
+          className="absolute bottom-1/4 left-1/2 -translate-x-1/2 z-10"
         >
-          <div className="max-w-5xl mx-auto text-center">
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="inline-flex items-center gap-2 glass-card px-4 py-2 rounded-full mb-8"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
-              <span className="text-sm text-muted-foreground">
-                {language === 'en' ? 'Empowering Future Leaders Since 2015' : '2015 முதல் எதிர்கால தலைவர்களை மேம்படுத்துகிறோம்'}
-              </span>
-            </motion.div>
+          <div className="relative">
+            <div className="w-40 h-40 rounded-full blur-2xl bg-cyan-400/30 absolute inset-0" />
+            <img
+              src={logoImg}
+              alt="Rising Logo Sun"
+              className="w-40 h-40 object-contain drop-shadow-2xl"
+            />
+          </div>
+        </motion.div> */}
 
-            {/* Main heading */}
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight"
-            >
-              <span className="text-foreground">{language === 'en' ? 'Building ' : 'எதிர்காலத்தை '}</span>
-              <span className="gradient-text">{language === 'en' ? 'Tomorrow\'s' : 'கட்டமைக்கும்'}</span>
-              <br />
-              <span className="text-foreground">{language === 'en' ? 'Leaders Today' : 'இன்றைய தலைவர்கள்'}</span>
+        {/* Mountain Silhouette (on top of background and logo) */}
+          {/* <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.5, delay: 0.5 }}
+            className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none"
+          >
+            <img
+              src={mountainImg}
+              alt="Mountain Silhouette"
+              className="w-full h-auto object-cover"
+            />
+          </motion.div> */}
+
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-transparent to-black/70"></div>
+        {/* Content */}
+        <motion.div
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="relative w-full"
+        >
+          <motion.div
+            style={{ opacity }}
+            className="container mx-auto px-4 relative z-30 py-32"
+          >
+            <div className="max-w-5xl mx-auto text-center">
+              {/* Main heading */}
+              <motion.h1
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-white"
+              >
+              <span className="text-lg md:text-xl lg:text-2xl block mb-2 text-cyan-400 italic">
+                {language === "en" ? "Welcome to" : "வரவேற்கிறோம்"}
+              </span>
+              <span className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black">
+                {language === "en" ? (
+                  <>
+                    <span className="text-white">AUS</span>
+                    <span className="text-cyan-400">DAV</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-white">AUS</span>
+                    <span className="text-cyan-400">DAV</span>
+                  </>                )}
+              </span>
             </motion.h1>
-
-            {/* Subtitle */}
-            <motion.p
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-              className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
-            >
-              {t('home.hero.subtitle')}
-            </motion.p>
-
-            {/* CTA Buttons */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center"
-            >
-              <Button asChild size="xl" className="group">
-                <Link to="/about">
-                  {t('home.hero.cta')}
-                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="xl" className="border-border/50 hover:border-primary/50 hover:bg-primary/5">
-                <Link to="/events">
-                  {t('nav.events')}
-                </Link>
-              </Button>
-            </motion.div>
 
             {/* Stats */}
             <motion.div
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
-              className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-20"
+              className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-16"
             >
               {stats.map((stat, idx) => (
                 <motion.div
                   key={idx}
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  className="glass-card rounded-2xl p-6 neon-glow-hover"
+                  whileHover={{ scale: 1.03, y: -4 }}
+                  className="bg-cyan-500/20 backdrop-blur-sm rounded-xl p-3 sm:p-4 md:p-6 border border-cyan-500/40 hover:border-cyan-500/60 hover:bg-cyan-500/30 transition-all duration-300"
                 >
-                  <div className="text-3xl md:text-4xl font-bold gradient-text mb-1">{stat.value}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {language === 'en' ? stat.label : stat.labelTA}
+                  <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-cyan-400 mb-1">
+                    {stat.value}
+                  </div>
+                  <div className="text-xs sm:text-sm text-slate-300">
+                    {language === "en" ? stat.label : stat.labelTA}
                   </div>
                 </motion.div>
               ))}
             </motion.div>
           </div>
         </motion.div>
+      </motion.div>
 
         {/* Scroll indicator */}
         <motion.div
@@ -363,178 +620,223 @@ const HomePage: React.FC = () => {
         </motion.div>
       </section>
 
-      {/* Who We Are */}
-      <section className="py-24 relative">
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{ backgroundImage: 'var(--gradient-hero)' }}
-        />
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+      {/* Announcement Carousel */}
+      <div className="pt-8">
+        <AnnouncementCarousel announcements={announcements} />
+        {isLoadingAnnouncements && (
+          <p className="text-center text-sm text-slate-400 mt-2">
+            Loading announcements...
+          </p>
+        )}
+      </div>
+
+      {/* Who We Are Section */}
+      <section className="py-16 md:py-24 bg-gradient-to-b from-slate-900 to-slate-800">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-6xl mx-auto items-center">
+            {/* Left Content */}
             <motion.div
-              initial={{ opacity: 0, x: -50 }}
+              initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
+              className="space-y-6"
             >
-              <div className="inline-flex items-center gap-2 glass-card px-4 py-2 rounded-full text-sm mb-6">
-                <Users className="w-4 h-4 text-primary" />
-                <span className="text-muted-foreground">{language === 'en' ? 'About Us' : 'எங்களைப் பற்றி'}</span>
-              </div>
-              <h2 className="text-3xl md:text-5xl font-bold mb-6">
-                {language === 'en' ? 'Who ' : ''}
-                <span className="gradient-text">{language === 'en' ? 'We Are' : 'நாங்கள் யார்?'}</span>
+              {/* <div className="flex items-center gap-2 text-cyan-400">
+                <Users className="w-5 h-5" />
+                <span className="text-sm font-semibold uppercase tracking-wide">About Us</span>
+              </div> */}
+              <h2 className="text-4xl md:text-5xl font-bold text-white">
+                {language === "en" ? (
+                  <>
+                    Who <span className="text-cyan-400">We Are</span>
+                  </>
+                ) : (
+                  renderCyanTail(t("home.who.title"))
+                )}
               </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed mb-8">
-                {t('home.who.description')}
+              <p className="text-slate-300 text-lg leading-relaxed">
+                {language === "en"
+                  ? "AUSDAV is a passionate community of leaders, innovators, and changemakers dedicated to creating positive impact in our society. Our diverse team brings together unique perspectives and expertise to drive meaningful change."
+                  : "AUSDAV என்பது நமது சமூகத்தில் நேர்மறையான தாக்கத்தை உருவாக்க அர்ப்பணிக்கப்பட்ட தலைவர்கள், புதுமைப்பித்தர்கள் மற்றும் மாற்றத்தை உருவாக்குபவர்களைக் கொண்ட ஒரு ஆர்வமுள்ள சமூகமாகும். அர்த்தமுள்ள மாற்றத்தை ஏற்படுத்த எங்கள் பன்முகத்தன்மை கொண்ட குழு தனித்துவமான கண்ணோட்டங்களையும் நிபுணத்துவத்தையும் ஒன்றிணைக்கிறது."}
               </p>
-              <Button asChild variant="outline" className="group border-border/50 hover:border-primary/50">
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="border-cyan-500/40 hover:border-cyan-500/60 text-cyan-400 hover:text-cyan-300 w-fit"
+              >
                 <Link to="/about">
-                  {language === 'en' ? 'Learn More' : 'மேலும் அறிய'}
-                  <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                  {language === "en" ? "Learn More" : "மேலும் அறிக"}
+                  <ArrowRight className="w-4 h-4 ml-2" />
                 </Link>
               </Button>
             </motion.div>
-            
+
+            {/* Right Content - Responsive YouTube Video */}
             <motion.div
-              initial={{ opacity: 0, x: 50 }}
+              initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
-              className="relative"
+              className="flex items-center justify-center"
             >
-              <div className="glass-card rounded-3xl p-8 relative overflow-hidden transition-transform duration-300 hover:-translate-y-3 neon-glow-hover">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-accent/10 rounded-full blur-3xl" />
-                <div className="relative z-10 text-center py-12">
-                  <BookOpen className="w-20 h-20 text-primary mx-auto mb-6" />
-                  <h3 className="text-2xl font-bold mb-2">
-                    {language === 'en' ? 'Empowering Education' : 'கல்வியை வலுப்படுத்துதல்'}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {language === 'en' ? 'Since 2015' : '2015 முதல்'}
-                  </p>
-                </div>
+              <YouTubeEmbed
+                videoId="LbEa34kbbfg"
+                title="AUSDAV - Who We Are"
+                className="w-full max-w-3xl"
+              />
+            </motion.div>
+          </div>
+        </div>
+      </section>
+      {/* Quick Exam Actions */}
+      <section className="py-12 md:py-16 bg-slate-900/20">
+        <div className="container mx-auto px-4">
+          <div className="max-w-6xl mx-auto grid grid-cols-3 gap-2 md:gap-4">
+            <Link to="/exam#apply" className="group block rounded-2xl p-3 md:p-4 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition w-full text-center md:text-left">
+              <div className="w-10 h-10 mb-3 mx-auto md:mx-0 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <GraduationCap className="w-5 h-5 text-cyan-400" />
               </div>
+              <h4 className="text-lg font-bold text-white">
+                <span className="block md:hidden">{language === 'en' ? 'Exam' : 'தேர்வு'}</span>
+                <span className="hidden md:block">{language === 'en' ? 'Apply for Exam' : 'தேர்விற்கு விண்ணப்பிக்க'}</span>
+              </h4>
+              <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === 'en' ? 'Register online for upcoming exams' : 'வரவிருக்கும் தேர்வுகளுக்கு ஆன்லைனில் பதிவு செய்யவும்'}</p>
+            </Link>
+            <Link to="/exam#results" className="group block rounded-2xl p-3 md:p-4 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition w-full text-center md:text-left">
+              <div className="w-10 h-10 mb-3 mx-auto md:mx-0 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-cyan-400" />
+              </div>
+              <h4 className="text-lg font-bold text-white">
+                <span className="block md:hidden">{language === 'en' ? 'Results' : 'மதிப்பெண்கள்'}</span>
+                <span className="hidden md:block">{language === 'en' ? 'View My Result' : 'என் மதிப்பெண்கள்'}</span>
+              </h4>
+              <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === 'en' ? 'Check your scores and download certificates' : 'உங்கள் மதிப்பெண்களைப் பரிசீலிக்கவும் மற்றும் சான்றிதழ்களை பதிவிறக்கவும்'}</p>
+            </Link>
+            <Link to="/resources" className="group block rounded-2xl p-3 md:p-4 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/20 transition w-full text-center md:text-left">
+              <div className="w-10 h-10 mb-3 mx-auto md:mx-0 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-cyan-400" />
+              </div>
+              <h4 className="text-lg font-bold text-white">
+                <span className="block md:hidden">{language === 'en' ? 'Resources' : 'ஆதாரங்கள்'}</span>
+                <span className="hidden md:block">{language === 'en' ? 'Exam Resources' : 'தேர்வு ஆதாரங்கள்'}</span>
+              </h4>
+              <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === 'en' ? 'Past papers, study guides and sample questions' : 'முந்தைய पेக்குகள், படிப்பு வழிகாட்டிகள் மற்றும் மாதிரி கேள்விகள்'}</p>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Empowering Education + Video Section */}
+      <section className="py-16 md:py-24 bg-slate-800/20">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto items-center">
+
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7 }}
+              className="flex items-center justify-center"
+            >
+              <YouTubeEmbed
+                videoId="e7lYGW8D4pw"
+                title="AUSDAV - Empowering Education"
+                className="w-full max-w-3xl"
+              />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7 }}
+              className="space-y-6"
+            >
+              <h2 className="text-4xl md:text-5xl font-bold text-white">
+                {language === "en" ? (
+                  <>
+                    Empowering <span className="text-cyan-400">Education</span>
+                  </>
+                ) : (
+                  renderCyanTail("கல்வியை மேம்படுத்துதல்")
+                )}
+              </h2>
+
+              <div className="space-y-4 text-slate-300 text-lg leading-relaxed">
+                {/* <p>
+                  Since 2000, our Annual Pilot Examinations have supported students’ academic growth—evolving from scholarship exams to a stronger focus on G.C.E (O/L) Science and Mathematics, and expanding to G.C.E (A/L) initiatives from 2005—while remaining free of charge and accessible without discrimination.
+                </p> */}
+
+                <p>
+                  {language === "en"
+                    ? "Kalvikaram is our grassroots upliftment initiative designed for underprivileged and under-resourced schools across the Northern Province, created in response to teacher shortages."
+                    : "கல்விகாரம் என்பது வடக்கு மாகாணம் முழுவதும் உள்ள பின்தங்கிய மற்றும் வளங்கள் குறைவாக உள்ள பள்ளிகளுக்காக வடிவமைக்கப்பட்ட எங்கள் அடிமட்ட மேம்பாட்டு முயற்சியாகும், இது ஆசிரியர் பற்றாக்குறையை நிவர்த்தி செய்யும் வகையில் உருவாக்கப்பட்டது."}
+                </p>
+
+                <p>
+                  {language === "en"
+                    ? "Through Kalvikaram, volunteer educators deliver subject-focused learning support for both G.C.E (O/L) and G.C.E (A/L) students, strengthening understanding, improving exam readiness, and building a lasting motivation for learning?ensuring no student is held back due to limited institutional resources."
+                    : "கல்விகாரம் மூலம், தன்னார்வ கல்வியாளர்கள் க.பொ.த (சா/த) மற்றும் க.பொ.த (உ/த) மாணவர்களுக்கு பாடம் சார்ந்த கற்றல் ஆதரவை வழங்குகிறார்கள், புரிதலை வலுப்படுத்துகிறார்கள், தேர்வுக்குத் தயாராக இருப்பதை மேம்படுத்துகிறார்கள், மேலும் கற்றலுக்கான நீடித்த உந்துதலை உருவாக்குகிறார்கள் - வரையறுக்கப்பட்ட நிறுவன வளங்கள் காரணமாக எந்த மாணவரும் பின்தங்கியிருக்க மாட்டார்கள் என்பதை உறுதி செய்கிறார்கள்."}
+                </p>
+              </div>
+
+              {/* <div>
+                <Button asChild variant="outline" size="lg" className="border-cyan-500/40 hover:border-cyan-500/60 text-cyan-400 hover:text-cyan-300 w-fit">
+                  <Link to="/about">
+                    {language === "en" ? "Learn More" : "மேலும் அறிக"}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
+                </Button>
+              </div> */}
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* What We Do */}
-      <section className="py-24 relative">
+      {/* About / Events / Donate Cards */}
+      <section className="py-12 md:py-24 bg-slate-800/30">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <div className="inline-flex items-center gap-2 glass-card px-4 py-2 rounded-full text-sm mb-6">
-              <Calendar className="w-4 h-4 text-primary" />
-              <span className="text-muted-foreground">{language === 'en' ? 'Our Programs' : 'எங்கள் திட்டங்கள்'}</span>
-            </div>
-            <h2 className="text-3xl md:text-5xl font-bold">
-              {language === 'en' ? 'What ' : ''}
-              <span className="gradient-text">{language === 'en' ? 'We Do' : 'நாங்கள் என்ன செய்கிறோம்'}</span>
-            </h2>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: BookOpen, label: language === 'en' ? 'Seminars' : 'கருத்தரங்குகள்', desc: language === 'en' ? 'Educational workshops' : 'கல்வி பட்டறைகள்' },
-              { icon: Users, label: language === 'en' ? 'Mentorship' : 'வழிகாட்டுதல்', desc: language === 'en' ? 'Career guidance' : 'தொழில் வழிகாட்டுதல்' },
-              { icon: Calendar, label: language === 'en' ? 'Events' : 'நிகழ்வுகள்', desc: language === 'en' ? 'Community programs' : 'சமூக திட்டங்கள்' },
-              { icon: MessageSquare, label: language === 'en' ? 'Support' : 'ஆதரவு', desc: language === 'en' ? 'Student assistance' : 'மாணவர் உதவி' },
-            ].map((item, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: idx * 0.1 }}
-                whileHover={{ y: -10 }}
-                className="glass-card rounded-2xl p-8 text-center neon-glow-hover group"
-              >
-                <div className="w-16 h-16 mx-auto mb-6 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <item.icon className="w-8 h-8 text-primary" />
+          <div className="grid grid-cols-3 gap-3 md:gap-6 max-w-6xl mx-auto">
+            {/* About Us Card (centered icon, title, description) */}
+            <Link to="/about" className="group block rounded-2xl p-4 md:p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
+                  <Users className="w-6 h-6 md:w-7 md:h-7 text-cyan-400" />
                 </div>
-                <h3 className="font-bold text-lg mb-2">{item.label}</h3>
-                <p className="text-sm text-muted-foreground">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+                <h3 className="text-base md:text-xl font-semibold text-white">{language === "en" ? "About Us" : "எங்களைப் பற்றி"}</h3>
+                <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === "en" ? "Learn more about our mission, vision, and the dedicated team behind AUSDAV." : "எங்கள் நோக்கம், பார்வை மற்றும் AUSDAV இன் பின்னால் உள்ள அர்ப்பணிப்பு குழுவைப் பற்றி மேலும் அறிக."}</p>
+              </div>
+            </Link>
 
-      {/* Annual Events Timeline */}
-      <section className="py-24 relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{ backgroundImage: 'var(--gradient-hero)' }}
-        />
-        <div className="container mx-auto px-4 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">
-              {language === 'en' ? 'Annual ' : 'வருடாந்த '}
-              <span className="gradient-text">{language === 'en' ? 'Events' : 'நிகழ்வுகள்'}</span>
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              {language === 'en' 
-                ? 'Our year-round activities designed to support and develop students' 
-                : 'மாணவர்களை ஆதரிக்கவும் வளர்க்கவும் வடிவமைக்கப்பட்ட எங்கள் ஆண்டு முழுவதும் செயல்பாடுகள்'}
-            </p>
-          </motion.div>
+            {/* Events Card (centered) */}
+            <Link to="/events" className="group block rounded-2xl p-4 md:p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
+                  <Calendar className="w-6 h-6 md:w-7 md:h-7 text-cyan-400" />
+                </div>
+                <h3 className="text-base md:text-xl font-semibold text-white">{language === "en" ? "Events" : "நிகழ்வுகள்"}</h3>
+                <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === "en" ? "Discover our upcoming events, seminars, and activities that empower students." : "மாணவர்களை வலுப்படுத்தும் எங்கள் வரவிருக்கும் நிகழ்வுகள், கருத்தரங்குகள் மற்றும் செயல்பாடுகளைக் கண்டறிக."}</p>
+              </div>
+            </Link>
 
-          <div className="relative max-w-4xl mx-auto">
-            {/* Timeline line */}
-            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-primary/50 to-transparent -translate-x-1/2" />
-            
-            <div className="space-y-12">
-              {annualEvents.map((event, idx) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, x: idx % 2 === 0 ? -50 : 50 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.6, delay: idx * 0.1 }}
-                  className={`flex items-center gap-6 ${idx % 2 === 0 ? 'flex-row' : 'flex-row-reverse'}`}
-                >
-                  <div className={`flex-1 ${idx % 2 === 0 ? 'text-right' : 'text-left'}`}>
-                    <motion.div 
-                      whileHover={{ scale: 1.02 }}
-                      className={`inline-block glass-card rounded-2xl p-6 neon-glow-hover ${idx % 2 === 0 ? 'mr-6' : 'ml-6'}`}
-                    >
-                      
-                      <p className="font-bold text-lg mt-2">
-                        {language === 'en' ? event.en : event.ta}
-                      </p>
-                    </motion.div>
-                  </div>
-                  
-                  {/* Center icon */}
-                  <motion.div 
-                    whileHover={{ scale: 1.2, rotate: 10 }}
-                    className="relative z-10 w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow flex-shrink-0"
-                  >
-                    <event.icon className="w-6 h-6 text-primary-foreground" />
-                  </motion.div>
-                  
-                  <div className="flex-1" />
-                </motion.div>
-              ))}
-            </div>
+            {/* Donate Card (centered) */}
+            <Link to="/donate" className="group block rounded-2xl p-4 md:p-8 bg-slate-900/40 border border-cyan-800/20 hover:border-cyan-500/50 hover:bg-slate-900/60 transition-all duration-300">
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-cyan-800/20 flex items-center justify-center">
+                  <Heart className="w-6 h-6 md:w-7 md:h-7 text-cyan-400" />
+                </div>
+                <h3 className="text-base md:text-xl font-semibold text-white">{language === "en" ? "Donate" : "தானம்"}</h3>
+                <p className="hidden md:block text-sm text-slate-400 max-w-xs">{language === "en" ? "Support our programs and help students reach their potential." : "எங்கள் திட்டங்களை ஆதரித்து மாணவர்களுக்கு உதவுங்கள்."}</p>
+              </div>
+            </Link>
           </div>
         </div>
       </section>
 
       {/* Executive Committee */}
-      <section className="py-24 relative">
+      <section className="py-24 relative bg-slate-700/30">
         <div className="container mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -542,110 +844,166 @@ const HomePage: React.FC = () => {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">
-              {language === 'en' ? 'Our ' : 'எங்கள் '}
-              <span className="gradient-text">{language === 'en' ? 'Leadership' : 'தலைமை'}</span>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white">
+              {language === "en" ? "Our " : "எங்கள் "}
+              <span className="text-cyan-400">
+                {language === "en" ? "Executive Committee" : "தலைமை குழு"}
+              </span>
             </h2>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {(execMembers && execMembers.length ? execMembers : committeePreview).map((member, idx) => (
-              <motion.div
-                key={member.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: idx * 0.15 }}
-                whileHover={{ y: -10 }}
-                className="glass-card rounded-2xl p-8 text-center neon-glow-hover"
-              >
-                <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow">
-                  <span className="text-3xl font-bold text-primary-foreground">
-                    {member.name.charAt(0)}
-                  </span>
-                </div>
-                <h3 className="font-bold text-xl mb-1">{member.name}</h3>
-                <p className="text-primary font-medium mb-2">
-                  {language === 'en' ? member.role : member.roleTA}
-                </p>
-                {member.batch && (
-                  <p className="text-sm text-muted-foreground">
-                    {language === 'en' ? 'Batch' : 'தொகுதி'} {member.batch}
+          <div className="max-w-6xl mx-auto">
+            <style>{`.no-scrollbar::-webkit-scrollbar{display:none} .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none} .exec-row{cursor:grab;} .exec-row:active{cursor:grabbing;}`}</style>
+            <div ref={execRowRef} className="exec-row flex gap-6 overflow-x-auto py-4 px-4 md:px-0 no-scrollbar" role="list" aria-label="Executive committee members" tabIndex={0}>
+              {/* primary sequence */}
+              {(execMembers && execMembers.length ? execMembers : committeePreview).map((member, idx) => (
+                <motion.div
+                  key={member.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: idx * 0.15 }}
+                  whileHover={{ y: -10, scale: 1.01 }}
+                  className="glass-card rounded-2xl p-6 text-center neon-glow-hover relative w-[260px] md:w-[280px] flex-shrink-0"
+                  role="listitem"
+                  aria-label={`${member.role} - ${member.name}`}
+                  title={`${member.role} — ${member.name}`}
+                >
+                  <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow overflow-hidden">
+                    {member.photo ? (
+                      <LazyImage
+                        src={member.photo}
+                        alt={`${member.name} photo`}
+                        className="rounded-2xl"
+                        ratio="square"
+                        preloadMargin="200px"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center text-3xl font-bold text-primary-foreground"
+                        aria-hidden="true"
+                      >
+                        {member.name ? member.name.charAt(0) : "?"}
+                      </div>
+                    )}
+                  </div>
+
+                  <h3 className="font-bold text-xl mb-1 text-white break-words whitespace-normal">{member.name}</h3>
+                  <p className="font-medium mb-2 text-cyan-200/90 break-words whitespace-normal">{language === "en" ? member.role : member.roleTA}</p>
+
+                  <p className="text-sm text-muted-foreground break-words whitespace-normal">
+                    {(member.Work && member.Work.trim()) ? (
+                      member.Work
+                    ) : (
+                      <span>{language === "en" ? "Batch" : "தொகுதி"} {member.batch ?? "—"}</span>
+                    )}
                   </p>
-                )}
-              </motion.div>
-            ))}
-          </div>
+                </motion.div>
+              ))}
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="text-center mt-12"
-          >
-            <Button asChild variant="outline" size="lg" className="group border-border/50 hover:border-primary/50">
-              <Link to="/committee">
-                {t('home.committee.viewAll')}
-                <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </Button>
-          </motion.div>
-        </div>
-      </section>
+              {/* duplicated sequence for seamless looping (aria-hidden) */}
+              {(execMembers && execMembers.length ? execMembers : committeePreview).map((member, idx) => (
+                <motion.div
+                  key={`loop-${member.id}-${idx}`}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: idx * 0.02 }}
+                  whileHover={{ y: -10, scale: 1.01 }}
+                  className="glass-card rounded-2xl p-6 text-center neon-glow-hover relative w-[260px] md:w-[280px] flex-shrink-0"
+                  role="listitem"
+                  aria-hidden="true"
+                >
+                  <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow overflow-hidden">
+                    {member.photo ? (
+                      <LazyImage
+                        src={member.photo}
+                        alt=""
+                        className="rounded-2xl"
+                        ratio="square"
+                        preloadMargin="200px"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center text-3xl font-bold text-primary-foreground"
+                        aria-hidden="true"
+                      >
+                        {member.name ? member.name.charAt(0) : "?"}
+                      </div>
+                    )}
+                  </div>
 
-      {/* Feedback Section */}
-      <section className="py-24 relative">
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{ backgroundImage: 'var(--gradient-hero)' }}
-        />
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-2xl mx-auto">
+                  <h3 className="font-bold text-xl mb-1 text-white break-words whitespace-normal">{member.name}</h3>
+                  <p className="font-medium mb-2 text-cyan-200/90 break-words whitespace-normal">{language === "en" ? member.role : member.roleTA}</p>
+
+                  <p className="text-sm text-muted-foreground break-words whitespace-normal">
+                    {(member.Work && member.Work.trim()) ? (
+                      member.Work
+                    ) : (
+                      <span>{language === "en" ? "Batch" : "தொகுதி"} {member.batch ?? "—"}</span>
+                    )}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
-              className="text-center mb-12"
+              className="text-center mt-12"
             >
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <MessageSquare className="w-8 h-8 text-primary" />
-              </div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                {t('home.feedback.title')}
-              </h2>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="group border-cyan-500/40 hover:border-cyan-500/60 text-cyan-400 hover:text-cyan-300"
+              >
+                <Link to="/committee">
+                  {t("home.committee.viewAll")}
+                  <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </Button>
             </motion.div>
-
-               <motion.form
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      onSubmit={handleFeedbackSubmit}
-      className="glass-card rounded-2xl p-8 space-y-6"
-    >
-      <div>
-        <label className="block text-sm font-medium mb-2">
-          {t('home.feedback.message')} *
-        </label>
-        <Textarea
-          value={feedbackForm.message}
-          onChange={(e) =>
-            setFeedbackForm((prev) => ({ ...prev, message: e.target.value }))
-          }
-          placeholder={language === 'en' ? 'Your message...' : 'உங்கள் செய்தி...'}
-          rows={5}
-          className="bg-background/50 border-border/50 focus:border-primary resize-none"
-        />
-      </div>
-    
-      <Button type="submit" size="lg" className="w-full">
-        {t('home.feedback.submit')}
-        <ArrowRight className="w-4 h-4 ml-2" />
-      </Button>
-</motion.form>
-
           </div>
         </div>
       </section>
+
+      {/* Testimonials / Reviews Carousel */}
+      {/* <section className="py-24 bg-slate-800/30">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold text-white">
+              {language === "en" ? "CLIENT REVIEWS" : "கிளையன்ட் மதிப்புரைகள்"}
+            </h2>
+          </div>
+
+          <ReviewCarousel
+            reviews={[
+              {
+                en: "I have known and worked closely with Rick and Liza Looser, and the fine folks at The Agency, for almost two decades and feel fully confident in expressing my endorsement.",
+                ta: "நான் Rick மற்றும் Liza Looser ஆகியோருடன் பணி செய்துள்ளேன்.",
+                author: "Nina Perry",
+                image: "👩‍💼",
+              },
+              {
+                en: "Exceptional service and outstanding results. Their team goes above and beyond to ensure every project is completed to perfection.",
+                ta: "விதிவிலக்கான சேவை மற்றும் சிறந்த முடிவுகள்.",
+                author: "John Smith",
+                image: "👨‍💼",
+              },
+              {
+                en: "Professional, reliable, and passionate about their work. They deliver excellence in every aspect.",
+                ta: "தொழில்முறை, நம்பகமான மற்றும் தங்கள் வேலையில் ஆர்வமுள்ளவர்கள்.",
+                author: "Sarah Johnson",
+                image: "👩‍🔬",
+              },
+            ]}
+            language={language}
+          />
+        </div>
+      </section> */}
+
     </div>
   );
 };

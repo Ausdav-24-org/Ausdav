@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Shield, Save, Loader2, UploadCloud } from 'lucide-react';
+import { User, Shield, Save, Loader2, UploadCloud, X } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { ImageCropper } from '@/components/ui/ImageCropper';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 export default function AdminProfilePage() {
   const { profile, role, refreshProfile } = useAdminAuth();
@@ -34,6 +36,8 @@ export default function AdminProfilePage() {
   const [showUniversitySuggestions, setShowUniversitySuggestions] = useState(false);
   const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
 
   useEffect(() => {
     setFormData({
@@ -144,7 +148,7 @@ export default function AdminProfilePage() {
         phone: phoneDigits,
       };
 
-      let { error } = await supabase
+      const { error } = await supabase
         .from('members' as any)
         .update(payload as any)
         .eq('mem_id', profile.mem_id);
@@ -197,25 +201,71 @@ export default function AdminProfilePage() {
     if (!profile) return;
     setUploading(true);
     try {
+      const oldProfilePath = profile.profile_path;
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `${profile.auth_user_id || profile.mem_id}/avatar-${Date.now()}.${ext}`;
+      // Organized storage: batch/username_memberid.jpg
+      const filename = `${profile.username}_${profile.mem_id}.${ext}`;
+      const path = `${profile.batch}/${filename}`;
+
+      // Auto-compress with best quality (92% = minimal information loss)
+      const compressedBlob = await compressImageBlob(file, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: 'image/jpeg',
+      });
+
       const { error: uploadError } = await supabase.storage
         .from('member-profiles')
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, compressedBlob, { upsert: true, contentType: 'image/jpeg' });
 
       if (uploadError) throw uploadError;
 
       const { error: updateError } = await supabase
         .from('members' as any)
-        .update({ profile_path: path })
+        .update({ profile_path: path, profile_bucket: 'member-profiles' })
         .eq('mem_id', profile.mem_id);
 
       if (updateError) throw updateError;
 
       await refreshProfile();
-      toast.success('Profile picture updated');
+      if (oldProfilePath && oldProfilePath !== path) {
+        const { error: deleteError } = await supabase.storage
+          .from('member-profiles')
+          .remove([oldProfilePath]);
+        if (deleteError) {
+          console.warn('Failed to delete old profile image:', deleteError);
+        }
+      }
+
+      const savings = file.size - compressedBlob.size;
+      const savingsPercent = Math.round((savings / file.size) * 100);
+      toast.success(`Profile picture updated! (Compressed ${savingsPercent}%)`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!profile?.profile_path) return;
+    setUploading(true);
+    try {
+      // delete from storage
+      const { error: deleteError } = await supabase.storage
+        .from('member-profiles')
+        .remove([profile.profile_path]);
+      if (deleteError) throw deleteError;
+      // unset path in db
+      const { error: updateError } = await supabase
+        .from('members' as any)
+        .update({ profile_path: null })
+        .eq('mem_id', profile.mem_id);
+      if (updateError) throw updateError;
+      await refreshProfile();
+      toast.success('Profile picture removed');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove image');
     } finally {
       setUploading(false);
     }
@@ -235,19 +285,31 @@ export default function AdminProfilePage() {
             <CardContent className="p-8">
               <div className="flex flex-col md:flex-row items-center gap-6">
                 <div className="flex flex-col items-center gap-2 relative">
-                  <button
-                    type="button"
-                    className="relative rounded-full"
-                    onClick={() => avatarInputRef.current?.click()}
-                  >
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage src={avatarUrl || undefined} />
-                      <AvatarFallback className="bg-primary/20 text-primary text-2xl">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="sr-only">Edit profile photo</span>
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="relative rounded-full"
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      <Avatar className="h-24 w-24">
+                        <AvatarImage src={avatarUrl || undefined} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-2xl">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="sr-only">Edit profile photo</span>
+                    </button>
+                    {avatarUrl && !uploading && (
+                      <button
+                        type="button"
+                        className="absolute top-0 right-0 bg-red-500/80 text-white rounded-full p-1 hover:bg-red-500"
+                        onClick={handleAvatarRemove}
+                        title="Remove photo"
+                      >
+                        <span className="h-4 w-4 flex items-center justify-center">🗑️</span>
+                      </button>
+                    )}
+                  </div>
                   <input
                     ref={avatarInputRef}
                     type="file"
@@ -256,9 +318,38 @@ export default function AdminProfilePage() {
                     disabled={uploading}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) handleAvatarUpload(file);
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          setSelectedImageSrc(reader.result as string);
+                          setCropperOpen(true);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                      e.target.value = '';
                     }}
                   />
+                  {selectedImageSrc && (
+                    <ImageCropper
+                      open={cropperOpen}
+                      onClose={() => {
+                        setCropperOpen(false);
+                        setSelectedImageSrc(null);
+                      }}
+                      imageSrc={selectedImageSrc}
+                      onCropComplete={async (blob) => {
+                        const compressedBlob = await compressImageBlob(blob, {
+                          maxSize: 512,
+                          quality: 0.82,
+                          mimeType: 'image/jpeg',
+                        });
+                        const file = new File([compressedBlob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                        handleAvatarUpload(file);
+                        setCropperOpen(false);
+                        setSelectedImageSrc(null);
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="text-center md:text-left">
                   <h2 className="text-2xl font-bold">{profile?.fullname || 'User'}</h2>
