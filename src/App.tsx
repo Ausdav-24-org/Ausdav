@@ -34,7 +34,7 @@ const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage")
 const AdminProfilePage = lazy(() => import("@/pages/admin/AdminProfilePage"));
 const AdminMembersPage = lazy(() => import("@/pages/admin/AdminMembersPage"));
 const AdminAnnouncementsPage = lazy(() => import("@/pages/admin/AdminAnnouncementsPage"));
-const AdminAuditPage = lazy(() => import("@/pages/admin/AdminAuditPage"));
+const FinanceAuditLogPage = lazy(() => import("@/pages/admin/finance/FinanceAuditLogPage"));
 const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettingsPage"));
 const AdminPermissionsPage = lazy(() => import("@/pages/admin/AdminPermissionsPage"));
 const AdminEventsPage = lazy(() => import("@/pages/admin/AdminEventsPage"));
@@ -57,8 +57,8 @@ const AdminResultsPage = lazy(() => import("@/pages/admin/AdminResultsPage"));
 const AdminDesignationsPage = lazy(() => import("@/pages/admin/AdminDesignationsPage"));
 const AdminDetailsPage = lazy(() => import("@/pages/admin/AdminDetailsPage"));
 const AdminMasterAdminPage = lazy(() => import("@/pages/admin/AdminMasterAdminPage"));
-const AdminBulkQRGeneratorPage = lazy(() => import("@/pages/admin/AdminBulkQRGeneratorPage"));
-const AdminIDCardPage = lazy(() => import("@/pages/admin/AdminIDCardPage"));
+const AdminBulkQRGeneratorPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
+const AdminIDCardPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
 const AdminProfileMigrationPage = lazy(() => import("@/pages/admin/AdminProfileMigrationPage"));
 const VerifyMemberPage = lazy(() => import("@/pages/VerifyMemberPage"));
 
@@ -359,7 +359,7 @@ const App = () => {
                     <Route path="id-card-generator" element={<Suspense fallback={<PageLoader />}><AdminIDCardPage /></Suspense>} />
                     <Route path="profile-migration" element={<Suspense fallback={<PageLoader />}><AdminProfileMigrationPage /></Suspense>} />
                     <Route path="contact" element={<Suspense fallback={<PageLoader />}><ContactSettingsPage /></Suspense>} />
-                    <Route path="audit" element={<Suspense fallback={<PageLoader />}><AdminAuditPage /></Suspense>} />
+                    <Route path="audit" element={<Suspense fallback={<PageLoader />}><FinanceAuditLogPage /></Suspense>} />
                     <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettingsPage /></Suspense>} />
                     <Route path="finance/submit" element={<Suspense fallback={<PageLoader />}><FinanceSubmitPage /></Suspense>} />
                     <Route path="finance/verify" element={<Suspense fallback={<PageLoader />}><FinanceVerifyPage /></Suspense>} />

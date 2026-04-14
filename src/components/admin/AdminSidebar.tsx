@@ -168,23 +168,14 @@ export function AdminSidebar() {
     const insertIndex = Math.max(0, filteredNavItems.length - 3);
     filteredNavItems.splice(insertIndex, 0, masterAdminItem);
 
-    // Add Bulk QR Generator item for Master Admins
-    const bulkQRItem: NavItem = {
-      title: 'Bulk QR Generator',
+    // Add QR Codes & ID Cards item for Master Admins
+    const qrAndIdCardsItem: NavItem = {
+      title: 'QR Codes & ID Cards',
       href: '/admin/bulk-qr-generator',
       icon: QrCode,
       roles: [],
     };
-    filteredNavItems.splice(insertIndex + 1, 0, bulkQRItem);
-
-    // Add ID Card Generator item for Master Admins
-    const idCardItem: NavItem = {
-      title: 'ID Card Generator',
-      href: '/admin/id-card-generator',
-      icon: IdCard,
-      roles: [],
-    };
-    filteredNavItems.splice(insertIndex + 2, 0, idCardItem);
+    filteredNavItems.splice(insertIndex + 1, 0, qrAndIdCardsItem);
   }
 
   return (
