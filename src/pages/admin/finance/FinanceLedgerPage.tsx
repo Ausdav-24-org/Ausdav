@@ -369,7 +369,7 @@ export default function FinanceLedgerPage() {
       (a.txn_date || "").localeCompare(b.txn_date || "")
     );
 
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
     const title = "Finance Ledger";
     doc.setFontSize(16);
     doc.text(title, 40, 40);
@@ -392,11 +392,11 @@ export default function FinanceLedgerPage() {
       styles: { fontSize: 9, cellPadding: 4, overflow: "linebreak" },
       headStyles: { fillColor: [33, 150, 243] },
       columnStyles: {
-        0: { cellWidth: 70 },
-        1: { cellWidth: 55 },
-        2: { cellWidth: 80 },
-        3: { cellWidth: 70 },
-        4: { cellWidth: 220 },
+        0: { cellWidth: 90 },
+        1: { cellWidth: 70 },
+        2: { cellWidth: 100 },
+        3: { cellWidth: 90 },
+        4: { cellWidth: 280 },
       },
     });
 
