@@ -58,17 +58,17 @@ export function AdminHeader({ title, breadcrumb }: AdminHeaderProps) {
   }, [profile?.profile_path]);
 
   return (
-    <header className="h-16 bg-card/80 backdrop-blur-xl border-b border-border flex items-center justify-between px-6">
+    <header className="h-auto sm:h-16 bg-card/80 backdrop-blur-xl border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-0 gap-3 sm:gap-0">
       {/* Page Title */}
-      <div>
+      <div className="flex-1 min-w-0">
         {breadcrumb && (
-          <p className="text-xs text-muted-foreground mb-0.5">{breadcrumb}</p>
+          <p className="text-xs text-muted-foreground mb-0.5 truncate">{breadcrumb}</p>
         )}
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+        <h1 className="text-lg sm:text-xl font-semibold text-foreground break-words sm:break-normal line-clamp-2 sm:line-clamp-1">{title}</h1>
       </div>
 
       {/* Live Viewer Badge & Profile Menu */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
         <LiveViewerBadge size="sm" />
         <Button
           variant="ghost"

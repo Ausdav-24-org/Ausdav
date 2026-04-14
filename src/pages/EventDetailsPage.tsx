@@ -2,10 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, ArrowLeft, Image as ImageIcon } from 'lucide-react';
+import { Calendar, MapPin, ArrowLeft, Share2 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -37,6 +36,7 @@ interface GalleryRow {
   description_en: string | null;
   description_ta: string | null;
   gallery_images: GalleryImageRow[];
+  embed_codes?: Record<string, string>; // Facebook embed codes {1: code, 2: code}
 }
 
 const buildPublicUrl = (bucket: string, path: string | null) => {
@@ -49,6 +49,7 @@ const EventDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { language } = useLanguage();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedPost, setSelectedPost] = useState<string>('1');
 
   const { data: event, isLoading: eventLoading, error: eventError } = useQuery({
     queryKey: ['event', id],
@@ -79,6 +80,7 @@ const EventDetailsPage: React.FC = () => {
             title,
             description_en,
             description_ta,
+            embed_codes,
             gallery_images (id, file_path, caption, sort_order)
           `)
           .eq('event_id', id)
@@ -105,14 +107,33 @@ const EventDetailsPage: React.FC = () => {
     return orderedGalleries[0];
   }, [orderedGalleries, selectedYear]);
 
-  const activeImages = useMemo(() => {
-    if (!activeGallery) return [] as GalleryImageRow[];
-    return [...(activeGallery.gallery_images || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-  }, [activeGallery]);
+  // Reset selected post to #1 when gallery changes
+  React.useEffect(() => {
+    setSelectedPost('1');
+  }, [activeGallery?.id]);
+
+  // Reparse Facebook SDK when post changes
+  React.useEffect(() => {
+    // Use small delay to ensure DOM is fully rendered before Facebook SDK parses
+    const timer = setTimeout(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const win = window as any;
+      if (win.FB?.XFBML?.parse) {
+        try {
+          win.FB.XFBML.parse();
+        } catch (error) {
+          // Suppress non-fatal Facebook SDK errors (element attachment timing issues)
+          console.debug('Facebook SDK parse error (non-fatal):', error);
+        }
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [selectedPost]);
 
   if (eventLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 pt-28 pb-12">
         <div className="text-center">Loading event details...</div>
       </div>
     );
@@ -120,7 +141,7 @@ const EventDetailsPage: React.FC = () => {
 
   if (eventError || !event) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 pt-28 pb-12">
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold">Event not found</h1>
           <Button asChild>
@@ -138,7 +159,7 @@ const EventDetailsPage: React.FC = () => {
   const eventDesc = language === 'ta' && event.description_ta ? event.description_ta : event.description_en;
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 pt-28 pb-12">
       <div className="mb-6">
         <Button variant="outline" asChild>
           <Link to="/events">
@@ -149,7 +170,7 @@ const EventDetailsPage: React.FC = () => {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
+        {/* <div className="flex items-center gap-3 mb-4 flex-wrap">
           <Badge variant="secondary" className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             {new Date(event.event_date).toLocaleDateString(language === 'en' ? 'en-US' : 'ta-LK', {
@@ -162,7 +183,7 @@ const EventDetailsPage: React.FC = () => {
               {event.location}
             </Badge>
           )}
-        </div>
+        </div> */}
 
         <h1 className="text-4xl font-bold mb-4">{eventTitle}</h1>
 
@@ -182,51 +203,65 @@ const EventDetailsPage: React.FC = () => {
         )}
       </motion.div>
 
-      {/* Gallery Section */}
-      {activeGallery && (
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-12">
-          <div className="flex items-center gap-2 mb-3">
-            <ImageIcon className="w-5 h-5" />
-            <h2 className="text-2xl font-semibold">
-              {language === 'ta' ? 'கேலரி' : 'Gallery'} — {activeGallery.year}
+      {/* Facebook Embeds Section - Only for this event's year */}
+      {activeGallery && activeGallery.embed_codes && Object.keys(activeGallery.embed_codes).length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-12">
+          {/* Section Header */}
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-primary/30">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Share2 className="w-6 h-6 text-primary" />
+            </div>
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              {language === 'ta' ? 'பக்க பதிவுகள்' : 'Facebook Posts'} — {activeGallery.year}
             </h2>
           </div>
 
-          {(activeGallery.description_en || activeGallery.description_ta) && (
-            <p className="text-muted-foreground mb-5">
-              {language === 'ta' && activeGallery.description_ta ? activeGallery.description_ta : activeGallery.description_en}
-            </p>
-          )}
+          {/* Post Tabs */}
+          <div className="flex gap-3 mb-8 flex-wrap">
+            {Object.keys(activeGallery.embed_codes)
+              .sort((a, b) => parseInt(a) - parseInt(b))
+              .map((number) => (
+                <button
+                  key={number}
+                  onClick={() => setSelectedPost(number)}
+                  className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+                    selectedPost === number
+                      ? 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/40 scale-105'
+                      : 'bg-secondary/60 text-secondary-foreground hover:bg-secondary/80 hover:shadow-md border border-secondary'
+                  }`}
+                >
+                  <span className="inline-block">{language === 'ta' ? 'பின்னணி' : 'Post'} #{number}</span>
+                </button>
+              ))}
+          </div>
 
-          {activeImages.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {activeImages.map((image) => {
-                const publicUrl = supabase.storage.from('event-gallery').getPublicUrl(image.file_path).data.publicUrl;
-                return (
-                  <Card key={image.id} className="overflow-hidden">
-                    <CardContent className="p-0">
-                      <img
-                        src={publicUrl}
-                        alt={image.caption || 'Gallery image'}
-                        className="w-full h-48 object-cover hover:scale-105 transition-transform duration-200 cursor-pointer"
-                        onClick={() => window.open(publicUrl, '_blank')}
-                      />
-                      {image.caption && (
-                        <div className="p-3">
-                          <p className="text-sm text-muted-foreground">{image.caption}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+          {/* Selected Post Display */}
+          <motion.div
+            key={selectedPost}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            className="bg-gradient-to-br from-card via-card to-card/50 rounded-2xl border-2 border-primary/20 p-6 shadow-2xl hover:shadow-3xl transition-shadow duration-300"
+          >
+            {/* Post Badge */}
+            <div className="mb-4 flex items-center gap-2">
+              <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-primary/20 to-primary/10 text-primary font-bold rounded-full text-sm border border-primary/30">
+                {language === 'ta' ? 'பின்னணி' : 'Post'} #{selectedPost}
+              </span>
+              <span className="text-xs text-muted-foreground font-medium">
+                {`${Object.keys(activeGallery.embed_codes).length} posts available`}
+              </span>
             </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-60" />
-              <p>{language === 'ta' ? 'படங்கள் இல்லை' : 'No images available'}</p>
+
+            {/* Facebook Embed Container */}
+            <div className="w-full overflow-hidden rounded-xl min-h-96 bg-white/5 border border-border/20 p-2">
+              <div
+                id={`fb-embed-${id}-${selectedPost}`}
+                className="w-full flex justify-center"
+                dangerouslySetInnerHTML={{ __html: activeGallery.embed_codes[selectedPost] }}
+              />
             </div>
-          )}
+          </motion.div>
         </motion.div>
       )}
 
@@ -244,7 +279,7 @@ const EventDetailsPage: React.FC = () => {
                 className="flex items-center gap-2"
               >
                 {g.year}
-                <span className="text-xs text-muted-foreground">({g.gallery_images?.length || 0})</span>
+                <span className="text-xs text-muted-foreground">({Object.keys(g.embed_codes || {}).length})</span>
               </Button>
             ))}
           </div>

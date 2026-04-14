@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Shield,
@@ -22,8 +22,12 @@ import {
   ChevronUp,
   Plus,
   Minus,
+  FileText,
+  TrendingUp,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { invokeFunction } from '@/integrations/supabase/functions';
+import { supabase } from '@/integrations/supabase/client';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { usePermissionRequests, PermissionRequest, AdminWithPermissions } from '@/hooks/usePermissionRequests';
@@ -74,9 +78,13 @@ const permissionConfig: Record<string, { title: string; icon: React.ElementType;
   finance: { title: 'Finance Handling', icon: DollarSign, color: 'from-green-500 to-emerald-500' },
   announcement: { title: 'Announcement Handling', icon: Megaphone, color: 'from-indigo-500 to-violet-500' },
   feedback: { title: 'Feedback Handling', icon: Megaphone, color: 'from-emerald-500 to-green-500' },
+  quiz: { title: 'Quiz Handling', icon: GraduationCap, color: 'from-cyan-500 to-blue-500' },
+  results: { title: 'Results Handling', icon: TrendingUp, color: 'from-sky-500 to-indigo-500' },
 };
 
 const allPermissionKeys = Object.keys(permissionConfig);
+// Keys used in the admins overview table (keep results out of admin-wide toggles)
+const adminPermissionKeys = allPermissionKeys.filter(k => k !== 'results');
 
 const AdminPermissionsPage: React.FC = () => {
   const { isSuperAdmin } = useAdminAuth();
@@ -95,10 +103,61 @@ const AdminPermissionsPage: React.FC = () => {
   useAdminRefresh(() => {
     try {
       refresh();
+      fetchMembersAndPermissions();
     } catch (e) {
       // ignore
     }
   });
+
+  // Fetch members and their granted permissions for keys 'quiz', 'events', 'seminar' and 'exam'
+  async function fetchMembersAndPermissions() {
+    setMembersLoading(true);
+    try {
+      const { data, error } = await invokeFunction('fetch-members', {});
+      if (error) throw error;
+      const raw: any[] = (data?.members || []) as any[];
+      // Only include members with role === 'member' (exclude 'honourable' etc.)
+      const filteredRaw = raw.filter(r => r.role === 'member');
+      const rows: MemberRow[] = filteredRaw.map((r) => ({
+        mem_id: r.mem_id,
+        auth_user_id: r.auth_user_id || null,
+        fullname: r.fullname || r.full_name || r.name || '',
+        username: r.username || r.user_name || '',
+      }));
+      setMembersList(rows);
+
+      const authIds = rows.map(r => r.auth_user_id).filter(Boolean) as string[];
+      if (authIds.length === 0) {
+        setMemberPermMap({});
+        return;
+      }
+
+      const { data: perms, error: permsErr } = await supabase
+        .from('admin_granted_permissions')
+        .select('admin_id,permission_key')
+        .in('admin_id', authIds)
+        .in('permission_key', ['applicant','quiz', 'events', 'seminar', 'exam'])
+        .eq('is_active', true);
+
+      if (permsErr) throw permsErr;
+
+      const map: Record<string, string[]> = {};
+      (perms || []).forEach((p: any) => {
+        map[p.admin_id] = map[p.admin_id] || [];
+        map[p.admin_id].push(p.permission_key);
+      });
+      setMemberPermMap(map);
+    } catch (err) {
+      console.error('Failed to load members permissions', err);
+      setMembersList([]);
+      setMemberPermMap({});
+    } finally {
+      setMembersLoading(false);
+    }
+  }
+
+  // Load on mount
+  useEffect(() => { fetchMembersAndPermissions(); }, []);
 
   const [reviewingRequest, setReviewingRequest] = useState<PermissionRequest | null>(null);
   const [reviewNote, setReviewNote] = useState('');
@@ -108,7 +167,13 @@ const AdminPermissionsPage: React.FC = () => {
   const [selectedAdminForGrant, setSelectedAdminForGrant] = useState<AdminWithPermissions | null>(null);
   const [selectedPermissionToGrant, setSelectedPermissionToGrant] = useState<string>('');
 
-  const loading = permissionsLoading || requestsLoading;
+  // --- Members permission review state (only show Quiz & Event columns) ---
+  type MemberRow = { mem_id: number; auth_user_id: string | null; fullname: string; username: string };
+  const [membersList, setMembersList] = useState<MemberRow[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [memberPermMap, setMemberPermMap] = useState<Record<string, string[]>>({});
+
+  const loading = permissionsLoading || requestsLoading || membersLoading;
 
   if (!isSuperAdmin) {
     return (
@@ -410,10 +475,10 @@ const AdminPermissionsPage: React.FC = () => {
                   <p>No admins found</p>
                 </div>
               ) : (
-                <div className="rounded-lg border overflow-hidden">
+                <div className="rounded-lg border overflow-auto max-h-80 scrollbar-thin">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-muted/50">
+                      <TableRow className="bg-muted/50 sticky top-0 z-10">
                         <TableHead className="w-[200px]">Admin</TableHead>
                         {allPermissionKeys.map((key) => {
                           const config = getPermissionConfig(key);
@@ -477,6 +542,210 @@ const AdminPermissionsPage: React.FC = () => {
                           </TableCell>
                         </TableRow>
                       ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Members Permission Review (only Quiz + Event + Actions) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Members Permission Review
+              </CardTitle>
+              <CardDescription>
+                Review and grant/revoke the <strong>Applicants</strong>, <strong>Quiz</strong>, <strong>Event</strong>, <strong>Seminar</strong> and <strong>Past Paper</strong> permissions for members.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {membersLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary" />
+                </div>
+              ) : membersList.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No members found</p>
+                </div>
+              ) : (
+                <div className="rounded-lg border overflow-auto max-h-80 scrollbar-thin">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 sticky top-0 z-10">
+                        <TableHead className="w-[240px]">Member</TableHead>
+
+                        <TableHead className="text-center w-[100px]">
+                          <div className="flex flex-col items-center gap-1">
+                            <UserPlus className="w-4 h-4" />
+                            <span className="text-xs">Applicants</span>
+                          </div>
+                        </TableHead>
+
+                        <TableHead className="text-center w-[100px]">
+                          <div className="flex flex-col items-center gap-1">
+                            <CalendarDays className="w-4 h-4" />
+                            <span className="text-xs">Event</span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-center w-[100px]">
+                          <div className="flex flex-col items-center gap-1">
+                            <GraduationCap className="w-4 h-4" />
+                            <span className="text-xs">Quiz</span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-center w-[100px]">
+                          <div className="flex flex-col items-center gap-1">
+                            <BookOpen className="w-4 h-4" />
+                            <span className="text-xs">Seminar</span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-center w-[120px]">
+                          <div className="flex flex-col items-center gap-1">
+                            <FileText className="w-4 h-4" />
+                            <span className="text-xs">Past Papers</span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {membersList.map((m) => {
+                        const key = m.auth_user_id || `no-id-${m.mem_id}`;
+                        const perms = (m.auth_user_id && memberPermMap[m.auth_user_id]) || [];
+                        const hasApplicant = perms.includes('applicant');
+                        const hasEvent = perms.includes('events');
+                        const hasQuiz = perms.includes('quiz');
+                        const hasSeminar = perms.includes('seminar');
+                        const hasExam = perms.includes('exam');
+
+                        const handleMemberToggle = async (permKey: string, current: boolean) => {
+                          if (!m.auth_user_id) {
+                            toast.error('Member has no linked auth account');
+                            return;
+                          }
+                          if (current) {
+                            await handleRevokePermission(m.auth_user_id, permKey);
+                          } else {
+                            await handleGrantPermission(m.auth_user_id, permKey);
+                          }
+                          // refresh member permission map after action
+                          fetchMembersAndPermissions();
+                        };
+
+                        return (
+                          <TableRow key={key}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{m.fullname}</p>
+                                <p className="text-xs text-muted-foreground">@{m.username}</p>
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleMemberToggle('applicant', hasApplicant)}
+                                className={cn(
+                                  'h-8 w-8 rounded-full transition-colors',
+                                  hasApplicant
+                                    ? 'bg-green-500/20 text-green-500 hover:bg-red-500/20 hover:text-red-500'
+                                    : 'bg-muted text-muted-foreground hover:bg-green-500/20 hover:text-green-500'
+                                )}
+                                disabled={!m.auth_user_id}
+                                title={!m.auth_user_id ? 'Member has no auth account' : hasApplicant ? 'Click to revoke' : 'Click to grant'}
+                              >
+                                {hasApplicant ? <ShieldCheck className="w-4 h-4" /> : <ShieldX className="w-4 h-4" />}
+                              </Button>
+                            </TableCell>
+
+
+
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleMemberToggle('events', hasEvent)}
+                                className={cn(
+                                  'h-8 w-8 rounded-full transition-colors',
+                                  hasEvent
+                                    ? 'bg-green-500/20 text-green-500 hover:bg-red-500/20 hover:text-red-500'
+                                    : 'bg-muted text-muted-foreground hover:bg-green-500/20 hover:text-green-500'
+                                )}
+                                disabled={!m.auth_user_id}
+                                title={!m.auth_user_id ? 'Member has no auth account' : hasEvent ? 'Click to revoke' : 'Click to grant'}
+                              >
+                                {hasEvent ? <ShieldCheck className="w-4 h-4" /> : <ShieldX className="w-4 h-4" />}
+                              </Button>
+                            </TableCell>
+
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleMemberToggle('quiz', hasQuiz)}
+                                className={cn(
+                                  'h-8 w-8 rounded-full transition-colors',
+                                  hasQuiz
+                                    ? 'bg-green-500/20 text-green-500 hover:bg-red-500/20 hover:text-red-500'
+                                    : 'bg-muted text-muted-foreground hover:bg-green-500/20 hover:text-green-500'
+                                )}
+                                disabled={!m.auth_user_id}
+                                title={!m.auth_user_id ? 'Member has no auth account' : hasQuiz ? 'Click to revoke' : 'Click to grant'}
+                              >
+                                {hasQuiz ? <ShieldCheck className="w-4 h-4" /> : <ShieldX className="w-4 h-4" />}
+                              </Button>
+                            </TableCell>
+
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleMemberToggle('seminar', hasSeminar)}
+                                className={cn(
+                                  'h-8 w-8 rounded-full transition-colors',
+                                  hasSeminar
+                                    ? 'bg-green-500/20 text-green-500 hover:bg-red-500/20 hover:text-red-500'
+                                    : 'bg-muted text-muted-foreground hover:bg-green-500/20 hover:text-green-500'
+                                )}
+                                disabled={!m.auth_user_id}
+                                title={!m.auth_user_id ? 'Member has no auth account' : hasSeminar ? 'Click to revoke' : 'Click to grant'}
+                              >
+                                {hasSeminar ? <ShieldCheck className="w-4 h-4" /> : <ShieldX className="w-4 h-4" />}
+                              </Button>
+                            </TableCell>
+
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleMemberToggle('exam', hasExam)}
+                                className={cn(
+                                  'h-8 w-8 rounded-full transition-colors',
+                                  hasExam
+                                    ? 'bg-green-500/20 text-green-500 hover:bg-red-500/20 hover:text-red-500'
+                                    : 'bg-muted text-muted-foreground hover:bg-green-500/20 hover:text-green-500'
+                                )}
+                                disabled={!m.auth_user_id}
+                                title={!m.auth_user_id ? 'Member has no auth account' : hasExam ? 'Click to revoke' : 'Click to grant'}
+                              >
+                                {hasExam ? <ShieldCheck className="w-4 h-4" /> : <ShieldX className="w-4 h-4" />}
+                              </Button>
+                            </TableCell>
+
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {(hasApplicant ? 1 : 0) + (hasEvent ? 1 : 0) + (hasQuiz ? 1 : 0) + (hasSeminar ? 1 : 0) + (hasExam ? 1 : 0)}/5
+                                </Badge>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

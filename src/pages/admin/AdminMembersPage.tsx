@@ -53,6 +53,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminRefresh } from '@/hooks/useAdminRefresh';
 import { invokeFunction } from '@/integrations/supabase/functions';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import Papa from 'papaparse';
 import { cn } from '@/lib/utils';
 
@@ -78,12 +79,14 @@ type RawMember = Pick<
 
 export default function AdminMembersPage() {
   const { isSuperAdmin, isAdmin, role } = useAdminAuth();
+  const { logDangerAction } = useDangerZoneLog();
   const [members, setMembers] = useState<Member[]>([]);
   const [committeeChangingPhase, setCommitteeChangingPhase] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBatch, setFilterBatch] = useState<string>('all');
   const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterDesignation, setFilterDesignation] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const fetchRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
@@ -99,6 +102,10 @@ export default function AdminMembersPage() {
   const [importing, setImporting] = useState(false);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
   const [previewErrorsCount, setPreviewErrorsCount] = useState(0);
+  // Loading flags for role changes / deletions
+  const [changingRoleLoading, setChangingRoleLoading] = useState(false);
+  const [deletingMembersLoading, setDeletingMembersLoading] = useState(false);
+  const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchMembers();
@@ -176,10 +183,13 @@ export default function AdminMembersPage() {
   };
 
   const changeRole = async (member: Member, newRole: string) => {
+    if (changingRoleLoading) return;
+    setChangingRoleLoading(true);
     // Only super admins may change roles
     if (!isSuperAdmin) {
       console.error('changeRole blocked: isSuperAdmin=', isSuperAdmin, 'role=', role);
       toast.error('Only super admins can change roles');
+      setChangingRoleLoading(false);
       return;
     }
 
@@ -258,18 +268,30 @@ export default function AdminMembersPage() {
 
   const deleteMember = async (member: Member) => {
     const targetIds = selectedIds && selectedIds.length > 0 ? selectedIds : [member.mem_id];
+
+    // UI guards: mark loading state for single vs bulk
+    const singleDelete = !selectedIds || selectedIds.length === 0;
+    if (singleDelete) setDeletingMemberId(member.mem_id);
+    else setDeletingMembersLoading(true);
+
     // Check permissions: admins may only delete members (role === 'member')
     const targets = members.filter((m) => targetIds.includes(m.mem_id));
     if (!isSuperAdmin) {
       const invalid = targets.find((t) => t.role !== 'member');
       if (invalid) {
         toast.error('Insufficient permissions: admins can only remove members');
+        setDeletingMemberId(null);
+        setDeletingMembersLoading(false);
         return;
       }
     }
 
     const ok = window.confirm(`Delete ${targetIds.length} member(s)? This cannot be undone.`);
-    if (!ok) return;
+    if (!ok) {
+      setDeletingMemberId(null);
+      setDeletingMembersLoading(false);
+      return;
+    }
     try {
       const { data, error } = await invokeFunction('delete-members', { mem_ids: targetIds });
       if (error) throw error;
@@ -279,14 +301,28 @@ export default function AdminMembersPage() {
         return;
       }
       const deletedIds = (deleted as any[]).map((d) => d.mem_id);
+      
+      // Log danger zone action for each deleted member
+      for (const deletedMember of deleted as any[]) {
+        await logDangerAction({
+          page: 'members',
+          action: 'delete_member',
+          targetId: String(deletedMember.mem_id),
+          targetName: deletedMember.fullname || 'Unknown',
+        });
+      }
+      
       setMembers((prev) => prev.filter((m) => !deletedIds.includes(m.mem_id)));
       setSelectedIds([]);
       toast.success('Member(s) removed');
     } catch (err: any) {
       console.error('Delete member failed', err);
       toast.error(err?.message || 'Failed to delete member');
+    } finally {
+      setDeletingMemberId(null);
+      setDeletingMembersLoading(false);
     }
-  };
+  }; 
 
   const handleInvite = async () => {
     if (!inviteEmail || !inviteName) {
@@ -296,13 +332,27 @@ export default function AdminMembersPage() {
 
     setInviting(true);
     try {
-      // Note: In production, you would use an edge function to send invites
-      // For now, we'll create the user directly (super_admin only)
-      toast.info('Invite functionality requires email service setup');
+      // Call edge function to send invitation using auth.admin.inviteUserByEmail
+      const { data, error } = await invokeFunction('send-member-invitation', {
+        email: inviteEmail.toLowerCase().trim(),
+        fullname: inviteName.trim(),
+        inviteRole: inviteRole || 'member',
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to send invitation');
+      }
+
+      toast.success(`Invitation sent to ${inviteEmail}. They will receive an email with account setup instructions.`);
       setInviteOpen(false);
       setInviteEmail('');
       setInviteName('');
+      setInviteRole('member');
+      
+      // Refresh members list to show new member
+      setTimeout(() => fetchRef.current(), 1000);
     } catch (error: any) {
+      console.error('Invite error:', error);
       toast.error(error.message || 'Failed to send invite');
     } finally {
       setInviting(false);
@@ -505,10 +555,12 @@ export default function AdminMembersPage() {
     const matchesBatch =
       filterBatch === 'all' || String(member.batch) === filterBatch;
     const matchesRole = filterRole === 'all' || member.role === filterRole;
-    return matchesSearch && matchesBatch && matchesRole;
+    const matchesDesignation = filterDesignation === 'all' || member.designation === filterDesignation;
+    return matchesSearch && matchesBatch && matchesRole && matchesDesignation;
   });
 
   const uniqueBatches = [...new Set(members.map((m) => m.batch).filter((b) => b !== null))];
+  const uniqueDesignations = [...new Set(members.map((m) => m.designation).filter((d) => d && d !== 'none'))];
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -530,22 +582,22 @@ export default function AdminMembersPage() {
       <div className="min-h-screen">
         <AdminHeader title="Members" breadcrumb="Management" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* Actions Bar */}
-        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-          <div className="flex flex-1 gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px] max-w-md">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+            <div className="relative w-full sm:flex-1 sm:min-w-[200px] md:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search members..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-background/50"
+                className="pl-10 bg-background/50 w-full"
               />
             </div>
 
             <Select value={filterBatch} onValueChange={setFilterBatch}>
-              <SelectTrigger className="w-[140px] bg-background/50">
+              <SelectTrigger className="w-full sm:w-[140px] bg-background/50">
                 <SelectValue placeholder="All Batches" />
               </SelectTrigger>
               <SelectContent>
@@ -559,7 +611,7 @@ export default function AdminMembersPage() {
             </Select>
 
             <Select value={filterRole} onValueChange={setFilterRole}>
-              <SelectTrigger className="w-[180px] bg-background/50">
+              <SelectTrigger className="w-full sm:w-[180px] bg-background/50">
                 <SelectValue placeholder="Everyone" />
               </SelectTrigger>
               <SelectContent>
@@ -570,27 +622,44 @@ export default function AdminMembersPage() {
                 <SelectItem value="super_admin">Super Admins</SelectItem>
               </SelectContent>
             </Select>
+
+            <Select value={filterDesignation} onValueChange={setFilterDesignation}>
+              <SelectTrigger className="w-full sm:w-[160px] bg-background/50">
+                <SelectValue placeholder="All Designations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Designations</SelectItem>
+                {uniqueDesignations.map((designation) => (
+                  <SelectItem key={designation} value={designation}>
+                    {designation}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {isSuperAdmin && (
-            <div className="flex gap-2">
-              <Button onClick={downloadCsvTemplate} variant="outline">
+            <div className="flex flex-col sm:flex-row gap-2 w-full">
+              <Button onClick={downloadCsvTemplate} variant="outline" className="w-full sm:w-auto">
                 <Download className="mr-2 h-4 w-4" />
-                Download Template
+                <span className="hidden sm:inline">Download Template</span>
+                <span className="sm:hidden">Template</span>
               </Button>
-              <Button onClick={() => setImportOpen(true)}>
+              <Button onClick={() => setImportOpen(true)} className="w-full sm:w-auto">
                 <Upload className="mr-2 h-4 w-4" />
-                Import CSV
+                <span className="hidden sm:inline">Import CSV</span>
+                <span className="sm:hidden">Import</span>
               </Button>
-              <Button onClick={() => setInviteOpen(true)}>
+              <Button onClick={() => setInviteOpen(true)} className="w-full sm:w-auto">
                 <UserPlus className="mr-2 h-4 w-4" />
-                Invite Member
+                <span className="hidden sm:inline">Invite Member</span>
+                <span className="sm:hidden">Invite</span>
               </Button>
             </div>
           )}
           {/* Bulk actions when rows selected */}
           {selectedIds.length > 0 && isSuperAdmin && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
               <span className="text-sm text-muted-foreground">{selectedIds.length} selected</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -610,18 +679,18 @@ export default function AdminMembersPage() {
 
                     return (
                       <>
-                        <DropdownMenuItem onClick={() => changeRoleBulk('member')} disabled={hasHonourableSelected}>Set as Member</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => changeRoleBulk('member')} disabled={changingRoleLoading || hasHonourableSelected} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer disabled:cursor-not-allowed">{changingRoleLoading ? 'Working...' : 'Set as Member'}</DropdownMenuItem>
                         {committeeChangingPhase !== false && (
-                          <DropdownMenuItem onClick={() => changeRoleBulk('honourable')} disabled={!allAdminSelected}>Set as Honourable</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => changeRoleBulk('honourable')} disabled={changingRoleLoading || !allAdminSelected} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer disabled:cursor-not-allowed">{changingRoleLoading ? 'Working...' : 'Set as Honourable'}</DropdownMenuItem>
                         )}
                         {isSuperAdmin && (
                           <>
-                            <DropdownMenuItem onClick={() => changeRoleBulk('admin')} disabled={hasHonourableSelected}>Set as Admin</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => changeRoleBulk('super_admin')} disabled={hasHonourableSelected}>Set as Super Admin</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => changeRoleBulk('admin')} disabled={hasHonourableSelected} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer disabled:cursor-not-allowed">Set as Admin</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => changeRoleBulk('super_admin')} disabled={hasHonourableSelected} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer disabled:cursor-not-allowed">Set as Super Admin</DropdownMenuItem>
                           </>
                         )}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600" onClick={async () => { await deleteMember({} as Member); }}>Remove selected</DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600 hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer" onClick={async () => { if (!deletingMembersLoading) await deleteMember({} as Member); }} disabled={deletingMembersLoading}>{deletingMembersLoading ? 'Removing...' : 'Remove selected'}</DropdownMenuItem>
                       </>
                     );
                   })()}
@@ -639,72 +708,77 @@ export default function AdminMembersPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                      <TableHead>
-                        <input
-                          type="checkbox"
-                          aria-label="Select all"
-                          checked={filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.includes(m.mem_id))}
-                          onChange={() => {
-                            if (filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.includes(m.mem_id))) {
-                              setSelectedIds([]);
-                            } else {
-                              setSelectedIds(filteredMembers.map((m) => m.mem_id));
-                            }
-                          }}
-                        />
-                      </TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Batch</TableHead>
-                      <TableHead>Designation</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMembers.map((member) => (
-                    <TableRow key={member.mem_id}>
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${member.username}`}
-                          checked={selectedIds.includes(member.mem_id)}
-                          onChange={() => {
-                            if (selectedIds.includes(member.mem_id)) {
-                              setSelectedIds((prev) => prev.filter((id) => id !== member.mem_id));
-                            } else {
-                              setSelectedIds((prev) => [...prev, member.mem_id]);
-                            }
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{member.fullname}</p>
-                          <p className="text-sm text-muted-foreground">{member.username}</p>
-                        </div>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table className="w-full">
+                  <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-10 text-xs sm:text-sm p-2 sm:p-4">
+                          <input
+                            type="checkbox"
+                            aria-label="Select all"
+                            checked={filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.includes(m.mem_id))}
+                            onChange={() => {
+                              if (filteredMembers.length > 0 && filteredMembers.every((m) => selectedIds.includes(m.mem_id))) {
+                                setSelectedIds([]);
+                              } else {
+                                setSelectedIds(filteredMembers.map((m) => m.mem_id));
+                              }
+                            }}
+                          />
+                        </TableHead>
+                        <TableHead className="min-w-[130px] text-xs sm:text-sm p-2 sm:p-4">Name</TableHead>
+                        <TableHead className="hidden sm:table-cell text-xs sm:text-sm p-2 sm:p-4">Batch</TableHead>
+                        <TableHead className="hidden md:table-cell text-xs sm:text-sm p-2 sm:p-4">Designation</TableHead>
+                        <TableHead className="hidden sm:table-cell text-xs sm:text-sm p-2 sm:p-4">Role</TableHead>
+                        <TableHead className="text-right text-xs sm:text-sm p-2 sm:p-4">Actions</TableHead>
+                      </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMembers.map((member) => (
+                      <TableRow key={member.mem_id}>
+                        <TableCell className="w-10 p-2 sm:p-4">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${member.username}`}
+                            checked={selectedIds.includes(member.mem_id)}
+                            onChange={() => {
+                              if (selectedIds.includes(member.mem_id)) {
+                                setSelectedIds((prev) => prev.filter((id) => id !== member.mem_id));
+                              } else {
+                                setSelectedIds((prev) => [...prev, member.mem_id]);
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell className="p-2 sm:p-4">
+                          <div>
+                            <p className="font-medium truncate text-xs sm:text-sm">{member.fullname}</p>
+                            <p className="hidden sm:block text-xs sm:text-xs text-muted-foreground truncate">{member.username}</p>
+                            <div className="sm:hidden text-xs text-muted-foreground mt-1 space-y-0.5">
+                              <p>Batch: {member.batch ?? '-'}</p>
+                              <p>Designation: {member.designation ? member.designation.replace(/_/g, ' ') : '-'}</p>
+                            </div>
+                          </div>
+                        </TableCell>
 
-                      <TableCell>{member.batch ?? '-'}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs sm:text-sm p-2 sm:p-4">{member.batch ?? '-'}</TableCell>
 
-                      <TableCell>{member.designation ? member.designation.replace(/_/g, ' ') : '-'}</TableCell>
+                        <TableCell className="hidden md:table-cell text-xs sm:text-sm p-2 sm:p-4">{member.designation ? member.designation.replace(/_/g, ' ') : '-'}</TableCell>
 
-                      <TableCell>
-                        <Badge className={cn('capitalize', getRoleBadgeColor(member.role || ''))}>
-                          {member.role?.replace('_', ' ') || 'Unknown'}
-                        </Badge>
-                      </TableCell>
+                        <TableCell className="hidden sm:table-cell p-2 sm:p-4">
+                          <Badge className={cn('capitalize text-xs', getRoleBadgeColor(member.role || ''))}>
+                            {member.role?.replace('_', ' ') || 'Unknown'}
+                          </Badge>
+                        </TableCell>
 
                       {/* Status and Finance columns removed per admin UI requirements */}
 
-                      <TableCell className="text-right">
+                      <TableCell className="text-right p-2 sm:p-4">
                         {(isSuperAdmin || (isAdmin && member.role === 'member')) ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 sm:h-10 sm:w-10">
+                                <MoreVertical className="h-3 w-3 sm:h-4 sm:w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -712,29 +786,29 @@ export default function AdminMembersPage() {
                                 <>
                                       {member.role === 'honourable' ? (
                                         <>
-                                          <DropdownMenuItem disabled>Honourable (immutable)</DropdownMenuItem>
+                                          <DropdownMenuItem disabled className="cursor-not-allowed">Honourable (immutable)</DropdownMenuItem>
                                           <DropdownMenuSeparator />
                                         </>
                                       ) : (
                                         <>
-                                          <DropdownMenuItem onClick={() => changeRole(member, 'member')}>Set as Member</DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => changeRole(member, 'member')} disabled={changingRoleLoading} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">{changingRoleLoading ? 'Working...' : 'Set as Member'}</DropdownMenuItem>
                                           {committeeChangingPhase !== false && (
                                             member.role === 'admin' ? (
-                                              <DropdownMenuItem onClick={() => changeRole(member, 'honourable')}>Set as Honourable</DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => changeRole(member, 'honourable')} disabled={changingRoleLoading} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">{changingRoleLoading ? 'Working...' : 'Set as Honourable'}</DropdownMenuItem>
                                             ) : (
-                                              <DropdownMenuItem disabled>Set as Honourable (admins only)</DropdownMenuItem>
+                                              <DropdownMenuItem disabled className="cursor-not-allowed">Set as Honourable (admins only)</DropdownMenuItem>
                                             )
                                           )}
                                           <DropdownMenuSeparator />
-                                          <DropdownMenuItem onClick={() => changeRole(member, 'admin')}>Set as Admin</DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => changeRole(member, 'super_admin')}>Set as Super Admin</DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => changeRole(member, 'admin')} disabled={changingRoleLoading} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">{changingRoleLoading ? 'Working...' : 'Set as Admin'}</DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => changeRole(member, 'super_admin')} disabled={changingRoleLoading} className="hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer">{changingRoleLoading ? 'Working...' : 'Set as Super Admin'}</DropdownMenuItem>
                                           <DropdownMenuSeparator />
                                         </>
                                       )}
                                 </>
                               )}
                               {isSuperAdmin || (isAdmin && member.role === 'member') ? (
-                                <DropdownMenuItem onClick={() => deleteMember(member)} className="text-red-600">
+                                <DropdownMenuItem onClick={() => { if (!deletingMembersLoading) deleteMember(member); }} className="text-red-600 hover:bg-blue-100 dark:hover:bg-blue-950 cursor-pointer" disabled={deletingMemberId === member.mem_id || deletingMembersLoading}>
                                   Remove
                                 </DropdownMenuItem>
                               ) : null}
@@ -744,16 +818,17 @@ export default function AdminMembersPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {filteredMembers.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-12">
-                        <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                        <p className="text-muted-foreground">No members found</p>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                    {filteredMembers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12">
+                          <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">No members found</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -886,7 +961,7 @@ export default function AdminMembersPage() {
                   id="invite-name"
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder=""
                 />
               </div>
               <div className="space-y-2">
@@ -896,24 +971,8 @@ export default function AdminMembersPage() {
                   type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="john@example.com"
+                  placeholder=""
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="invite-role">Role</Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="honourable">Honourable</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    {isSuperAdmin && (
-                      <SelectItem value="super_admin">Super Admin</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
               </div>
             </div>
             <DialogFooter>

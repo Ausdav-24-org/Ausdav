@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +26,7 @@ import {
 } from '@/components/ui/table';
 import { Plus, Pencil, Trash2, FileText, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { compressPDFBlob } from '@/lib/pdfCompression';
 
 interface Seminar {
   sem_id: number;
@@ -44,8 +47,11 @@ export default function AdminSeminarPage() {
   });
   const [seminarPaperFile, setSeminarPaperFile] = useState<File | null>(null);
   const [answersFile, setAnswersFile] = useState<File | null>(null);
+  const { role, isAdmin, isSuperAdmin } = useAdminAuth();
+  const canDelete = isAdmin || isSuperAdmin;
 
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
 
   // Fetch seminars
   const { data: seminars, isLoading } = useQuery({
@@ -71,24 +77,48 @@ export default function AdminSeminarPage() {
       if (data.seminarPaperFile) {
         const fileExt = data.seminarPaperFile.name.split('.').pop();
         const fileName = `${data.yrs}_seminar_paper.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.seminarPaperFile, { quality: 'high' });
+        const originalSize = data.seminarPaperFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('seminar-papers')
-          .upload(fileName, data.seminarPaperFile);
+          .upload(fileName, compressedBlob);
 
         if (uploadError) throw uploadError;
         seminarPaperPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Seminar paper compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Upload answers if provided
       if (data.answersFile) {
         const fileExt = data.answersFile.name.split('.').pop();
         const fileName = `${data.yrs}_answers.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.answersFile, { quality: 'high' });
+        const originalSize = data.answersFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('answers')
-          .upload(fileName, data.answersFile);
+          .upload(fileName, compressedBlob);
 
         if (uploadError) throw uploadError;
         answersPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Answers compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Create database record
@@ -126,24 +156,48 @@ export default function AdminSeminarPage() {
       if (data.seminarPaperFile) {
         const fileExt = data.seminarPaperFile.name.split('.').pop();
         const fileName = `${data.yrs}_seminar_paper.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.seminarPaperFile, { quality: 'high' });
+        const originalSize = data.seminarPaperFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('seminar-papers')
-          .upload(fileName, data.seminarPaperFile, { upsert: true });
+          .upload(fileName, compressedBlob, { upsert: true });
 
         if (uploadError) throw uploadError;
         seminarPaperPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Seminar paper compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Upload new answers if provided
       if (data.answersFile) {
         const fileExt = data.answersFile.name.split('.').pop();
         const fileName = `${data.yrs}_answers.${fileExt}`;
+        
+        // Compress PDF before upload
+        const compressedBlob = await compressPDFBlob(data.answersFile, { quality: 'high' });
+        const originalSize = data.answersFile.size;
+        const compressedSize = compressedBlob.size;
+        const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('answers')
-          .upload(fileName, data.answersFile, { upsert: true });
+          .upload(fileName, compressedBlob, { upsert: true });
 
         if (uploadError) throw uploadError;
         answersPath = uploadData.path;
+        
+        // Show compression feedback
+        if (savingsPercent > 0) {
+          toast.success(`Answers compressed! (${savingsPercent}% smaller)`);
+        }
       }
 
       // Update database record
@@ -190,9 +244,20 @@ export default function AdminSeminarPage() {
         .eq('sem_id', seminar.sem_id);
 
       if (error) throw error;
+      
+      return seminar;
     },
-    onSuccess: () => {
+    onSuccess: (seminar) => {
       queryClient.invalidateQueries({ queryKey: ['seminars'] });
+      
+      // Log danger zone action
+      logDangerAction({
+        page: 'seminars',
+        action: 'delete_seminar',
+        targetId: String(seminar.sem_id),
+        targetName: `Seminar ${seminar.yrs}`,
+      });
+      
       toast.success('Seminar deleted successfully');
     },
     onError: (error) => {
@@ -243,12 +308,12 @@ export default function AdminSeminarPage() {
 
   return (
     <PermissionGate permissionKey="seminar" permissionName="Seminar Handling">
-      <div className="p-6 space-y-6">
+      <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
         <AdminHeader title="Seminar Management" breadcrumb="Admin / Seminar Management" />
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Seminar Management</h1>
-          <p className="text-muted-foreground">Manage seminar papers and answers</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Seminar Management</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Manage seminar papers and answers</p>
         </div>
         <Dialog open={isCreateDialogOpen || !!editingSeminar} onOpenChange={(open) => {
           if (!open) {
@@ -263,46 +328,49 @@ export default function AdminSeminarPage() {
               Add Seminar
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editingSeminar ? 'Edit Seminar' : 'Add New Seminar'}</DialogTitle>
+          <DialogContent className="w-[90vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
+            <DialogHeader className="space-y-1 sm:space-y-2">
+              <DialogTitle className="text-base sm:text-lg">{editingSeminar ? 'Edit Seminar' : 'Add New Seminar'}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="year">Year</Label>
+            <div className="space-y-2 sm:space-y-3">
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="year" className="text-xs sm:text-sm font-medium">Year</Label>
                 <Input
                   id="year"
                   type="number"
                   value={formData.yrs}
                   onChange={(e) => setFormData(prev => ({ ...prev, yrs: parseInt(e.target.value) }))}
+                  className="text-xs sm:text-sm h-8 sm:h-9"
                 />
               </div>
-              <div>
-                <Label htmlFor="seminar-paper">Seminar Paper (PDF)</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="seminar-paper" className="text-xs sm:text-sm font-medium">Seminar Paper (PDF)</Label>
                 <Input
                   id="seminar-paper"
                   type="file"
                   accept=".pdf"
                   onChange={(e) => setSeminarPaperFile(e.target.files?.[0] || null)}
+                  className="text-xs sm:text-sm h-8 sm:h-9"
                 />
               </div>
-              <div>
-                <Label htmlFor="answers">Answers (PDF)</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="answers" className="text-xs sm:text-sm font-medium">Answers (PDF)</Label>
                 <Input
                   id="answers"
                   type="file"
                   accept=".pdf"
                   onChange={(e) => setAnswersFile(e.target.files?.[0] || null)}
+                  className="text-xs sm:text-sm h-8 sm:h-9"
                 />
               </div>
-              <div className="flex gap-2 pt-4">
+              <div className="flex gap-2 pt-1 sm:pt-2">
                 <Button
                   onClick={editingSeminar ? handleUpdate : handleCreate}
                   disabled={createMutation.isPending || updateMutation.isPending}
-                  className="flex-1"
+                  className="flex-1 text-xs sm:text-sm h-8 sm:h-9"
                 >
                   {createMutation.isPending || updateMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
                   ) : null}
                   {editingSeminar ? 'Update' : 'Create'}
                 </Button>
@@ -313,11 +381,11 @@ export default function AdminSeminarPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Seminars</CardTitle>
+        <CardHeader className="px-2 sm:px-4 md:px-6 py-3 sm:py-4">
+          <CardTitle className="text-xl sm:text-2xl">Seminars</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 overflow-x-auto">
+          <Table className="text-xs sm:text-sm">
             <TableHeader>
               <TableRow>
                 <TableHead>Year</TableHead>
@@ -371,14 +439,17 @@ export default function AdminSeminarPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(seminar)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+
+                      {canDelete && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(seminar)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

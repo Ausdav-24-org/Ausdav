@@ -1,6 +1,6 @@
-// @ts-ignore - Deno remote imports
+// @ts-expect-error - Deno remote imports
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-// @ts-ignore
+// @ts-expect-error
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: { env: { get(key: string): string | undefined } };

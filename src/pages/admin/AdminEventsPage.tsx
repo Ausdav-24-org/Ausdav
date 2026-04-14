@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -29,6 +32,7 @@ import { Plus, Pencil, Trash2, Calendar, Image as ImageIcon, Loader2 } from 'luc
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import GalleryBulkUpload from './GalleryBulkUpload';
+import { compressImageBlob } from '@/lib/imageCompression';
 
 interface Event {
   id: number;
@@ -133,6 +137,7 @@ type EventFormState = {
 
 const AdminEventsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabaseDb = supabase as unknown as SupabaseClient<any, any, any, any>;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -159,6 +164,10 @@ const AdminEventsPage: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
+  // Role / permission helpers — hide destructive actions from non-admin members
+  const { role, isAdmin, isSuperAdmin } = useAdminAuth();
+  const isAdminView = isAdmin || isSuperAdmin;
+
   const validateForm = () => {
     if (!formData.title_en.trim()) {
       toast.error('Title (English) is required');
@@ -171,18 +180,16 @@ const AdminEventsPage: React.FC = () => {
     return true;
   };
 
-  // Fetch galleries for a specific year
+  // Fetch galleries for a specific event (all years)
   const { data: galleries, isLoading: galleriesLoading } = useQuery({
     queryKey: ['galleries', selectedEventForGallery?.id ?? null],
     queryFn: async () => {
       if (!selectedEventForGallery) return [];
-      const year = new Date(selectedEventForGallery.event_date).getFullYear();
       const { data, error } = await supabaseDb
         .from('galleries')
         .select('id, event_id, year, title, description_en, description_ta, max_images, created_at')
         .eq('event_id', selectedEventForGallery.id)
-        .eq('year', year)
-        .order('created_at', { ascending: false });
+        .order('year', { ascending: false });
       if (error) throw error;
       return (data || []) as Gallery[];
     },
@@ -280,6 +287,17 @@ const AdminEventsPage: React.FC = () => {
     mutationFn: async (galleryId: string) => {
       console.log('Starting gallery deletion for:', galleryId);
 
+      // First get the gallery data to log
+      const { data: galleryData, error: galleryFetchError } = await supabaseDb
+        .from('galleries')
+        .select('id,year,title')
+        .eq('id', galleryId)
+        .maybeSingle();
+
+      if (galleryFetchError) {
+        console.error('Failed to fetch gallery data:', galleryFetchError);
+      }
+
       // First, get all images associated with this gallery
       const { data: galleryImages, error: fetchError } = await supabaseDb
         .from('gallery_images')
@@ -336,9 +354,22 @@ const AdminEventsPage: React.FC = () => {
       }
 
       console.log('Successfully deleted gallery record');
+      
+      return galleryData;
     },
-    onSuccess: () => {
+    onSuccess: (galleryData) => {
       queryClient.invalidateQueries({ queryKey: ['galleries', selectedEventForGallery?.id ?? null] });
+      
+      // Log danger zone action
+      if (galleryData) {
+        logDangerAction({
+          page: 'events',
+          action: 'delete_gallery',
+          targetId: galleryData.id,
+          targetName: galleryData.title || `Gallery ${galleryData.year}`,
+        });
+      }
+      
       toast.success('Gallery and all associated images deleted successfully');
     },
     onError: (error) => {
@@ -350,14 +381,40 @@ const AdminEventsPage: React.FC = () => {
   });
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
+      const { data: eventData, error: fetchError } = await supabaseDb
+        .from('events')
+        .select('id,title_en,image_bucket,image_path')
+        .eq('id', id)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+
+      await deleteEventGalleryAssets(id);
+
+      if (eventData?.image_path) {
+        await deleteEventImage(eventData.image_bucket || 'events', eventData.image_path);
+      }
+
       const { error } = await supabase
         .from('events')
         .delete()
         .eq('id', id.toString());
       if (error) throw error;
+      
+      return eventData;
     },
-    onSuccess: () => {
+    onSuccess: (eventData) => {
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
+      
+      // Log danger zone action
+      if (eventData) {
+        logDangerAction({
+          page: 'events',
+          action: 'delete_event',
+          targetId: String(eventData.id),
+          targetName: eventData.title_en || 'Unknown',
+        });
+      }
+      
       toast.success('Event deleted successfully');
     },
     onError: (error) => {
@@ -454,17 +511,93 @@ const AdminEventsPage: React.FC = () => {
       return formData.image_path ? { bucket: formData.image_bucket, path: formData.image_path } : null;
     }
 
-    const ext = imageFile.name.split('.').pop() || 'jpg';
+    const compressedBlob = await compressImageBlob(imageFile, {
+      maxSize: 1600,
+      quality: 0.82,
+      mimeType: 'image/jpeg',
+    });
+    const compressedFile = new File([compressedBlob], `event-${Date.now()}.jpg`, { type: 'image/jpeg' });
     const bucket = 'events';
-    const path = `events/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const path = `events/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
-      .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+      .upload(path, compressedFile, { upsert: true, contentType: 'image/jpeg' });
 
     if (uploadError) throw uploadError;
 
     return { bucket, path };
+  };
+
+  const deleteEventImage = async (bucket: string, path: string) => {
+    const { error } = await supabase.storage.from(bucket).remove([path]);
+    if (error) {
+      console.warn('Failed to delete old event image:', error);
+      toast.error('Failed to delete old event image from storage');
+    }
+  };
+
+  const deleteEventGalleryAssets = async (eventId: number) => {
+    const { data: galleriesForEvent, error: galleriesError } = await supabaseDb
+      .from('galleries')
+      .select('id')
+      .eq('event_id', eventId);
+
+    if (galleriesError) {
+      console.warn('Failed to fetch galleries for event:', galleriesError);
+      toast.error('Failed to delete event galleries');
+      return;
+    }
+
+    const galleries = galleriesForEvent || [];
+    if (galleries.length === 0) return;
+
+    for (const gallery of galleries) {
+      const { data: galleryImages, error: imagesError } = await supabaseDb
+        .from('gallery_images')
+        .select('file_path')
+        .eq('gallery_id', gallery.id);
+
+      if (imagesError) {
+        console.warn('Failed to fetch gallery images:', imagesError);
+        toast.error('Failed to delete gallery images');
+      } else {
+        const filePaths = (galleryImages || []).map((img) => img.file_path);
+        if (filePaths.length > 0) {
+          for (let i = 0; i < filePaths.length; i += 100) {
+            const chunk = filePaths.slice(i, i + 100);
+            const { error: storageError } = await supabase.storage
+              .from('event-gallery')
+              .remove(chunk);
+
+            if (storageError) {
+              console.warn('Failed to delete gallery images from storage:', storageError);
+              toast.error('Failed to delete gallery images from storage');
+            }
+          }
+        }
+      }
+
+      const { error: deleteImagesError } = await supabaseDb
+        .from('gallery_images')
+        .delete()
+        .eq('gallery_id', gallery.id);
+
+      if (deleteImagesError) {
+        console.warn('Failed to delete gallery images from database:', deleteImagesError);
+        toast.error('Failed to delete gallery images from database');
+      }
+
+      const { error: deleteGalleryError } = await supabaseDb
+        .from('galleries')
+        .delete()
+        .eq('id', gallery.id);
+
+      if (deleteGalleryError) {
+        console.warn('Failed to delete gallery:', deleteGalleryError);
+        toast.error('Failed to delete gallery');
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -495,7 +628,16 @@ const AdminEventsPage: React.FC = () => {
       };
 
       if (editingEvent) {
+        const oldImageBucket = editingEvent.image_bucket || 'events';
+        const oldImagePath = editingEvent.image_path;
         await updateMutation.mutateAsync({ id: editingEvent.id, data: payload });
+        if (
+          imageFile &&
+          oldImagePath &&
+          (oldImageBucket !== image_bucket || oldImagePath !== image_path)
+        ) {
+          await deleteEventImage(oldImageBucket, oldImagePath);
+        }
       } else {
         await createMutation.mutateAsync(payload);
       }
@@ -528,76 +670,84 @@ const AdminEventsPage: React.FC = () => {
               {(isSubmitting || isSaving) ? 'Saving...' : 'Add Event'}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[95vw] sm:w-[90vw] md:w-[800px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-lg sm:text-xl">
                 {editingEvent ? 'Edit Event' : 'Create New Event'}
               </DialogTitle>
+              <DialogDescription>
+                {editingEvent ? 'Update the event details and images' : 'Enter the event details and add an event image'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title_en">Title (English) *</Label>
+                  <Label htmlFor="title_en" className="text-xs sm:text-sm">Title (English) *</Label>
                   <Input
                     id="title_en"
                     value={formData.title_en}
                     onChange={(e) => setFormData({ ...formData, title_en: e.target.value })}
                     required
                     placeholder="Event title in English"
+                    className="text-xs sm:text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="title_ta">Title (Tamil)</Label>
+                  <Label htmlFor="title_ta" className="text-xs sm:text-sm">Title (Tamil)</Label>
                   <Input
                     id="title_ta"
                     value={formData.title_ta}
                     onChange={(e) => setFormData({ ...formData, title_ta: e.target.value })}
                     placeholder="தமிழ் தலைப்பு"
-                    className="font-tamil"
+                    className="font-tamil text-xs sm:text-sm"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="description_en">Description (English)</Label>
+                  <Label htmlFor="description_en" className="text-xs sm:text-sm">Description (English)</Label>
                   <Textarea
                     id="description_en"
                     value={formData.description_en}
                     onChange={(e) => setFormData({ ...formData, description_en: e.target.value })}
                     placeholder="Event description in English"
-                    rows={4}
+                    rows={3}
+                    className="text-xs sm:text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description_ta">Description (Tamil)</Label>
+                  <Label htmlFor="description_ta" className="text-xs sm:text-sm">Description (Tamil)</Label>
                   <Textarea
                     id="description_ta"
                     value={formData.description_ta}
                     onChange={(e) => setFormData({ ...formData, description_ta: e.target.value })}
                     placeholder="தமிழ் விளக்கம்"
-                    rows={4}
-                    className="font-tamil"
+                    rows={3}
+                    className="font-tamil text-xs sm:text-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="event-image">Event Image (optional)</Label>
-                <div className="flex items-center gap-3">
-                  <Input
-                    id="event-image"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setImageFile(file);
-                    }}
-                  />
+                <Label htmlFor="event-image" className="text-xs sm:text-sm">Event Image (optional)</Label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                  <div className="flex-1 w-full">
+                    <Input
+                      id="event-image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setImageFile(file);
+                      }}
+                      className="text-xs sm:text-sm"
+                    />
+                  </div>
                   {imagePreviewUrl && !imageFile && (
-                    <Button type="button" variant="outline" asChild size="sm">
+                    <Button type="button" variant="outline" asChild size="sm" className="w-full sm:w-auto text-xs sm:text-sm">
                       <a href={imagePreviewUrl} target="_blank" rel="noreferrer">
-                        <ImageIcon className="w-4 h-4 mr-2" />View
+                        <ImageIcon className="w-4 h-4 mr-1" />View
                       </a>
                     </Button>
                   )}
@@ -610,11 +760,11 @@ const AdminEventsPage: React.FC = () => {
                   checked={formData.is_active}
                   onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
                 />
-                <Label htmlFor="is_active">Active</Label>
+                <Label htmlFor="is_active" className="text-xs sm:text-sm cursor-pointer">Active</Label>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={resetForm}>
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 justify-end pt-4">
+                <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto text-xs sm:text-sm">
                   Cancel
                 </Button>
                 <Button
@@ -622,7 +772,7 @@ const AdminEventsPage: React.FC = () => {
                   disabled={isSubmitting || isSaving}
                   aria-busy={isSubmitting || isSaving}
                   aria-disabled={isSubmitting || isSaving}
-                  className="gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="gap-2 disabled:opacity-60 disabled:cursor-not-allowed w-full sm:w-auto text-xs sm:text-sm"
                 >
                   {(isSubmitting || isSaving) && <Loader2 className="w-4 h-4 animate-spin" />}
                   {editingEvent ? 'Update Event' : 'Create Event'}
@@ -645,11 +795,14 @@ const AdminEventsPage: React.FC = () => {
           setCreatedGalleryId(null);
         }
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-[90vw] md:w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
               {showBulkUpload ? 'Bulk Image Upload' : `Gallery Management - ${selectedEventForGallery ? new Date(selectedEventForGallery.event_date).getFullYear() : ''}`}
             </DialogTitle>
+            <DialogDescription>
+              {showBulkUpload ? 'Upload multiple images to the gallery' : 'Manage event galleries and upload images'}
+            </DialogDescription>
           </DialogHeader>
           {showBulkUpload && selectedEventForGallery ? (
             <GalleryBulkUpload
@@ -666,36 +819,40 @@ const AdminEventsPage: React.FC = () => {
                 <div className="space-y-4">
                   {galleries.map((gallery) => (
                     <Card key={gallery.id}>
-                      <CardHeader>
-                        <CardTitle>{gallery.title || `Gallery ${gallery.year}`}</CardTitle>
+                      <CardHeader className="pb-2 sm:pb-3">
+                        <CardTitle className="text-sm sm:text-base">{gallery.title || `Gallery ${gallery.year}`}</CardTitle>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="space-y-2 text-xs sm:text-sm">
                         <p>Year: {gallery.year}</p>
                         <p>Created: {format(new Date(gallery.created_at), 'MMM d, yyyy')}</p>
-                        <div className="flex gap-2 mt-2">
+                        <div className="flex gap-2 mt-2 flex-col sm:flex-row">
                           <Button
                             onClick={() => {
                               setCreatedGalleryId(gallery.id);
                               setShowBulkUpload(true);
                             }}
+                            className="w-full sm:w-auto text-xs sm:text-sm"
                           >
                             Add Images
                           </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this gallery? This will also delete all images in the gallery.')) {
-                                deleteGalleryMutation.mutate(gallery.id);
-                              }
-                            }}
-                            disabled={deleteGalleryMutation.isPending}
-                          >
-                            {deleteGalleryMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
-                          </Button>
+                          {isAdminView && (
+                            <Button
+                              variant="destructive"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this gallery? This will also delete all images in the gallery.')) {
+                                  deleteGalleryMutation.mutate(gallery.id);
+                                }
+                              }}
+                              disabled={deleteGalleryMutation.isPending}
+                              className="w-full sm:w-auto text-xs sm:text-sm"
+                            >
+                              {deleteGalleryMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -710,10 +867,10 @@ const AdminEventsPage: React.FC = () => {
               )}
 
               <div className="border-t pt-4">
-                <h3 className="text-lg font-medium mb-4">Create New Gallery</h3>
+                <h3 className="text-base sm:text-lg font-medium mb-4">Create New Gallery</h3>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="gallery-year">Year</Label>
+                    <Label htmlFor="gallery-year" className="text-xs sm:text-sm">Year</Label>
                     <Input
                       id="gallery-year"
                       type="number"
@@ -722,32 +879,35 @@ const AdminEventsPage: React.FC = () => {
                       onChange={(e) => setNewGalleryYear(e.target.value)}
                       min="1900"
                       max="2100"
+                      className="text-xs sm:text-sm"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="gallery-description-en">Description (English)</Label>
+                    <Label htmlFor="gallery-description-en" className="text-xs sm:text-sm">Description (English)</Label>
                     <Textarea
                       id="gallery-description-en"
                       placeholder="Enter gallery description in English"
                       value={newGalleryDescriptionEn}
                       onChange={(e) => setNewGalleryDescriptionEn(e.target.value)}
-                      rows={3}
+                      rows={2}
+                      className="text-xs sm:text-sm"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="gallery-description-ta">Description (Tamil)</Label>
+                    <Label htmlFor="gallery-description-ta" className="text-xs sm:text-sm">Description (Tamil)</Label>
                     <Textarea
                       id="gallery-description-ta"
                       placeholder="Enter gallery description in Tamil"
                       value={newGalleryDescriptionTa}
                       onChange={(e) => setNewGalleryDescriptionTa(e.target.value)}
-                      rows={3}
+                      rows={2}
+                      className="text-xs sm:text-sm"
                     />
                   </div>
                   <Button
                     onClick={handleCreateGallery}
                     disabled={createGalleryMutation.isPending}
-                    className="w-full"
+                    className="w-full text-xs sm:text-sm"
                   >
                     {createGalleryMutation.isPending ? (
                       <>
@@ -828,17 +988,19 @@ const AdminEventsPage: React.FC = () => {
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (confirm('Are you sure you want to delete this event?')) {
-                              deleteMutation.mutate(event.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        {isAdminView && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this event?')) {
+                                deleteMutation.mutate(event.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

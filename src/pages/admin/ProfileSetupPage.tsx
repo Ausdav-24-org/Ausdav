@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { UserPlus, Save, Loader2, Shield, UploadCloud } from 'lucide-react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { compressImageBlob } from '@/lib/imageCompression';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ImageCropper } from '@/components/ui/ImageCropper';
 
 interface FormState {
   fullname: string;
@@ -43,6 +45,8 @@ export default function ProfileSetupPage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batchDisabled, setBatchDisabled] = useState(false);
@@ -137,10 +141,20 @@ export default function ProfileSetupPage() {
 
       if (photoFile) {
         const ext = photoFile.name.split('.').pop() || 'jpg';
-        const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+        // Organized storage: batch/username_userid.jpg
+        const filename = `${form.username}_${user.id}.${ext}`;
+        const path = `${batchNum}/${filename}`;
+
+        // Auto-compress with best quality (92% = minimal information loss)
+        const compressedBlob = await compressImageBlob(photoFile, {
+          maxSize: 1200,
+          quality: 0.92,
+          mimeType: 'image/jpeg',
+        });
+
         const { error: uploadError } = await supabase.storage
           .from('member-profiles')
-          .upload(path, photoFile, { upsert: true, contentType: photoFile.type });
+          .upload(path, compressedBlob, { upsert: true, contentType: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
         uploadedPath = path;
@@ -164,7 +178,7 @@ export default function ProfileSetupPage() {
         profile_path: uploadedPath,
       };
 
-      let { error: upsertError } = await supabase
+      const { error: upsertError } = await supabase
         .from('members' as any)
         .upsert(payload as any)
         .eq('auth_user_id', user.id);
@@ -230,9 +244,16 @@ export default function ProfileSetupPage() {
                       type="file"
                       accept="image/*"
                       onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setPhotoFile(file);
-                        setPhotoPreview(file ? URL.createObjectURL(file) : null);
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setSelectedImageSrc(reader.result as string);
+                            setCropperOpen(true);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                        e.target.value = '';
                       }}
                       className="bg-background/50 cursor-pointer"
                     />
@@ -250,6 +271,23 @@ export default function ProfileSetupPage() {
                       </Button>
                     )}
                   </div>
+                  {selectedImageSrc && (
+                    <ImageCropper
+                      open={cropperOpen}
+                      onClose={() => {
+                        setCropperOpen(false);
+                        setSelectedImageSrc(null);
+                      }}
+                      imageSrc={selectedImageSrc}
+                      onCropComplete={(blob) => {
+                        const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                        setPhotoFile(file);
+                        setPhotoPreview(URL.createObjectURL(blob));
+                        setCropperOpen(false);
+                        setSelectedImageSrc(null);
+                      }}
+                    />
+                  )}
                 </div>
               </div>
 

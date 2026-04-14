@@ -20,10 +20,16 @@ import {
   BookOpen,
   UserPlus,
   HandHelping,
-  TrendingUp, // ✅ added for Results page icon
+  TrendingUp,
   Wrench,
+  ClipboardCheck,
+  ShieldAlert,
+  QrCode,
+  IdCard,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import logoImg from '@/assets/logo/AUSDAV_llogo.png';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
 import { Button } from '@/components/ui/button';
@@ -38,47 +44,63 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  // ============ CORE ADMIN SECTION ============
   { title: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, roles: ['admin', 'super_admin'] },
-  { title: 'Profile', href: '/admin/profile', icon: User, roles: ['member', 'honourable', 'admin', 'super_admin'] },
+  { title: 'My Profile', href: '/admin/profile', icon: User, roles: ['member', 'honourable', 'admin', 'super_admin'] },
 
+  // ============ MEMBERS & RECRUITMENT SECTION ============
   { title: 'Members', href: '/admin/members', icon: Users, roles: ['admin', 'super_admin'], permissionKey: 'member' },
-
   { title: 'Applicants', href: '/admin/applicants', icon: UserPlus, roles: ['member', 'admin', 'super_admin'], permissionKey: 'applicant' },
-
-  // ✅ ADDED: Results Page (uses same permissionKey as Applicants)
-  // If your route is different, just change href.
   { title: 'Results', href: '/admin/results', icon: TrendingUp, roles: ['admin', 'super_admin'], permissionKey: 'applicant' },
 
+  // ============ SUPER ADMIN ONLY SECTION ============
   { title: 'Patrons', href: '/admin/patrons', icon: UserPlus, roles: ['super_admin'] },
-  { title: 'Designations', href: '/admin/designations', icon: User, roles: ['super_admin'] },
+  { title: 'Designations', href: '/admin/designations', icon: GraduationCap, roles: ['super_admin'] },
+  { title: 'Important Details', href: '/admin/details', icon: FileText, roles: ['super_admin'] },
 
-  { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['admin', 'super_admin'], permissionKey: 'events' },
-  { title: 'Exam', href: '/admin/exam', icon: GraduationCap, roles: ['admin', 'super_admin'], permissionKey: 'exam' },
-  { title: 'Seminar', href: '/admin/seminar', icon: BookOpen, roles: ['admin', 'super_admin'], permissionKey: 'seminar' },
+  // ============ EVENTS & LEARNING SECTION ============
+  { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['member', 'admin', 'super_admin'], permissionKey: 'events' },
+  { title: 'Quiz', href: '/admin/quiz', icon: ClipboardCheck, roles: ['member', 'admin', 'super_admin'], permissionKey: 'quiz' },
+  { title: 'Seminars', href: '/admin/seminar', icon: BookOpen, roles: ['member', 'admin', 'super_admin'], permissionKey: 'seminar' },
+  { title: 'Past Papers', href: '/admin/past-paper', icon: FileText, roles: ['member', 'admin', 'super_admin'], permissionKey: 'exam' },
 
+  // ============ FINANCE SECTION ============
   { title: 'Submit Finance', href: '/admin/finance/submit', icon: Receipt, roles: ['member'] },
   { title: 'Verify Finance', href: '/admin/finance/verify', icon: CheckSquare, roles: ['admin', 'super_admin'], permissionKey: 'finance' },
   { title: 'Finance Ledger', href: '/admin/finance/ledger', icon: DollarSign, roles: ['admin', 'super_admin'], permissionKey: 'finance' },
+  { title: 'Audit Log', href: '/admin/finance/audit', icon: FileText, roles: ['admin', 'super_admin'], permissionKey: 'finance' },
 
+  // ============ COMMUNICATIONS SECTION ============
   { title: 'Announcements', href: '/admin/announcements', icon: Megaphone, roles: ['admin', 'super_admin'], permissionKey: 'announcement' },
-
   { title: 'Feedback', href: '/admin/feedback', icon: Megaphone, roles: ['admin', 'super_admin'], permissionKey: 'feedback' },
 
+  // ============ SETTINGS & ADMIN CONTROL ============
   { title: 'Site Mode', href: '/admin/site-mode', icon: Wrench, roles: ['admin', 'super_admin'], permissionKey: 'settings' },
-
-  { title: 'Claim Permission', href: '/admin/claim-permission', icon: HandHelping, roles: ['admin'] },
   { title: 'Permissions', href: '/admin/permissions', icon: Shield, roles: ['super_admin'] },
-  { title: 'Contact', href: '/admin/contact', icon: Phone, roles: ['admin', 'super_admin'] },
-  { title: 'Audit Log', href: '/admin/audit', icon: FileText, roles: ['super_admin'] },
   { title: 'Settings', href: '/admin/settings', icon: Settings, roles: ['super_admin'] },
+  { title: 'Contact Info', href: '/admin/contact', icon: Phone, roles: ['admin', 'super_admin'] },
+
+  // ============ ADMIN ONBOARDING ============
+  { title: 'Request Permission', href: '/admin/claim-permission', icon: HandHelping, roles: ['admin'] },
 ];
 
 export function AdminSidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768);
   const location = useLocation();
-  const { role, isSuperAdmin } = useAdminAuth();
+  const { role, isSuperAdmin, isMasterAdmin } = useAdminAuth();
   const { hasPermission } = useAdminGrantedPermissions();
   const [manualApplicantsOpen, setManualApplicantsOpen] = useState(false);
+
+  // collapse sidebar automatically on small screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setCollapsed(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!role || role === 'admin' || role === 'super_admin') return;
@@ -86,16 +108,18 @@ export function AdminSidebar() {
 
     (async () => {
       try {
+        // Select entire settings row so missing columns don't cause a DB error
         const { data, error } = await supabase
-          .from('app_settings' as any)
-          .select('allow_manual_applications')
+          .from('app_settings')
+          .select('*')
           .eq('id', 1)
-          .maybeSingle<{ allow_manual_applications: boolean | null }>();
+          .maybeSingle();
 
         if (error) throw error;
-        if (active) setManualApplicantsOpen(Boolean(data?.allow_manual_applications));
+        if (active) setManualApplicantsOpen(Boolean((data as any)?.allow_manual_applications ?? false));
       } catch (err) {
-        console.error('Failed to load manual applications setting', err);
+        // Don't spam console when the column is absent; default to closed
+        console.debug('Manual applications setting not available or failed to load', err);
         if (active) setManualApplicantsOpen(false);
       }
     })();
@@ -121,13 +145,40 @@ export function AdminSidebar() {
       return hasPermission(item.permissionKey);
     }
 
-    // For members, show Applicants only when manual applications are open
+    // For members, show Applicants only when manual applications are open (check this FIRST)
     if (role === 'member' && item.href === '/admin/applicants') {
       return manualApplicantsOpen;
     }
 
+    // For members, require explicit grant for nav items that have permissionKey
+    if (role === 'member' && item.permissionKey) {
+      return hasPermission(item.permissionKey);
+    }
+
     return true;
   });
+
+  // Add Master Admin Control for Master Admins only (not regular super admin)
+  if (isMasterAdmin) {
+    const masterAdminItem: NavItem = {
+      title: 'Master Admin Control',
+      href: '/admin/master-admin',
+      icon: ShieldAlert,
+      roles: [],
+    };
+    // Insert before last items for better UX
+    const insertIndex = Math.max(0, filteredNavItems.length - 3);
+    filteredNavItems.splice(insertIndex, 0, masterAdminItem);
+
+    // Add QR Codes & ID Cards item for Master Admins
+    const qrAndIdCardsItem: NavItem = {
+      title: 'QR Codes & ID Cards',
+      href: '/admin/bulk-qr-generator',
+      icon: QrCode,
+      roles: [],
+    };
+    filteredNavItems.splice(insertIndex + 1, 0, qrAndIdCardsItem);
+  }
 
   return (
     <motion.aside
@@ -145,8 +196,8 @@ export function AdminSidebar() {
               exit={{ opacity: 0 }}
               className="flex items-center gap-2"
             >
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">A</span>
+              <div className="w-8 h-8 rounded-lg bg-transparent flex items-center justify-center overflow-hidden">
+                <img src={logoImg} alt="AUSDAV" className="w-full h-full object-contain neon-glow" />
               </div>
               <span className="font-semibold text-foreground">
                 {role === 'super_admin'
@@ -186,6 +237,12 @@ export function AdminSidebar() {
                     'hover:bg-secondary/80',
                     isActive && 'bg-primary/10 text-primary border border-primary/20 neon-glow'
                   )}
+                  onClick={() => {
+                    // on small screens, collapse when navigating to a page
+                    if (window.innerWidth < 768) {
+                      setCollapsed(true);
+                    }
+                  }}
                 >
                   <item.icon className={cn('h-5 w-5 shrink-0', isActive && 'text-primary')} />
                   <AnimatePresence mode="wait">

@@ -15,12 +15,12 @@ export function AdminLayout() {
         navigate('/login');
         return;
       }
-      if (needsProfileSetup) {
+      if (needsProfileSetup && !location.pathname.includes('/profile-setup')) {
         navigate('/admin/profile-setup');
         return;
       }
     }
-  }, [user, loading, navigate, needsProfileSetup]);
+  }, [user, loading, navigate, needsProfileSetup, location.pathname]);
 
   if (loading) {
     return (
@@ -33,10 +33,16 @@ export function AdminLayout() {
     );
   }
 
-  // Allow the profile setup route to render even when profile is missing.
-  const isProfileSetupRoute = location.pathname.endsWith('/admin/profile-setup');
+  // User must be logged in to access admin panel
+  if (!user) {
+    return null;
+  }
 
-  if (!user || (!profile && needsProfileSetup && !isProfileSetupRoute)) {
+  // Allow these routes even without full profile setup
+  const isSetupRoute = location.pathname.includes('/profile-setup');
+  
+  // Only block if user needs profile setup AND it's not a setup route
+  if (!profile && needsProfileSetup && !isSetupRoute) {
     return null;
   }
 

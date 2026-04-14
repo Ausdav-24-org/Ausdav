@@ -1,10 +1,30 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { Calendar, MapPin, ChevronRight, Image } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
+import {
+  Calendar,
+  MapPin,
+  ChevronRight,
+  Image,
+  GraduationCap,
+  BookOpen,
+  Heart,
+  Zap,
+  Sparkles,
+  Trophy,
+  Star,
+  Music,
+  Camera,
+  Users,
+  Award,
+  Gift,
+  Flame,
+  PartyPopper,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type EventRecord = {
   id: string;
@@ -13,11 +33,15 @@ type EventRecord = {
   description_en: string | null;
   description_ta: string | null;
   event_date: string;
+  created_at: string | null;
   location: string | null;
   is_active: boolean;
   image_bucket: string | null;
   image_path: string | null;
 };
+
+import BG1 from "@/assets/AboutUs/BG1.jpg";
+
 
 type EventDisplay = {
   id: string;
@@ -31,37 +55,59 @@ type EventDisplay = {
   coverImage: string | null;
 };
 
-// Past year galleries
-const pastGalleries = [
-  { year: '2024', count: 45 },
-  { year: '2023', count: 38 },
-  { year: '2022', count: 52 },
-  { year: '2021', count: 28 },
+type TimelineEvent = EventDisplay & { icon: LucideIcon };
+
+const timelineIcons: LucideIcon[] = [
+  GraduationCap,
+  BookOpen,
+  Heart,
+  Zap,
+  Sparkles,
+  Trophy,
+  Star,
+  Music,
+  Camera,
+  Users,
+  Award,
+  Gift,
+  Flame,
+  PartyPopper,
+];
+
+// Annual Activities from AUSDAV 2025 Proposal
+const annualEvents = [
+  { id: 1, en: "Annual Pilot Examinations", ta: "வருடாந்திர பைலட் தேர்வுகள்", icon: GraduationCap },
+  { id: 2, en: "Monthly Examinations", ta: "மாதாந்திர தேர்வுகள்", icon: BookOpen },
+  { id: 3, en: "Practical Seminar", ta: "நடைமுறை கருத்தரங்கு", icon: GraduationCap },
+  { id: 4, en: "Kalvikaram Project", ta: "கல்விகரம் திட்டம்", icon: Heart },
+  { id: 5, en: "Pentathlon", ta: "பெண்டத்லான்", icon: Zap },
+  { id: 6, en: "INOVIA", ta: "இன்னோவியா", icon: Sparkles },
+  { id: 7, en: "Anpu Sangamam", ta: "அன்பு சங்கமம்", icon: Heart },
+  { id: 8, en: "Blood Donation Camp", ta: "இரத்ததான முகாம்", icon: Heart },
 ];
 
 const EventsPage: React.FC = () => {
   const { t, language } = useLanguage();
   const [events, setEvents] = useState<EventDisplay[]>([]);
-  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const hasNoEvents = !isLoadingEvents && !fetchError && events.length === 0;
+  const isMobile = useIsMobile();
+
+  // track hover item in timeline (desktop)
+  const [hoveredAnnualId, setHoveredAnnualId] = useState<string | null>(null);
+  // track tapped/expanded item in timeline (mobile)
+  const [expandedMobileId, setExpandedMobileId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadEvents = async () => {
-      setIsLoadingEvents(true);
-      setFetchError(null);
-
       const { data, error } = await supabase
-        .from('events' as any)
+        .from("events" as any)
         .select(
-          'id,title_en,title_ta,description_en,description_ta,event_date,location,is_active,image_bucket,image_path'
+          "id,title_en,title_ta,description_en,description_ta,event_date,created_at,location,is_active,image_bucket,image_path"
         )
-        .eq('is_active', true)
-        .order('event_date', { ascending: false });
+        .eq("is_active", true)
+        .order("event_date", { ascending: true })
+        .order("created_at", { ascending: true });
 
       if (error) {
-        setFetchError(error.message);
-        setIsLoadingEvents(false);
         return;
       }
 
@@ -73,11 +119,11 @@ const EventsPage: React.FC = () => {
       const mapped: EventDisplay[] = records.map((event) => {
         const imageUrl = event.image_path
           ? supabase.storage
-              .from(event.image_bucket || 'events')
+              .from(event.image_bucket || "events")
               .getPublicUrl(event.image_path).data?.publicUrl || null
           : null;
 
-        const eventDate = event.event_date || '';
+        const eventDate = event.event_date || "";
         const isUpcoming = eventDate ? new Date(eventDate) >= today : false;
 
         return {
@@ -94,115 +140,375 @@ const EventsPage: React.FC = () => {
       });
 
       setEvents(mapped);
-      setIsLoadingEvents(false);
     };
 
     loadEvents();
   }, []);
 
-  const allEvents = events;
+  const timelineEvents = useMemo(() => {
+    const map = new Map<string, TimelineEvent>();
+    let iconIndex = 0;
+
+    for (const event of events) {
+      const key = (event.titleEN || "").trim().toLowerCase();
+      if (!key || map.has(key)) continue;
+
+      const icon = timelineIcons[iconIndex % timelineIcons.length];
+      map.set(key, { ...event, icon });
+      iconIndex += 1;
+    }
+
+    return Array.from(map.values());
+  }, [events]);
 
   return (
-    <div>
-      {/* Hero */}
+    <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      {/* Hero Section with Background Image */}
       <section
-        className="py-16 md:py-24"
-        style={{ backgroundImage: 'var(--gradient-hero)' }}
+        className="relative min-h-screen bg-cover bg-center flex items-center justify-center"
+        style={{
+          backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.6)), url('${BG1}')`,
+          backgroundAttachment: "fixed",
+        }}
       >
-        <div className="container mx-auto px-4">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+        </div>
+
+        <motion.div
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="relative w-full"
+        >
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center max-w-3xl mx-auto"
-          >
-            <h1 className="text-4xl md:text-5xl font-serif font-bold text-foreground mb-4">
-              {t('events.title')}
-            </h1>
-            <p className="text-foreground/80 text-lg">
-              {language === 'en'
-                ? 'Discover our upcoming events and explore memories from past activities'
-                : 'எங்கள் வரவிருக்கும் நிகழ்வுகளைக் கண்டறியுங்கள் மற்றும் கடந்த செயல்பாடுகளின் நினைவுகளை ஆராயுங்கள்'}
-            </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Events */}
-      <section className="py-16 md:py-24 bg-background">
-        <div className="container mx-auto px-4">
-          <motion.h2
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-3xl font-serif font-bold text-foreground mb-8"
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-center z-10 px-4"
           >
-            {t('events.title')}
-          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-cyan-400 text-sm font-semibold mb-4 uppercase tracking-widest"
+          >
+            ✦{" "}
+            {language === "en"
+              ? "Empowering Future Leaders Since 1993"
+              : "1993 முதல் ஆற்றல் சேர்ப்பு"}
+          </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
+          >
+            {language === "en" ? "Annual " : "வருடாந்த "}
+            <span className="text-cyan-400">
+              {language === "en" ? "Events" : "நிகழ்வுகள்"}
+            </span>
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto"
+          >
+            {language === "en"
+              ? "Discover our upcoming events and explore memories from past activities"
+              : "எங்கள் வரவிருக்கும் நிகழ்வுகளைக் கண்டறியுங்கள் மற்றும் கடந்த செயல்பாடுகளின் நினைவுகளை ஆராயுங்கள்"}
+          </motion.p>
+        </motion.div>
+      </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {isLoadingEvents && (
-              <div className="col-span-2 text-center py-8 text-muted-foreground">Loading events...</div>
-            )}
-            {fetchError && !isLoadingEvents && (
-              <div className="col-span-2 text-center py-8 text-destructive">
-                {fetchError.includes('column events.id does not exist')
-                  ? 'The events table is not properly set up. Please run the latest migration.'
-                  : fetchError}
-              </div>
-            )}
-            {hasNoEvents && (
-              <div className="col-span-2 text-center py-8 text-muted-foreground">No events to show yet.</div>
-            )}
-            {!isLoadingEvents && !fetchError && allEvents.map((event, idx) => (
-              <motion.div
-                key={event.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="bg-card rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all group"
-              >
-                <div className="h-48 bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                  {event.coverImage ? (
-                    <div
-                      className="w-full h-full bg-cover bg-center"
-                      style={{ backgroundImage: `url(${event.coverImage})` }}
-                    />
-                  ) : (
-                    <div className="text-center">
-                      <Calendar className="w-12 h-12 text-secondary mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(event.date).toLocaleDateString(language === 'en' ? 'en-US' : 'ta-LK', { dateStyle: 'long' })}
-                      </p>
+        {/* Scroll indicator */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2"
+        >
+          <motion.div
+            animate={{ y: [0, 10, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1"
+          >
+            <motion.div className="w-1.5 h-3 bg-primary rounded-full" />
+          </motion.div>
+        </motion.div>
+
+      </section>
+
+      {/* Annual Events Timeline */}
+      <section className="py-24 relative overflow-hidden bg-slate-800/50">
+        <div className="container mx-auto px-4 relative z-10">
+
+          {/* ===== MOBILE TIMELINE ===== */}
+          {isMobile ? (
+            <div className="relative max-w-sm mx-auto px-2">
+              <div className="space-y-0">
+                {timelineEvents.map((item, idx) => {
+                  const isLeftIcon = idx % 2 === 0;
+                  const isExpanded = expandedMobileId === item.id;
+                  const isLast = idx === timelineEvents.length - 1;
+                  const nextIsLeftIcon = (idx + 1) % 2 === 0;
+
+                  return (
+                    <div key={item.id} className="relative">
+                      {/* Curved connector to next icon */}
+                      {!isLast && (
+                        <svg
+                          className="absolute w-full pointer-events-none"
+                          style={{
+                            top: "28px",
+                            left: 0,
+                            height: "120px",
+                            zIndex: 0,
+                          }}
+                          viewBox="0 0 300 120"
+                          preserveAspectRatio="none"
+                        >
+                          <path
+                            d={
+                              isLeftIcon
+                                ? "M 28 0 Q 28 60, 150 60 T 272 120"
+                                : "M 272 0 Q 272 60, 150 60 T 28 120"
+                            }
+                            stroke="rgba(34,211,238,0.5)"
+                            strokeWidth="2"
+                            fill="none"
+                            strokeDasharray="6 4"
+                          />
+                        </svg>
+                      )}
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: idx * 0.08 }}
+                        className={`relative z-10 flex items-start gap-3 pb-16 ${
+                          isLeftIcon ? "flex-row" : "flex-row-reverse"
+                        }`}
+                      >
+                        {/* Icon */}
+                        <motion.div
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() =>
+                            setExpandedMobileId(isExpanded ? null : item.id)
+                          }
+                          className="relative z-20 w-14 h-14 rounded-xl bg-cyan-400 flex items-center justify-center flex-shrink-0 cursor-pointer shadow-lg shadow-cyan-400/30"
+                        >
+                          <item.icon className="w-6 h-6 text-slate-900" />
+                        </motion.div>
+
+                        {/* Title + Expandable Card */}
+                        <motion.div
+                          layout
+                          transition={{ type: "spring", stiffness: 280, damping: 24 }}
+                          onClick={() =>
+                            setExpandedMobileId(isExpanded ? null : item.id)
+                          }
+                          className={`flex-1 rounded-xl border backdrop-blur-sm cursor-pointer
+                            bg-cyan-500/20 border-cyan-500/40
+                            ${isLeftIcon ? "text-left" : "text-right"}
+                          `}
+                        >
+                          {/* Title */}
+                          <div className="px-3 py-2">
+                            <p className="font-bold text-sm text-white">
+                              {language === "en"
+                                ? item.titleEN
+                                : item.titleTA || item.titleEN}
+                            </p>
+                          </div>
+
+                          {/* Expanded content */}
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                key="mobile-content"
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.25 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="px-3 pb-3">
+                                  <div className="rounded-xl bg-card text-left shadow-xl overflow-hidden">
+                                    <Link
+                                      to={`/events/${item.id}`}
+                                      className="block h-36 bg-gradient-to-br from-primary/10 to-secondary/10 overflow-hidden"
+                                    >
+                                      {item.coverImage ? (
+                                        <div
+                                          className="w-full h-full bg-cover bg-center"
+                                          style={{
+                                            backgroundImage: `url(${item.coverImage})`,
+                                          }}
+                                        />
+                                      ) : (
+                                        <div className="flex items-center justify-center h-full">
+                                          <Calendar className="w-8 h-8 text-secondary" />
+                                        </div>
+                                      )}
+                                    </Link>
+
+                                    <div className="p-3">
+                                      <p className="text-xs text-muted-foreground line-clamp-4">
+                                        {language === "en"
+                                          ? item.descriptionEN || ""
+                                          : item.descriptionTA ||
+                                            item.descriptionEN ||
+                                            ""}
+                                      </p>
+
+                                      <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+                                        <MapPin className="w-3 h-3" />
+                                        {item.location ||
+                                          (language === "en"
+                                            ? "TBA"
+                                            : "பின்னர் அறிவிக்கப்படும்")}
+                                      </div>
+
+                                      <Link
+                                        to={`/events/${item.id}`}
+                                        className="mt-3 inline-flex items-center gap-1 text-xs text-cyan-400 font-medium"
+                                      >
+                                        {language === "en" ? "View Details" : "விவரங்களைப் பார்க்க"}
+                                        <ChevronRight className="w-3 h-3" />
+                                      </Link>
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      </motion.div>
                     </div>
-                  )}
-                </div>
-                
-                <div className="p-6">
-                  <h3 className="text-xl font-serif font-bold text-foreground mb-2 group-hover:text-secondary transition-colors">
-                    {language === 'en' ? event.titleEN : event.titleTA}
-                  </h3>
-                  <p className="text-muted-foreground mb-4 line-clamp-2">
-                    {language === 'en' ? event.descriptionEN : event.descriptionTA}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <MapPin className="w-4 h-4" />
-                      {event.location}
-                    </span>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to={`/events/${event.id}`}>
-                        {t('events.viewDetails')}
-                        <ChevronRight className="w-4 h-4 ml-1" />
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* ===== DESKTOP TIMELINE ===== */
+            <div className="relative max-w-4xl mx-auto">
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-cyan-500/50 to-transparent -translate-x-1/2" />
+
+              <div className="space-y-12">
+                {timelineEvents.map((item, idx) => {
+                  const isHovered = hoveredAnnualId === item.id;
+
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, x: idx % 2 === 0 ? -50 : 50 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: idx * 0.1 }}
+                      className={`flex items-center gap-6 ${
+                        idx % 2 === 0 ? "flex-row" : "flex-row-reverse"
+                      }`}
+                    >
+                      <div className={`flex-1 ${idx % 2 === 0 ? "text-right" : "text-left"}`}>
+                        {/* SAME BOX expands in same position */}
+                        <motion.div
+                          layout
+                          transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                          onMouseEnter={() => setHoveredAnnualId(item.id)}
+                          onMouseLeave={() => setHoveredAnnualId(null)}
+                          className={`
+                            inline-block w-fit
+                            rounded-xl border backdrop-blur-sm
+                            bg-cyan-500/20
+                            border-cyan-500/40 hover:border-cyan-500/60
+                            ${idx % 2 === 0 ? "mr-4" : "ml-4"}
+                          `}
+                        >
+                          {/* Title always visible */}
+                          <div className="px-3 py-2">
+                            <p className="font-bold text-base text-white whitespace-nowrap">
+                              {language === "en" ? item.titleEN : item.titleTA || item.titleEN}
+                            </p>
+                          </div>
+
+                          {/* Expanded content inside SAME box */}
+                          <AnimatePresence initial={false}>
+                            {isHovered && (
+                              <motion.div
+                                key="content"
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="w-96 max-w-[24rem] sm:max-w-none px-3 pb-3">
+                                  <div className="rounded-xl bg-card text-left shadow-2xl overflow-hidden">
+                                    <Link
+                                      to={`/events/${item.id}`}
+                                      className="block h-44 bg-gradient-to-br from-primary/10 to-secondary/10 overflow-hidden"
+                                    >
+                                      {item.coverImage ? (
+                                        <div
+                                          className="w-full h-full bg-cover bg-center"
+                                          style={{ backgroundImage: `url(${item.coverImage})` }}
+                                        />
+                                      ) : (
+                                        <div className="flex items-center justify-center h-full">
+                                          <Calendar className="w-8 h-8 text-secondary" />
+                                        </div>
+                                      )}
+                                    </Link>
+
+                                    <div className="p-4 pt-2">
+                                      <p className="text-xs text-muted-foreground line-clamp-3">
+                                        {language === "en"
+                                          ? item.descriptionEN || ""
+                                          : item.descriptionTA ||
+                                            item.descriptionEN ||
+                                            ""}
+                                      </p>
+
+                                      <div className="mt-4 flex items-center justify-between">
+                                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                          <MapPin className="w-3 h-3" />
+                                          {item.location ||
+                                            (language === "en"
+                                              ? "TBA"
+                                              : "பின்னர் அறிவிக்கப்படும்")}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      </div>
+
+                      {/* Center icon */}
+                      <motion.div
+                        whileHover={{ scale: 1.2, rotate: 10 }}
+                        className="relative z-10 w-14 h-14 rounded-xl bg-cyan-400 flex items-center justify-center flex-shrink-0"
+                      >
+                        <item.icon className="w-6 h-6 text-slate-900" />
+                      </motion.div>
+
+                      <div className="flex-1" />
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </section>
+
+      {/* Facebook Embeds Section removed - now displayed on individual event detail pages */}
     </div>
   );
 };

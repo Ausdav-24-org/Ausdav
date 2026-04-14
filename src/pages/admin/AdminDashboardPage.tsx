@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
-import invokeFunction from '@/integrations/supabase/functions';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +23,8 @@ import { supabase } from '@/integrations/supabase/client';
 // Use a loose-typed client for queries against tables not present in generated types
 const db = supabase as any;
 import { useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartConfig } from '@/components/ui/chart';
 
 interface DashboardStats {
   totalMembers: number;
@@ -47,28 +48,103 @@ export default function AdminDashboardPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchDashboardStats();
+    (async () => {
+      const batches = await fetchDashboardStats();
+      if (batches.length === 0) {
+        // fallback to direct query only when dashboard function returned nothing
+        await fetchMembersByBatch();
+      }
+    })();
   }, []);
 
   const { session } = useAdminAuth();
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = async (): Promise<{ batch: string; count: number }[]> => {
     try {
       setLoading(true);
-      const { data, error } = await invokeFunction('fetch-dashboard-stats', {});
-      if (error) throw error;
+      
+      // Fetch all required data directly from database instead of using edge function
+      const [membersRes, financeRes, batchRes] = await Promise.all([
+        db.from('members').select('*', { count: 'exact' }),
+        db.from('finance').select('*', { count: 'exact' }),
+        db.from('members').select('batch'),
+      ]);
 
-      setStats((prev) => ({
-        ...prev,
-        totalMembers: data?.totalMembers || 0,
-        activeMembers: data?.activeMembers || 0,
-        monthlyIncome: data?.monthlyIncome || 0,
-        monthlyExpense: data?.monthlyExpense || 0,
-        pendingSubmissions: data?.pendingSubmissions || 0,
-        membersByBatch: data?.membersByBatch || [],
-      }));
+      if (membersRes.error) throw membersRes.error;
+      if (financeRes.error) throw financeRes.error;
+      if (batchRes.error) throw batchRes.error;
+
+      // Process data
+      const members = Array.isArray(membersRes.data) ? membersRes.data : [];
+      const finances = Array.isArray(financeRes.data) ? financeRes.data : [];
+      
+      // Calculate stats
+      const totalMembers = members.length;
+      const activeMembers = members.filter((m: any) => m.admission_status === 'active').length;
+      
+      // Calculate monthly finance
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+      
+      const monthlyIncome = finances
+        .filter((f: any) => {
+          const fDate = new Date(f.txn_date || f.created_at);
+          return fDate.getMonth() === currentMonth && 
+                 fDate.getFullYear() === currentYear &&
+                 f.exp_type === 'income' &&
+                 f.approved === true;
+        })
+        .reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+      
+      const monthlyExpense = finances
+        .filter((f: any) => {
+          const fDate = new Date(f.txn_date || f.created_at);
+          return fDate.getMonth() === currentMonth && 
+                 fDate.getFullYear() === currentYear &&
+                 f.exp_type === 'expense' &&
+                 f.approved === true;
+        })
+        .reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+      
+      const pendingSubmissions = finances.filter((f: any) => f.approved === false).length;
+      
+      // Count members by batch
+      const batchData = Array.isArray(batchRes.data) ? batchRes.data : [];
+      const batchCounts: Record<string, number> = {};
+      batchData.forEach((member: any) => {
+        const batch = member.batch || 'Unknown';
+        batchCounts[batch] = (batchCounts[batch] || 0) + 1;
+      });
+      
+      const membersByBatch = Object.entries(batchCounts)
+        .map(([batch, count]) => ({ batch, count }))
+        .sort((a, b) => b.count - a.count);
+
+      setStats({
+        totalMembers,
+        activeMembers,
+        monthlyIncome,
+        monthlyExpense,
+        pendingSubmissions,
+        membersByBatch,
+      });
+
+      console.debug('Dashboard stats loaded successfully', {
+        totalMembers,
+        activeMembers,
+        monthlyIncome,
+        monthlyExpense,
+        pendingSubmissions,
+        membersByBatch,
+      });
+
+      return membersByBatch;
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
+      // Use fallback direct member batch query
+      await fetchMembersByBatch();
+      return [];
     } finally {
       setLoading(false);
     }
@@ -110,6 +186,32 @@ export default function AdminDashboardPage() {
   ];
 
   const { hasPermission, loading: permissionsLoading } = useAdminGrantedPermissions();
+
+  const batchChartConfig: ChartConfig = {
+    count: { label: 'Students', color: '#60A5FA' },
+  };
+
+  // explicit query for members by batch to back up the dashboard function
+  const fetchMembersByBatch = async () => {
+    try {
+      const { data, error } = await db.from('members').select('batch');
+      console.debug('direct batch query result', { data, error });
+      if (error) throw error;
+      const rows = Array.isArray(data) ? data : [];
+      const counts: Record<string, number> = {};
+      rows.forEach((r: any) => {
+        const b = r.batch ?? 'Unknown';
+        counts[b] = (counts[b] || 0) + 1;
+      });
+      const arr = Object.entries(counts)
+        .map(([batch, count]) => ({ batch, count }))
+        .sort((a, b) => b.count - a.count);
+      console.debug('computed batch counts', arr);
+      setStats((prev) => ({ ...prev, membersByBatch: arr }));
+    } catch (e) {
+      console.error('Error fetching members by batch:', e);
+    }
+  };
   const { isAdmin, isSuperAdmin } = useAdminAuth();
 
   const actions = [
@@ -176,27 +278,18 @@ export default function AdminDashboardPage() {
               <CardTitle className="text-lg">Members by Batch</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {stats.membersByBatch.slice(0, 6).map((item) => (
-                  <div key={item.batch} className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{item.batch}</span>
-                    <div className="flex items-center gap-3">
-                      <div className="w-32 h-2 bg-secondary rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full"
-                          style={{
-                            width: `${(item.count / stats.totalMembers) * 100}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-sm font-medium w-8 text-right">{item.count}</span>
-                    </div>
-                  </div>
-                ))}
-                {stats.membersByBatch.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">No members yet</p>
-                )}
-              </div>
+              {stats.membersByBatch.length > 0 ? (
+                <ChartContainer config={batchChartConfig} className="w-full h-[320px]">
+                  <BarChart data={stats.membersByBatch} margin={{ top: 20, right: 20, left: 0, bottom: 20 }} className="w-full">
+                    <XAxis dataKey="batch" tick={{ fill: 'hsl(var(--foreground))' }} />
+                    <YAxis tick={{ fill: 'hsl(var(--foreground))' }} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="count" fill="#60A5FA" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No members yet</p>
+              )}
             </CardContent>
           </Card>
 

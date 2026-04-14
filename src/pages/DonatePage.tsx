@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Building2, Phone, Mail, Copy, Check } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import BG1 from "@/assets/AboutUs/BG1.jpg";
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
@@ -32,45 +33,54 @@ const DonatePage: React.FC = () => {
   };
 
   return (
-    <div>
-      {/* Hero */}
+    <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      {/* Hero Section with Background Image */}
       <section
-        className="py-16 md:py-24"
-        style={{ backgroundImage: 'var(--gradient-hero)' }}
+        className="relative min-h-screen bg-cover bg-center flex items-center justify-center"
+        style={{
+          backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.6)), url('${BG1}')`,
+          backgroundAttachment: "fixed",
+        }}
       >
         <div className="container mx-auto px-4">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center max-w-3xl mx-auto"
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            className="relative w-full"
           >
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-secondary/20 flex items-center justify-center">
-              <Heart className="w-10 h-10 text-secondary" />
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center max-w-3xl mx-auto"
+            >
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-cyan-500/20 flex items-center justify-center">
+              <Heart className="w-10 h-10 text-cyan-400" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-serif font-bold text-foreground mb-4">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6">
               {t('donate.title')}
             </h1>
-            <p className="text-foreground/80 text-lg">
+            <p className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto">
               {t('donate.subtitle')}
             </p>
           </motion.div>
+        </motion.div>
         </div>
       </section>
 
       {/* Donation Info */}
-      <section className="py-16 md:py-24 bg-background">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+      <section className="relative py-20 px-4 bg-slate-800/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-start">
             {/* Bank Details */}
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="bg-card rounded-xl p-6 md:p-8 shadow-lg"
+              className="rounded-2xl p-8 border border-cyan-500/40 bg-card backdrop-blur-sm shadow-2xl"
             >
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center">
-                  <Building2 className="w-6 h-6 text-secondary" />
+                <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                  <Building2 className="w-6 h-6 text-cyan-400" />
                 </div>
                 <h2 className="text-2xl font-serif font-bold text-foreground">
                   {t('donate.bank.title')}
@@ -96,9 +106,9 @@ const DonatePage: React.FC = () => {
                       className="flex-shrink-0"
                     >
                       {copied === item.key ? (
-                        <Check className="w-4 h-4 text-green-500" />
+                        <Check className="w-4 h-4 text-cyan-400" />
                       ) : (
-                        <Copy className="w-4 h-4" />
+                        <Copy className="w-4 h-4 text-cyan-400" />
                       )}
                     </Button>
                   </div>
@@ -113,8 +123,8 @@ const DonatePage: React.FC = () => {
               viewport={{ once: true }}
               className="space-y-6"
             >
-              <div className="bg-card rounded-xl p-6 md:p-8 shadow-lg">
-                <h2 className="text-2xl font-serif font-bold text-foreground mb-6">
+              <div className="rounded-2xl p-8 border border-cyan-500/40 bg-card backdrop-blur-sm shadow-2xl">
+                <h2 className="text-2xl font-bold mb-6 text-white">
                   {t('donate.contact.title')}
                 </h2>
 
@@ -123,8 +133,8 @@ const DonatePage: React.FC = () => {
                     href={`tel:${orgContact?.phone ?? '+94XXXXXXXX'}`}
                     className="flex items-center gap-3 p-4 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-secondary" />
+                    <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                      <Phone className="w-5 h-5 text-cyan-400" />
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">
@@ -138,8 +148,8 @@ const DonatePage: React.FC = () => {
                     href={`mailto:${orgContact?.email ?? 'donate@ausdav.org'}`}
                     className="flex items-center gap-3 p-4 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center">
-                      <Mail className="w-5 h-5 text-secondary" />
+                    <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                      <Mail className="w-5 h-5 text-cyan-400" />
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">
@@ -161,10 +171,15 @@ const DonatePage: React.FC = () => {
             viewport={{ once: true }}
             className="text-center mt-12 max-w-2xl mx-auto"
           >
-            <p className="text-muted-foreground text-lg">
+            <p className="text-slate-300 text-lg mb-4">
               {language === 'en'
-                ? 'Your generous contribution helps us provide educational resources, conduct seminars, and support students in need. Every donation makes a difference.'
-                : 'உங்கள் தாராள பங்களிப்பு கல்வி வளங்களை வழங்கவும், கருத்தரங்குகளை நடத்தவும், தேவைப்படும் மாணவர்களுக்கு ஆதரவளிக்கவும் உதவுகிறது. ஒவ்வொரு நன்கொடையும் ஒரு மாற்றத்தை ஏற்படுத்துகிறது.'}
+                ? 'Your generous contribution helps us conduct free Annual Pilot Examinations for A/L, O/L, and Grade 5 students, organize 3-day Practical Seminars, and run our Kalvikaram Project for rural schools.'
+                : 'உங்கள் தாராள பங்களிப்பு A/L, O/L மற்றும் 5ம் வகுப்பு மாணவர்களுக்கான இலவச வருடாந்திர பைலட் தேர்வுகளை நடத்தவும், 3 நாள் நடைமுறை கருத்தரங்குகளை ஏற்பாடு செய்யவும், கிராமப்புற பள்ளிகளுக்கான எங்கள் கல்விகரம் திட்டத்தை நடத்தவும் உதவுகிறது.'}
+            </p>
+            <p className="text-slate-300 text-lg">
+              {language === 'en'
+                ? 'Our annual budget is approximately Rs. 1,408,600 and every donation helps us reach more students in the Vavuniya district. AUSDAV has been serving students since 1993.'
+                : 'எங்கள் வருடாந்திர வரவு செலவு திட்டம் சுமார் ரூ. 1,408,600 மற்றும் ஒவ்வொரு நன்கொடையும் வவுனியா மாவட்டத்தில் அதிக மாணவர்களை அடைய உதவுகிறது. AUSDAV 1993 முதல் மாணவர்களுக்கு சேவை செய்து வருகிறது.'}
             </p>
           </motion.div>
         </div>
