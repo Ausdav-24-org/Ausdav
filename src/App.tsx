@@ -357,7 +357,7 @@ const App = () => {
                     <Route path="bulk-qr-generator" element={<Suspense fallback={<PageLoader />}><AdminBulkQRGeneratorPage /></Suspense>} />
                     <Route path="id-card-generator" element={<Suspense fallback={<PageLoader />}><AdminIDCardPage /></Suspense>} />
                     <Route path="contact" element={<Suspense fallback={<PageLoader />}><ContactSettingsPage /></Suspense>} />
-                    <Route path="audit" element={<Suspense fallback={<PageLoader />}><FinanceAuditLogPage /></Suspense>} />
+                    <Route path="finance/audit" element={<Suspense fallback={<PageLoader />}><FinanceAuditLogPage /></Suspense>} />
                     <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettingsPage /></Suspense>} />
                     <Route path="finance/submit" element={<Suspense fallback={<PageLoader />}><FinanceSubmitPage /></Suspense>} />
                     <Route path="finance/verify" element={<Suspense fallback={<PageLoader />}><FinanceVerifyPage /></Suspense>} />

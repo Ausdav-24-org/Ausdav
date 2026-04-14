@@ -20,12 +20,13 @@ import {
   BookOpen,
   UserPlus,
   HandHelping,
-  TrendingUp, // ✅ added for Results page icon
+  TrendingUp,
   Wrench,
   ClipboardCheck,
   ShieldAlert,
-  QrCode, // ✅ added for Bulk QR Generator
-  IdCard, // ✅ added for ID Card Generator
+  QrCode,
+  IdCard,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoImg from '@/assets/logo/AUSDAV_llogo.png';
@@ -43,41 +44,44 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  // ============ CORE ADMIN SECTION ============
   { title: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, roles: ['admin', 'super_admin'] },
-  { title: 'Profile', href: '/admin/profile', icon: User, roles: ['member', 'honourable', 'admin', 'super_admin'] },
+  { title: 'My Profile', href: '/admin/profile', icon: User, roles: ['member', 'honourable', 'admin', 'super_admin'] },
 
+  // ============ MEMBERS & RECRUITMENT SECTION ============
   { title: 'Members', href: '/admin/members', icon: Users, roles: ['admin', 'super_admin'], permissionKey: 'member' },
-
   { title: 'Applicants', href: '/admin/applicants', icon: UserPlus, roles: ['member', 'admin', 'super_admin'], permissionKey: 'applicant' },
-
-  // ✅ ADDED: Results Page (uses same permissionKey as Applicants)
-  // If your route is different, just change href.
   { title: 'Results', href: '/admin/results', icon: TrendingUp, roles: ['admin', 'super_admin'], permissionKey: 'applicant' },
 
+  // ============ SUPER ADMIN ONLY SECTION ============
   { title: 'Patrons', href: '/admin/patrons', icon: UserPlus, roles: ['super_admin'] },
-  { title: 'Designations', href: '/admin/designations', icon: User, roles: ['super_admin'] },
-  { title: 'Important Details', href: '/admin/details', icon: Settings, roles: ['super_admin'] },
+  { title: 'Designations', href: '/admin/designations', icon: GraduationCap, roles: ['super_admin'] },
+  { title: 'Important Details', href: '/admin/details', icon: FileText, roles: ['super_admin'] },
 
+  // ============ EVENTS & LEARNING SECTION ============
   { title: 'Events', href: '/admin/events', icon: CalendarDays, roles: ['member', 'admin', 'super_admin'], permissionKey: 'events' },
   { title: 'Quiz', href: '/admin/quiz', icon: ClipboardCheck, roles: ['member', 'admin', 'super_admin'], permissionKey: 'quiz' },
-  { title: 'Seminar', href: '/admin/seminar', icon: BookOpen, roles: ['member', 'admin', 'super_admin'], permissionKey: 'seminar' },
+  { title: 'Seminars', href: '/admin/seminar', icon: BookOpen, roles: ['member', 'admin', 'super_admin'], permissionKey: 'seminar' },
   { title: 'Past Papers', href: '/admin/past-paper', icon: FileText, roles: ['member', 'admin', 'super_admin'], permissionKey: 'exam' },
 
+  // ============ FINANCE SECTION ============
   { title: 'Submit Finance', href: '/admin/finance/submit', icon: Receipt, roles: ['member'] },
   { title: 'Verify Finance', href: '/admin/finance/verify', icon: CheckSquare, roles: ['admin', 'super_admin'], permissionKey: 'finance' },
   { title: 'Finance Ledger', href: '/admin/finance/ledger', icon: DollarSign, roles: ['admin', 'super_admin'], permissionKey: 'finance' },
+  { title: 'Audit Log', href: '/admin/finance/audit', icon: FileText, roles: ['admin', 'super_admin'], permissionKey: 'finance' },
 
+  // ============ COMMUNICATIONS SECTION ============
   { title: 'Announcements', href: '/admin/announcements', icon: Megaphone, roles: ['admin', 'super_admin'], permissionKey: 'announcement' },
-
   { title: 'Feedback', href: '/admin/feedback', icon: Megaphone, roles: ['admin', 'super_admin'], permissionKey: 'feedback' },
 
+  // ============ SETTINGS & ADMIN CONTROL ============
   { title: 'Site Mode', href: '/admin/site-mode', icon: Wrench, roles: ['admin', 'super_admin'], permissionKey: 'settings' },
-
-  { title: 'Claim Permission', href: '/admin/claim-permission', icon: HandHelping, roles: ['admin'] },
   { title: 'Permissions', href: '/admin/permissions', icon: Shield, roles: ['super_admin'] },
-  { title: 'Contact', href: '/admin/contact', icon: Phone, roles: ['admin', 'super_admin'] },
-  { title: 'Audit Log', href: '/admin/audit', icon: FileText, roles: ['admin', 'super_admin'] },
   { title: 'Settings', href: '/admin/settings', icon: Settings, roles: ['super_admin'] },
+  { title: 'Contact Info', href: '/admin/contact', icon: Phone, roles: ['admin', 'super_admin'] },
+
+  // ============ ADMIN ONBOARDING ============
+  { title: 'Request Permission', href: '/admin/claim-permission', icon: HandHelping, roles: ['admin'] },
 ];
 
 export function AdminSidebar() {
