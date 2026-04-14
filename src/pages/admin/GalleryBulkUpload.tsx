@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { ArrowLeft, Upload, X, Loader2, Trash2, Eye } from 'lucide-react';
+import { ArrowLeft, Upload, X, Loader2, Trash2, Eye, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { compressImageBlob } from '@/lib/imageCompression';
+import { importFacebookUrl, type FacebookImportResponse, type FacebookContentType } from '@/services/facebookImportService';
 
 interface GalleryBulkUploadProps {
   galleryId: string;
@@ -31,56 +31,29 @@ type GalleryRow = {
   event_id: number;
   year: number;
   title: string | null;
-  embed_codes: Record<string, string>; // JSON object {1: code, 2: code, ...}
   created_at: string;
   created_by: string | null;
-};
-
-type GalleryImageInsert = {
-  id?: string;
-  gallery_id: string;
-  file_path: string;
-  created_at?: string;
-};
-
-type Database = {
-  public: {
-    Tables: {
-      gallery_images: {
-        Row: GalleryImageRow;
-        Insert: GalleryImageInsert;
-        Update: Partial<GalleryImageInsert>;
-      };
-    };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
-    CompositeTypes: Record<string, never>;
-  };
 };
 
 const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventId, year, onBack }) => {
   const queryClient = useQueryClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabaseDb = supabase as unknown as SupabaseClient<any, any, any, any>;
-  const [embedCode, setEmbedCode] = useState('');
-  const [embedPreview, setEmbedPreview] = useState('');
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [facebookUrl, setFacebookUrl] = useState('');
+  const [contentType, setContentType] = useState<FacebookContentType>('auto_detect');
+  const [forceResync, setForceResync] = useState(false);
+  const [lastImport, setLastImport] = useState<FacebookImportResponse | null>(null);
   const [selectedGalleryImageIndex, setSelectedGalleryImageIndex] = useState<number | null>(null);
-  const [galleryEmbed, setGalleryEmbed] = useState<GalleryRow | null>(null);
-  const [embedCodeNumber, setEmbedCodeNumber] = useState('1'); // Which embed code slot
 
-  // Fetch gallery with embed_codes
-  const { data: gallery, isLoading: galleryLoading } = useQuery({
+  const { isLoading: galleryLoading } = useQuery({
     queryKey: ['gallery', galleryId],
     queryFn: async () => {
       const { data, error } = await supabaseDb
         .from('galleries')
-        .select('id, event_id, year, title, embed_codes, created_at, created_by')
+        .select('id, event_id, year, title, created_at, created_by')
         .eq('id', galleryId)
         .single();
       if (error) throw error;
-      setGalleryEmbed(data as GalleryRow);
       return data as GalleryRow;
     },
   });
@@ -142,200 +115,42 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
     },
   });
 
-  // Save embed code to galleries table
-  const saveEmbedCodeMutation = useMutation({
-    mutationFn: async (code: string) => {
-      if (!galleryEmbed) throw new Error('Gallery not loaded');
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      if (!facebookUrl.trim()) {
+        throw new Error('Please paste a Facebook URL');
+      }
 
-      const currentCodes = galleryEmbed.embed_codes || {};
-      const newCodes = {
-        ...currentCodes,
-        [embedCodeNumber]: code,
-      };
-
-      const { error } = await supabaseDb
-        .from('galleries')
-        .update({ embed_codes: newCodes })
-        .eq('id', galleryId);
-
-      if (error) throw error;
+      return importFacebookUrl({
+        facebook_url: facebookUrl.trim(),
+        content_type: contentType,
+        event_id: eventId,
+        gallery_id: galleryId,
+        force_resync: forceResync,
+      });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+    onSuccess: (result) => {
+      setLastImport(result);
+      queryClient.invalidateQueries({ queryKey: ['gallery-images', galleryId] });
       queryClient.invalidateQueries({ queryKey: ['galleries', eventId] });
-      toast.success(`Embed code #${embedCodeNumber} saved successfully`);
-      // Fetch updated gallery
-      supabaseDb
-        .from('galleries')
-        .select('id, event_id, year, title, embed_codes, created_at, created_by')
-        .eq('id', galleryId)
-        .single()
-        .then(({ data }) => setGalleryEmbed(data as GalleryRow));
+
+      if (result.already_imported) {
+        toast.info(result.message);
+      } else {
+        toast.success(result.message);
+      }
     },
-    onError: (error) => {
-      console.error('Save embed code failed:', error);
-      toast.error('Failed to save embed code: ' + error.message);
+    onError: (error: Error) => {
+      toast.error(error.message || 'Facebook import failed');
     },
   });
 
-  // Delete embed code from galleries table
-  const deleteEmbedCodeMutation = useMutation({
-    mutationFn: async (codeNumber: string) => {
-      if (!galleryEmbed) throw new Error('Gallery not loaded');
-
-      const newCodes = { ...galleryEmbed.embed_codes };
-      delete newCodes[codeNumber];
-
-      const { error } = await supabaseDb
-        .from('galleries')
-        .update({ embed_codes: newCodes })
-        .eq('id', galleryId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-      queryClient.invalidateQueries({ queryKey: ['galleries', eventId] });
-      toast.success('Embed code deleted successfully');
-      // Fetch updated gallery
-      supabaseDb
-        .from('galleries')
-        .select('id, event_id, year, title, embed_codes, created_at, created_by')
-        .eq('id', galleryId)
-        .single()
-        .then(({ data }) => setGalleryEmbed(data as GalleryRow));
-    },
-    onError: (error) => {
-      console.error('Delete embed code failed:', error);
-      toast.error('Failed to delete embed code: ' + error.message);
-    },
-  });
-
-  // Extract post ID from Facebook URL
-  const extractPostIdFromUrl = (url: string): string | null => {
-    try {
-      // Handle various Facebook URL formats
-      // Format 1: facebook.com/photo.php?fbid=123456789
-      const fbidMatch = url.match(/fbid=(\d+)/);
-      if (fbidMatch) return fbidMatch[1];
-      
-      // Format 2: facebook.com/username/posts/123456789
-      const postsMatch = url.match(/\/posts\/(\d+)/);
-      if (postsMatch) return postsMatch[1];
-      
-      // Format 3: facebook.com/permalink.php?story_fbid=123456789
-      const storyMatch = url.match(/story_fbid=(\d+)/);
-      if (storyMatch) return storyMatch[1];
-      
-      // Format 4: facebook.com/media/set/?set=123456789
-      const setMatch = url.match(/set=(\d+)/);
-      if (setMatch) return setMatch[1];
-
-      return null;
-    } catch {
-      return null;
-    }
+  const clearImportForm = () => {
+    setFacebookUrl('');
+    setContentType('auto_detect');
+    setForceResync(false);
+    setLastImport(null);
   };
-
-  // Parse Facebook embed code to extract post ID or validate embed
-  const parseEmbedCode = (code: string): { postId?: string; isValid: boolean } => {
-    try {
-      const trimmedCode = code.trim();
-
-      // Method 1: Extract from fb-post div with data-href
-      // Format: <div class="fb-post" data-href="https://www.facebook.com/..."/>
-      const dataHrefMatch = trimmedCode.match(/data-href=["']([^"']+)["']/i);
-      if (dataHrefMatch) {
-        const url = dataHrefMatch[1];
-        const postId = extractPostIdFromUrl(url);
-        return { postId, isValid: true };
-      }
-
-      // Method 2: Extract from iframe embed code
-      // Format: <iframe src="https://www.facebook.com/plugins/post.php?href=...
-      const iframeHrefMatch = trimmedCode.match(/href=([^&\s"']+)/i);
-      if (iframeHrefMatch && trimmedCode.includes('facebook.com/plugins')) {
-        try {
-          const url = decodeURIComponent(iframeHrefMatch[1]);
-          const postId = extractPostIdFromUrl(url);
-          return { postId, isValid: true };
-        } catch {
-          return { isValid: true }; // Still valid iframe, just can't extract ID
-        }
-      }
-
-      // Method 3: Check if it's an iframe element at all
-      if (trimmedCode.includes('<iframe') && trimmedCode.includes('facebook.com')) {
-        return { isValid: true };
-      }
-
-      // Method 4: Check for SDK script with fb-root
-      if (trimmedCode.includes('fb-root') || trimmedCode.includes('facebook.com') && trimmedCode.includes('sdk.js')) {
-        return { isValid: true };
-      }
-
-      // Method 5: Just check if it contains facebook.com and HTML tags
-      if (trimmedCode.includes('facebook.com') && (trimmedCode.includes('<') || trimmedCode.includes('http'))) {
-        return { isValid: true };
-      }
-
-      return { isValid: false };
-    } catch {
-      return { isValid: false };
-    }
-  };
-
-  // Handle embed code preview
-  const handleEmbedPreview = () => {
-    if (!embedCode.trim()) {
-      toast.error('Please paste the Facebook embed code');
-      return;
-    }
-
-    const { isValid } = parseEmbedCode(embedCode);
-    
-    if (!isValid) {
-      toast.error(
-        'Invalid embed code. Make sure you copied the complete code from Facebook:\n\n' +
-        '1. Go to a Facebook post → Click "..." → Select "Embed"\n' +
-        '2. Copy the entire code block (including <div> and <script> tags)\n' +
-        '3. Paste it in the text area above'
-      );
-      return;
-    }
-
-    // Store the embed code for preview
-    setEmbedPreview(embedCode);
-    setShowPreviewModal(true);
-    toast.success('Facebook post embed loaded successfully');
-  };
-
-  // Save embed code to database
-  const handleSaveEmbedCode = async () => {
-    if (!embedCode.trim()) {
-      toast.error('Nothing to save');
-      return;
-    }
-
-    const { isValid } = parseEmbedCode(embedCode);
-    if (!isValid) {
-      toast.error('Invalid embed code');
-      return;
-    }
-
-    saveEmbedCodeMutation.mutate(embedCode);
-  };
-
-  // Clear embed preview
-  const handleClearEmbed = () => {
-    setEmbedCode('');
-    setEmbedPreview('');
-    setShowPreviewModal(false);
-  };
-
-  // Check if embed code already exists
-  const embedCodeExists = galleryEmbed?.embed_codes && galleryEmbed.embed_codes[embedCodeNumber];
-  const totalEmbedCodes = galleryEmbed?.embed_codes ? Object.keys(galleryEmbed.embed_codes).length : 0;
 
   return (
     <div className="space-y-6">
@@ -359,179 +174,125 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
-            {/* Official Facebook Embed Method */}
-              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold text-sm text-blue-900 dark:text-blue-100 mb-2">📍 Steps to Get Embed Code:</h3>
-                <ol className="text-xs text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside mb-3">
-                  <li>Go to any <strong>public Facebook post</strong></li>
-                  <li>Click the three dots <strong>(...)</strong> in top-right corner</li>
-                  <li>Select <strong>"Embed"</strong></li>
-                  <li>Click <strong>"Copy Code"</strong> and paste it below</li>
-                </ol>
-                
-                <div className="bg-white dark:bg-black/30 rounded p-2 mt-3 border border-blue-100 dark:border-blue-800">
-                  <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">✓ Valid code starts with:</p>
-                  <code className="text-xs text-blue-700 dark:text-blue-300 whitespace-pre-wrap break-words">
-{`<div id="fb-root"></div>`}
-                  </code>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">or</p>
-                  <code className="text-xs text-blue-700 dark:text-blue-300 whitespace-pre-wrap break-words">
-{`<iframe src="https://www.facebook.com/plugins..."`}
-                  </code>
-                </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
+              Paste a Facebook post or album URL. The backend auto-fetches media via Graph API using server-side tokens only.
+            </div>
 
-                {/* How it works for non-Facebook users */}
-                <div className="bg-green-50 dark:bg-green-950 rounded p-3 border border-green-200 dark:border-green-800">
-                  <details className="cursor-pointer">
-                    <summary className="font-semibold text-xs text-green-900 dark:text-green-100 hover:text-green-700 dark:hover:text-green-200">
-                      💡 How Does This Work for Users Without Facebook Account?
-                    </summary>
-                    <div className="mt-3 text-xs text-green-800 dark:text-green-300 space-y-2">
-                      <p className="font-semibold mt-2">✅ What Non-Facebook Users CAN Do:</p>
-                      <ul className="list-disc list-inside ml-2 space-y-1">
-                        <li>View the embedded post with images & text</li>
-                        <li>See like counts & comment counts</li>
-                        <li>Read all comments from Facebook</li>
-                        <li>Click links in the post</li>
-                        <li>Share link with friends via email/messaging</li>
-                      </ul>
+            <div className="space-y-2">
+              <Label htmlFor="facebook-url">facebook_url</Label>
+              <Input
+                id="facebook-url"
+                type="url"
+                value={facebookUrl}
+                onChange={(e) => setFacebookUrl(e.target.value)}
+                placeholder="https://www.facebook.com/..."
+                disabled={importMutation.isPending}
+              />
+            </div>
 
-                      <p className="font-semibold mt-2">❌ What They CANNOT Do (Without Account):</p>
-                      <ul className="list-disc list-inside ml-2 space-y-1">
-                        <li>Click the "Like" button on post</li>
-                        <li>Post comments</li>
-                        <li>Share directly to their Facebook timeline</li>
-                      </ul>
+            <div className="space-y-2">
+              <Label htmlFor="content-type">content_type</Label>
+              <select
+                id="content-type"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={contentType}
+                onChange={(e) => setContentType(e.target.value as FacebookContentType)}
+                disabled={importMutation.isPending}
+              >
+                <option value="auto_detect">auto_detect</option>
+                <option value="post">post</option>
+                <option value="album">album</option>
+              </select>
+            </div>
 
-                      <p className="font-semibold mt-2">🔧 How It Works Technically:</p>
-                      <ol className="list-decimal list-inside ml-2 space-y-1">
-                        <li><code className="bg-white dark:bg-black/30 px-1">fb-root</code> - Container for Facebook code</li>
-                        <li><code className="bg-white dark:bg-black/30 px-1">fb-post</code> div - Placeholder for your post</li>
-                        <li>Facebook SDK - Automatically loads & renders the post</li>
-                        <li>Users see actual post from Facebook servers</li>
-                        <li>Always updated (if post changes on Facebook)</li>
-                      </ol>
-
-                      <p className="italic mt-2 text-green-700 dark:text-green-400">
-                        📖 Full guide: <code className="bg-white dark:bg-black/30 px-2 py-1 rounded">FACEBOOK_EMBED_METHODS_GUIDE.md</code>
-                      </p>
-                    </div>
-                  </details>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="embed-code">Facebook Embed Code</Label>
-                <textarea
-                  id="embed-code"
-                  placeholder='Paste the COMPLETE code from Facebook (entire block from "Copy Code")'
-                  value={embedCode}
-                  onChange={(e) => setEmbedCode(e.target.value)}
-                  className="w-full h-40 p-3 border rounded-md bg-background text-foreground text-xs font-mono"
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={forceResync}
+                  onChange={(e) => setForceResync(e.target.checked)}
+                  disabled={importMutation.isPending}
                 />
-                <p className="text-xs text-muted-foreground">Paste the entire code block, not just the URL</p>
-              </div>
+                Allow re-sync (import only missing images)
+              </label>
+              <span className="text-muted-foreground">Event linked: {eventId}</span>
+            </div>
 
-              {/* Embed number selector */}
-              <div className="space-y-2">
-                <Label htmlFor="embed-number">Embed Code Slot (for multiple embeds)</Label>
-                <select
-                  id="embed-number"
-                  value={embedCodeNumber}
-                  onChange={(e) => setEmbedCodeNumber(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md bg-background text-foreground text-sm"
-                >
-                  {['1', '2', '3', '4', '5'].map((num) => (
-                    <option key={num} value={num}>
-                      Embed Code #{num}
-                      {galleryEmbed?.embed_codes?.[num] ? ' (Already saved)' : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">Choose a slot to organize multiple Facebook posts</p>
-              </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={clearImportForm}
+                disabled={importMutation.isPending}
+              >
+                Clear
+              </Button>
+              <Button
+                onClick={() => importMutation.mutate()}
+                disabled={importMutation.isPending || !facebookUrl.trim()}
+              >
+                {importMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Import Facebook Media
+                  </>
+                )}
+              </Button>
+            </div>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={handleClearEmbed}
-                  disabled={!embedCode}
-                >
-                  Clear
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={handleEmbedPreview}
-                  disabled={!embedCode}
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  Preview Post
-                </Button>
-                <Button
-                  onClick={() => handleSaveEmbedCode()}
-                  disabled={!embedCode || saveEmbedCodeMutation.isPending}
-                >
-                  {saveEmbedCodeMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Save to Gallery
-                    </>
+            {lastImport && (
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="text-sm">
+                  <p>
+                    <strong>Detected source:</strong> {lastImport.detected_type}
+                  </p>
+                  <p>
+                    <strong>Facebook object id:</strong> {lastImport.facebook_object_id}
+                  </p>
+                  <p>
+                    <strong>Imported images:</strong> {lastImport.imported_count}
+                  </p>
+                  {typeof lastImport.skipped_count === 'number' && (
+                    <p>
+                      <strong>Skipped duplicates:</strong> {lastImport.skipped_count}
+                    </p>
                   )}
-                </Button>
-              </div>
+                  {lastImport.source_url && (
+                    <a
+                      href={lastImport.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      <LinkIcon className="h-3.5 w-3.5" />
+                      Open source on Facebook
+                    </a>
+                  )}
+                </div>
 
-              {/* Saved Embed Codes List */}
-              {totalEmbedCodes > 0 && (
-                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 mt-4">
-                  <h3 className="font-semibold text-sm text-green-900 dark:text-green-100 mb-3">
-                    ✓ Saved Embed Codes ({totalEmbedCodes})
-                  </h3>
-                  <div className="space-y-2">
-                    {Object.entries(galleryEmbed?.embed_codes || {}).map(([num, code]) => (
-                      <div
-                        key={num}
-                        className="flex items-center justify-between p-2 bg-white dark:bg-black/30 rounded border border-green-100 dark:border-green-800"
-                      >
-                        <span className="text-sm font-medium text-green-900 dark:text-green-100">
-                          Embed #{num}: {code.substring(0, 50)}...
-                        </span>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm(`Delete embed code #${num}?`)) {
-                              deleteEmbedCodeMutation.mutate(num);
-                            }
-                          }}
-                          disabled={deleteEmbedCodeMutation.isPending}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                {lastImport.images.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                    {lastImport.images.map((img) => (
+                      <div key={img.id} className="overflow-hidden rounded border">
+                        <img src={img.public_url} alt="Imported from Facebook" className="h-24 w-full object-cover" />
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+            )}
 
-              {/* Embed Preview Modal */}
-              <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-white dark:bg-black/95 border border-gray-200 dark:border-gray-800">
-                  <DialogTitle className="sr-only">Facebook Post Preview</DialogTitle>
-                  <DialogDescription className="sr-only">Preview of the Facebook post embed that will be added to your website</DialogDescription>
-                  {/* Facebook Post Content */}
-                  <div className="py-4">
-                    <div 
-                      className="flex justify-center"
-                      dangerouslySetInnerHTML={{ __html: embedPreview }}
-                    />
-                  </div>
-                </DialogContent>
-              </Dialog>
+            {galleryLoading && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Checking gallery linkage...
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
