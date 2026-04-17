@@ -19,12 +19,28 @@ type GalleryRow = {
   year: number;
   title: string | null;
   created_at: string;
+  post_urls: Record<string, string> | null; // JSON format: {"1": "url", "2": "url"}
 };
 
 type GalleryImageRow = {
   id: string;
   gallery_id: string;
   file_path: string;
+  created_at: string;
+};
+
+type FacebookMediaImportRow = {
+  id: string;
+  gallery_id: string;
+  image_url_original: string;
+  imported_at: string;
+};
+
+type CombinedImageRow = {
+  id: string;
+  gallery_id: string;
+  source: 'local' | 'facebook';
+  url: string;
   created_at: string;
 };
 
@@ -39,7 +55,7 @@ const PublicGallery: React.FC<PublicGalleryProps> = ({ eventId, year, title, cla
     queryKey: ['galleries-public', eventId, year],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let query: any = supabaseDb.from('galleries').select('*').eq('event_id', String(eventId));
+      let query: any = supabaseDb.from('galleries').select('id, event_id, year, title, created_at, post_urls').eq('event_id', String(eventId));
       if (year) {
         query = query.eq('year', year);
       }
@@ -49,29 +65,26 @@ const PublicGallery: React.FC<PublicGalleryProps> = ({ eventId, year, title, cla
     },
   });
 
-  // Fetch images for each gallery
+  // Fetch images from Facebook post URLs
   const { data: images, isLoading: imagesLoading } = useQuery({
     queryKey: ['gallery-images-public', galleries?.map((g) => g.id).join(',')],
     queryFn: async () => {
       if (!galleries || galleries.length === 0) return [];
 
-      const allImages: GalleryImageRow[] = [];
-      for (const gallery of galleries) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabaseDb as any)
-          .from('gallery_images')
-          .select('id, gallery_id, file_path, created_at')
-          .eq('gallery_id', gallery.id)
-          .order('created_at', { ascending: false });
+      const allImages: CombinedImageRow[] = [];
 
-        if (error) {
-          console.error('Error fetching gallery images:', error);
-          continue;
+      for (const gallery of galleries) {
+        if (!gallery.post_urls || Object.keys(gallery.post_urls).length === 0) {
+          continue; // Skip gallery with no post URLs
         }
-        if (data) {
-          allImages.push(...(data as GalleryImageRow[]));
-        }
+
+        // For now, since we cannot fetch directly from Facebook without keys,
+        // we'll just store the URLs as-is and let admins manage them
+        // In the future, implement backend endpoint to fetch OG images
+        console.log('Gallery has post_urls:', gallery.post_urls);
       }
+
+      // Return empty array for now (no images fetched)
       return allImages;
     },
     enabled: !!galleries && galleries.length > 0,
@@ -79,8 +92,8 @@ const PublicGallery: React.FC<PublicGalleryProps> = ({ eventId, year, title, cla
 
   const imageUrls = images?.map((img) => ({
     id: img.id,
-    path: img.file_path,
-    url: supabase.storage.from('event-gallery').getPublicUrl(img.file_path).data.publicUrl,
+    url: img.url,
+    source: img.source,
   })) || [];
 
   if (galleriesLoading || imagesLoading) {
@@ -91,14 +104,7 @@ const PublicGallery: React.FC<PublicGalleryProps> = ({ eventId, year, title, cla
     );
   }
 
-  if (!images || images.length === 0) {
-    return (
-      <div className={`text-center py-12 text-muted-foreground ${className}`}>
-        <p>No images in this gallery yet.</p>
-      </div>
-    );
-  }
-
+  // Show gallery header even if no images yet
   return (
     <div className={className}>
       {/* Header */}
@@ -107,36 +113,43 @@ const PublicGallery: React.FC<PublicGalleryProps> = ({ eventId, year, title, cla
           <h2 className="text-3xl font-bold text-foreground">{title}</h2>
           {year && (
             <p className="text-sm text-muted-foreground mt-1">
-              Gallery • {year} {galleries && galleries.length > 0 && `• ${images.length} photos`}
+              Gallery • {year} {galleries && galleries.length > 0 && `• ${images?.length || 0} photos`}
             </p>
           )}
         </div>
       )}
 
-      {/* Thumbnail Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
-        {imageUrls.map((image, index) => (
-          <button
-            key={image.id}
-            onClick={() => setSelectedImageIndex(index)}
-            className="group relative overflow-hidden rounded-lg aspect-square bg-muted hover:bg-accent transition-all duration-300 transform hover:scale-105 cursor-pointer shadow-md hover:shadow-lg"
-          >
-            <img
-              src={image.url}
-              alt={`Gallery image ${index + 1}`}
-              className="w-full h-full object-cover group-hover:brightness-75 transition-all duration-300"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/30">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center">
-                <svg className="w-5 h-5 text-black" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 3a7 7 0 100 14 7 7 0 000-14zm3.5 7a.5.5 0 11-1 0 .5.5 0 011 0zm-7 0a.5.5 0 11-1 0 .5.5 0 011 0z" />
-                </svg>
+      {/* Images Grid or Empty State */}
+      {images && images.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+          {imageUrls.map((image, index) => (
+            <button
+              key={image.id}
+              onClick={() => setSelectedImageIndex(index)}
+              className="group relative overflow-hidden rounded-lg aspect-square bg-muted hover:bg-accent transition-all duration-300 transform hover:scale-105 cursor-pointer shadow-md hover:shadow-lg"
+            >
+              <img
+                src={image.url}
+                alt={`Gallery image ${index + 1}`}
+                className="w-full h-full object-cover group-hover:brightness-75 transition-all duration-300"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/30">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                  <svg className="w-5 h-5 text-black" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 3a7 7 0 100 14 7 7 0 000-14zm3.5 7a.5.5 0 11-1 0 .5.5 0 011 0zm-7 0a.5.5 0 11-1 0 .5.5 0 011 0z" />
+                  </svg>
+                </div>
               </div>
-            </div>
-          </button>
-        ))}
-      </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12 text-muted-foreground border-2 border-dashed border-border rounded-lg">
+          <p className="font-medium mb-2">Coming Soon</p>
+          <p className="text-sm">Images will be added to this gallery soon.</p>
+        </div>
+      )}
 
       {/* Lightbox Modal */}
       {selectedImageIndex !== null && (
