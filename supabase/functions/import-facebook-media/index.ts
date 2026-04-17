@@ -373,6 +373,7 @@ class FacebookGraphService {
       if (!imageUrl) return;
       const clean = String(imageUrl).trim();
       if (!clean) return;
+
       if (!imageMap.has(clean)) {
         imageMap.set(clean, {
           imageUrl: clean,
@@ -385,27 +386,36 @@ class FacebookGraphService {
     };
 
     const attachments = Array.isArray(post?.attachments?.data) ? post.attachments.data : [];
-    for (const attachment of attachments) {
-      const mediaType = String(attachment?.media_type || "").toLowerCase();
-      const mediaImage = attachment?.media?.image?.src || attachment?.media?.image?.source;
-      if (mediaType === "photo" || mediaImage) {
-        maybePush(mediaImage, {
-          link: attachment?.url || post?.permalink_url || null,
-        });
-      }
 
+    for (const attachment of attachments) {
       const subattachments = Array.isArray(attachment?.subattachments?.data)
         ? attachment.subattachments.data
         : [];
 
-      for (const sub of subattachments) {
-        const subMediaType = String(sub?.media_type || "").toLowerCase();
-        const subImage = sub?.media?.image?.src || sub?.media?.image?.source;
-        if (subMediaType === "photo" || subImage) {
-          maybePush(subImage, {
-            link: sub?.url || attachment?.url || post?.permalink_url || null,
-          });
+      // If this is a gallery/carousel post, use only subattachments.
+      // The parent attachment image is usually just the cover/preview.
+      if (subattachments.length > 0) {
+        for (const sub of subattachments) {
+          const subMediaType = String(sub?.media_type || "").toLowerCase();
+          const subImage = sub?.media?.image?.src || sub?.media?.image?.source;
+
+          if (subMediaType === "photo" || subImage) {
+            maybePush(subImage, {
+              link: sub?.url || attachment?.url || post?.permalink_url || null,
+            });
+          }
         }
+        continue;
+      }
+
+      // Single-image post: use parent attachment image
+      const mediaType = String(attachment?.media_type || "").toLowerCase();
+      const mediaImage = attachment?.media?.image?.src || attachment?.media?.image?.source;
+
+      if (mediaType === "photo" || mediaImage) {
+        maybePush(mediaImage, {
+          link: attachment?.url || post?.permalink_url || null,
+        });
       }
     }
 
