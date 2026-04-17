@@ -913,20 +913,9 @@ class FacebookImportController {
       force_resync: payload.force_resync === true,
     });
 
-    const { data: existingRows, error: existingError } = await this.adminClient
-      .from("facebook_media_imports")
-      .select("id,image_url_original,image_path_local,sort_order,caption")
-      .eq("source_type", sourceType)
-      .eq("facebook_object_id", objectId)
-      .order("sort_order", { ascending: true });
-
-    if (existingError) {
-      throw new HttpError(500, "Failed to check existing imports", "db_error", {
-        db_message: existingError.message,
-      });
-    }
-
-    const existingList = Array.isArray(existingRows) ? existingRows : [];
+    // Skip checking existing imports since we no longer store in facebook_media_imports
+    // We only return the images for direct display
+    const existingList: any[] = [];
 
     if (existingList.length > 0 && !payload.force_resync) {
       return {
@@ -992,72 +981,18 @@ class FacebookImportController {
         continue;
       }
 
-      const stored = await this.downloadAndStoreImage(sourceImage.imageUrl, sourceType, objectId, i + 1);
-
+      // Skip downloading/storing - we only return original URLs from Facebook
+      // No need to store locally since we use URL-only storage model
       const sortOrder = i;
-      const insertPayload = {
-        source_type: sourceType,
-        facebook_object_id: objectId,
-        source_url: sourcePermalink,
-        title: sourceTitle,
-        description: sourceDescription,
-        caption: sourceImage.caption || sourceCaption,
-        image_url_original: sourceImage.imageUrl,
-        image_path_local: stored.filePath,
-        sort_order: sortOrder,
-        imported_at: new Date().toISOString(),
-        created_by_admin_id: userId,
-        event_id: payload.event_id || null,
-        gallery_id: payload.gallery_id || null,
-        metadata_json: {
-          detected_type: detectedType,
-          original_lookup_id: objectId,
-          source_image_id: sourceImage.originalId || null,
-          source_image_link: sourceImage.link || null,
-          source_created_time: sourceImage.createdTime || null,
-          mime_type: stored.mimeType,
-          byte_size: stored.byteSize,
-        },
-      };
-
-      const { data: importRow, error: insertError } = await this.adminClient
-        .from("facebook_media_imports")
-        .insert(insertPayload)
-        .select("id,sort_order,caption,image_path_local,image_url_original")
-        .single();
-
-      if (insertError) {
-        throw new HttpError(500, "Failed to store imported media record", "db_error", {
-          db_message: insertError.message,
-        });
-      }
-
-      if (payload.gallery_id) {
-        const { error: galleryInsertError } = await this.adminClient
-          .from("gallery_images")
-          .insert({
-            gallery_id: payload.gallery_id,
-            file_path: stored.filePath,
-            caption: sourceImage.caption || sourceCaption,
-            sort_order: sortOrder,
-            created_by: userId,
-          });
-
-        if (galleryInsertError) {
-          throw new HttpError(500, "Imported image saved, but failed to attach to gallery", "gallery_attach_failed", {
-            db_message: galleryInsertError.message,
-          });
-        }
-      }
 
       importedCount += 1;
       savedImages.push({
-        id: importRow.id,
-        image_url_original: importRow.image_url_original,
-        image_path_local: importRow.image_path_local,
-        public_url: stored.publicUrl,
-        sort_order: importRow.sort_order,
-        caption: importRow.caption,
+        id: crypto.randomUUID(),
+        image_url_original: sourceImage.imageUrl,
+        image_path_local: '', // Empty since not storing locally
+        public_url: sourceImage.imageUrl, // Use original Facebook URL directly
+        sort_order: sortOrder,
+        caption: sourceImage.caption || sourceCaption,
       });
     }
 
