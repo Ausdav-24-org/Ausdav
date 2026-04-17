@@ -60,19 +60,52 @@ export async function extractImagesFromFacebookPost(postUrl: string): Promise<st
 
 /**
  * Batch extract images from multiple Facebook post URLs
+ * Sends all URLs to backend at once for efficient processing
  * Returns array of image URLs from all posts (up to 30 per post)
- * Deduplicates images by URL to avoid showing the same image multiple times
+ * Deduplicates images by URL across all sources
  */
 export async function extractImagesFromFacebookPosts(
   postUrls: Record<string, string>
 ): Promise<Array<{ postUrl: string; imageUrl: string }>> {
   const results: Array<{ postUrl: string; imageUrl: string }> = [];
-  const seenUrls = new Set<string>(); // Track seen image URLs to deduplicate
+  
+  // Convert object entries to array of URLs
+  const urlArray = Object.entries(postUrls).map(([, url]) => url);
 
-  // Process URLs sequentially to avoid rate limiting
-  const urlEntries = Object.entries(postUrls);
+  if (urlArray.length === 0) {
+    return results;
+  }
 
-  for (const [, postUrl] of urlEntries) {
+  try {
+    // Send all URLs to backend at once for batch processing
+    const response = await importFacebookUrl({
+      facebook_urls: urlArray,
+      content_type: 'auto_detect',
+      force_resync: false,
+    });
+
+    if (response?.ok && response.images && response.images.length > 0) {
+      // Backend already deduplicates, just map to results format
+      response.images.forEach((img) => {
+        if (img.image_url_original && img.source_url) {
+          results.push({
+            postUrl: img.source_url,
+            imageUrl: img.image_url_original,
+          });
+        }
+      });
+
+      return results;
+    }
+  } catch (error: any) {
+    console.warn(`Batch backend function failed for ${urlArray.length} URLs, falling back to individual processing:`, error?.message);
+    // Fall through to individual processing as fallback
+  }
+
+  // Fallback: Process URLs individually if batch fails
+  const seenUrls = new Set<string>();
+  
+  for (const postUrl of urlArray) {
     try {
       const imageUrls = await extractImagesFromFacebookPost(postUrl);
       
