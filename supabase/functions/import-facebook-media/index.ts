@@ -384,12 +384,6 @@ class FacebookGraphService {
       }
     };
 
-    maybePush(post?.full_picture, {
-      caption: post?.message || null,
-      createdTime: post?.created_time || null,
-      link: post?.permalink_url || null,
-    });
-
     const attachments = Array.isArray(post?.attachments?.data) ? post.attachments.data : [];
     for (const attachment of attachments) {
       const mediaType = String(attachment?.media_type || "").toLowerCase();
@@ -424,7 +418,7 @@ class FacebookGraphService {
       post = await this.fetchFacebookObject(
         `/${postId}`,
         token,
-        "id,message,created_time,permalink_url,full_picture,attachments{media,media_type,url,target,subattachments{media,media_type,url,target}}",
+        "id,message,created_time,permalink_url,attachments{media,media_type,url,target,subattachments{media,media_type,url,target}}",
         { detectedType: "post", objectId: postId },
       );
     } catch (error) {
@@ -436,7 +430,7 @@ class FacebookGraphService {
         post = await this.fetchFacebookObject(
           `/${postId}`,
           token,
-          "id,message,created_time,link,full_picture,attachments{media,media_type,url,target,subattachments{media,media_type,url,target}}",
+          "id,message,created_time,link,attachments{media,media_type,url,target,subattachments{media,media_type,url,target}}",
           { detectedType: "post", objectId: postId },
         );
         if (!post?.permalink_url && post?.link) {
@@ -459,14 +453,12 @@ class FacebookGraphService {
     return this.fetchFacebookObject(
       `/${albumId}`,
       token,
-      "id,name,description,count,cover_photo,link,created_time",
+      "id,name,description,count,link,created_time",
       { detectedType: "album", objectId: albumId },
     );
   }
 
   async fetchFacebookAlbumPhotos(albumId: string, token: string) {
-    const album = await this.fetchFacebookAlbum(albumId, token);
-
     const images: SourceImage[] = [];
     const seenUrls = new Set<string>();
     let nextPath = `/${albumId}/photos`;
@@ -498,7 +490,7 @@ class FacebookGraphService {
             caption: row?.name || null,
             originalId: row?.id || null,
             createdTime: row?.created_time || null,
-            link: row?.link || album?.link || null,
+            link: row?.link || null,
           });
         }
       }
@@ -508,7 +500,7 @@ class FacebookGraphService {
     }
 
     return {
-      album,
+      album: null,
       images,
     };
   }
