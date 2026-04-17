@@ -296,51 +296,7 @@ const AdminEventsPage: React.FC = () => {
         console.error('Failed to fetch gallery data:', galleryFetchError);
       }
 
-      // First, get all images associated with this gallery
-      const { data: galleryImages, error: fetchError } = await supabaseDb
-        .from('gallery_images')
-        .select('id, file_path')
-        .eq('gallery_id', galleryId);
-
-      if (fetchError) {
-        console.error('Failed to fetch gallery images:', fetchError);
-        throw new Error('Failed to fetch gallery images: ' + fetchError.message);
-      }
-
-      console.log('Found images to delete:', galleryImages?.length || 0);
-
-      // Delete images from storage if any exist
-      if (galleryImages && galleryImages.length > 0) {
-        const filePaths = galleryImages.map(img => img.file_path);
-        console.log('Deleting files from storage:', filePaths);
-
-        const { error: storageError } = await supabase.storage
-          .from('event-gallery')
-          .remove(filePaths);
-
-        if (storageError) {
-          console.error('Storage deletion failed:', storageError);
-          // Continue with database deletion even if storage fails
-          console.warn('Continuing with database deletion despite storage error');
-        } else {
-          console.log('Successfully deleted files from storage');
-        }
-
-        // Delete all gallery_images records
-        const { error: imagesDeleteError } = await supabaseDb
-          .from('gallery_images')
-          .delete()
-          .eq('gallery_id', galleryId);
-
-        if (imagesDeleteError) {
-          console.error('Failed to delete gallery images from database:', imagesDeleteError);
-          throw new Error('Failed to delete gallery images: ' + imagesDeleteError.message);
-        }
-
-        console.log('Successfully deleted gallery images from database');
-      }
-
-      // Finally, delete the gallery record
+      // Finally, delete the gallery record (cascade will handle related images)
       const { error: galleryDeleteError } = await supabaseDb
         .from('galleries')
         .delete()
@@ -549,41 +505,6 @@ const AdminEventsPage: React.FC = () => {
     if (galleries.length === 0) return;
 
     for (const gallery of galleries) {
-      const { data: galleryImages, error: imagesError } = await supabaseDb
-        .from('gallery_images')
-        .select('file_path')
-        .eq('gallery_id', gallery.id);
-
-      if (imagesError) {
-        console.warn('Failed to fetch gallery images:', imagesError);
-        toast.error('Failed to delete gallery images');
-      } else {
-        const filePaths = (galleryImages || []).map((img) => img.file_path);
-        if (filePaths.length > 0) {
-          for (let i = 0; i < filePaths.length; i += 100) {
-            const chunk = filePaths.slice(i, i + 100);
-            const { error: storageError } = await supabase.storage
-              .from('event-gallery')
-              .remove(chunk);
-
-            if (storageError) {
-              console.warn('Failed to delete gallery images from storage:', storageError);
-              toast.error('Failed to delete gallery images from storage');
-            }
-          }
-        }
-      }
-
-      const { error: deleteImagesError } = await supabaseDb
-        .from('gallery_images')
-        .delete()
-        .eq('gallery_id', gallery.id);
-
-      if (deleteImagesError) {
-        console.warn('Failed to delete gallery images from database:', deleteImagesError);
-        toast.error('Failed to delete gallery images from database');
-      }
-
       const { error: deleteGalleryError } = await supabaseDb
         .from('galleries')
         .delete()
