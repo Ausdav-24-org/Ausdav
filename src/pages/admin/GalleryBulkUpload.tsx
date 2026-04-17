@@ -115,7 +115,7 @@ const GalleryBulkUpload: React.FC<GalleryBulkUploadProps> = ({ galleryId, eventI
       // Update gallery
       const { error } = await supabaseDb
         .from('galleries')
-        .update({ post_urls: Object.keys(reindexedUrls).length > 0 ? reindexedUrls : null })
+        .update({ post_urls: Object.keys(reindexedUrls).length > 0 ? reindexedUrls : {} })
         .eq('id', galleryId);
 
       if (error) throw error;
