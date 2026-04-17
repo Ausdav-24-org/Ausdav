@@ -3,7 +3,8 @@ import { invokeFunction } from '@/integrations/supabase/functions';
 export type FacebookContentType = 'post' | 'album' | 'auto_detect';
 
 export interface FacebookImportRequest {
-  facebook_url: string;
+  facebook_url?: string;
+  facebook_urls?: string[];
   content_type: FacebookContentType;
   event_id?: number | null;
   gallery_id?: string | null;
@@ -17,23 +18,26 @@ export interface FacebookImportedImage {
   public_url: string;
   sort_order: number;
   caption: string | null;
+  source_url?: string;
 }
 
 export interface FacebookImportResponse {
   ok: boolean;
-  already_imported: boolean;
   message: string;
-  detected_type: 'post' | 'album';
-  facebook_object_id: string;
+  imported_count: number;
+  skipped_count?: number;
+  total_urls?: number;
+  images: FacebookImportedImage[];
+  // Legacy fields for backward compatibility
+  already_imported?: boolean;
+  detected_type?: 'post' | 'album';
+  facebook_object_id?: string;
   source_type?: 'facebook_post' | 'facebook_album';
   source_url?: string;
   source_title?: string | null;
   source_description?: string | null;
   source_caption?: string | null;
-  imported_count: number;
-  skipped_count?: number;
   existing_count?: number;
-  images: FacebookImportedImage[];
 }
 
 async function extractFunctionErrorMessage(error: unknown): Promise<string> {
