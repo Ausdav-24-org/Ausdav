@@ -148,8 +148,6 @@ const AdminEventsPage: React.FC = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [createdGalleryId, setCreatedGalleryId] = useState<string | null>(null);
   const [newGalleryYear, setNewGalleryYear] = useState('');
-  const [newGalleryDescriptionEn, setNewGalleryDescriptionEn] = useState('');
-  const [newGalleryDescriptionTa, setNewGalleryDescriptionTa] = useState('');
   const [formData, setFormData] = useState<EventFormState>({
     title_en: '',
     title_ta: '',
@@ -475,9 +473,7 @@ const AdminEventsPage: React.FC = () => {
     }
     createGalleryMutation.mutate({
       year,
-      title: `Gallery ${year}`,
-      description_en: newGalleryDescriptionEn || null,
-      description_ta: newGalleryDescriptionTa || null
+      title: `Gallery ${year}`
     });
   };
 
@@ -788,8 +784,6 @@ const AdminEventsPage: React.FC = () => {
         setGalleryDialogOpen(open);
         if (!open) {
           setNewGalleryYear('');
-          setNewGalleryDescriptionEn('');
-          setNewGalleryDescriptionTa('');
           setSelectedEventForGallery(null);
           setShowBulkUpload(false);
           setCreatedGalleryId(null);
@@ -882,28 +876,7 @@ const AdminEventsPage: React.FC = () => {
                       className="text-xs sm:text-sm"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="gallery-description-en" className="text-xs sm:text-sm">Description (English)</Label>
-                    <Textarea
-                      id="gallery-description-en"
-                      placeholder="Enter gallery description in English"
-                      value={newGalleryDescriptionEn}
-                      onChange={(e) => setNewGalleryDescriptionEn(e.target.value)}
-                      rows={2}
-                      className="text-xs sm:text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="gallery-description-ta" className="text-xs sm:text-sm">Description (Tamil)</Label>
-                    <Textarea
-                      id="gallery-description-ta"
-                      placeholder="Enter gallery description in Tamil"
-                      value={newGalleryDescriptionTa}
-                      onChange={(e) => setNewGalleryDescriptionTa(e.target.value)}
-                      rows={2}
-                      className="text-xs sm:text-sm"
-                    />
-                  </div>
+
                   <Button
                     onClick={handleCreateGallery}
                     disabled={createGalleryMutation.isPending}

@@ -10,7 +10,8 @@ type DetectedType = "post" | "album";
 type SourceType = "facebook_post" | "facebook_album";
 
 type ImportPayload = {
-  facebook_url: string;
+  facebook_url?: string;
+  facebook_urls?: string[];
   content_type: ContentType;
   event_id?: number | null;
   gallery_id?: string | null;
@@ -467,6 +468,7 @@ class FacebookGraphService {
     const album = await this.fetchFacebookAlbum(albumId, token);
 
     const images: SourceImage[] = [];
+    const seenUrls = new Set<string>();
     let nextPath = `/${albumId}/photos`;
     let hasNext = true;
     let afterCursor: string | null = null;
@@ -489,7 +491,8 @@ class FacebookGraphService {
       for (const row of rows) {
         const best = Array.isArray(row?.images) && row.images.length > 0 ? row.images[0] : null;
         const source = best?.source;
-        if (source) {
+        if (source && !seenUrls.has(source)) {
+          seenUrls.add(source);
           images.push({
             imageUrl: source,
             caption: row?.name || null,
@@ -612,14 +615,30 @@ class FacebookImportController {
 
     const payload = input as Record<string, unknown>;
 
-    const facebookUrl = sanitizeText(payload.facebook_url, 2000);
-    if (!facebookUrl) {
-      throw new HttpError(400, "facebook_url is required", "invalid_facebook_url");
+    // Support both single URL and multiple URLs
+    let urlsToValidate: string[] = [];
+    
+    if (Array.isArray(payload.facebook_urls) && payload.facebook_urls.length > 0) {
+      urlsToValidate = payload.facebook_urls
+        .map((url) => sanitizeText(url, 2000))
+        .filter(Boolean);
+    } else {
+      const singleUrl = sanitizeText(payload.facebook_url, 2000);
+      if (singleUrl) {
+        urlsToValidate = [singleUrl];
+      }
     }
 
-    const parsed = safeParseUrl(facebookUrl);
-    if (!isFacebookHost(parsed.hostname.toLowerCase())) {
-      throw new HttpError(400, "Only Facebook post/album URLs are supported (facebook.com, web.facebook.com, m.facebook.com, fb.watch)", "unsupported_url_pattern");
+    if (urlsToValidate.length === 0) {
+      throw new HttpError(400, "facebook_url or facebook_urls is required", "invalid_facebook_url");
+    }
+
+    // Validate all URLs
+    for (const url of urlsToValidate) {
+      const parsed = safeParseUrl(url);
+      if (!isFacebookHost(parsed.hostname.toLowerCase())) {
+        throw new HttpError(400, "Only Facebook post/album URLs are supported (facebook.com, web.facebook.com, m.facebook.com, fb.watch)", "unsupported_url_pattern");
+      }
     }
 
     const rawType = sanitizeText(payload.content_type, 24).toLowerCase() as ContentType;
@@ -639,7 +658,7 @@ class FacebookImportController {
     const galleryId = sanitizeText(payload.gallery_id, 80) || null;
 
     return {
-      facebook_url: facebookUrl,
+      facebook_urls: urlsToValidate,
       content_type: contentType,
       event_id: eventId,
       gallery_id: galleryId,
@@ -708,7 +727,7 @@ class FacebookImportController {
     return graphPostId;
   }
 
-  private async resolveTypeAndObject(payload: ImportPayload): Promise<{ detectedType: DetectedType; objectId: string }> {
+  private async resolveTypeAndObject(payload: Partial<ImportPayload> & { facebook_url: string }): Promise<{ detectedType: DetectedType; objectId: string }> {
     const originalParsed = safeParseUrl(payload.facebook_url);
     const isOriginalShare = isFacebookSharePath(originalParsed.pathname);
 
@@ -806,9 +825,10 @@ class FacebookImportController {
       }
     }
 
-    const detectedType = payload.content_type === "auto_detect"
+    const contentType = payload.content_type || "auto_detect";
+    const detectedType: DetectedType = contentType === "auto_detect"
       ? autoDetectedType
-      : payload.content_type;
+      : (contentType as DetectedType);
     const objectId = this.extractFacebookObjectId(canonicalUrl, detectedType);
 
     console.log("import-facebook-media url resolution", {
@@ -899,125 +919,102 @@ class FacebookImportController {
     const payload = this.validatePayload(body);
     await this.ensureEventAndGallery(payload);
 
-    const { detectedType, objectId } = await this.resolveTypeAndObject(payload);
     const pageToken = await this.graphService.getPageAccessToken();
-
-    const sourceType: SourceType = detectedType === "album" ? "facebook_album" : "facebook_post";
+    const facebookUrls = payload.facebook_urls || [];
 
     console.log("import-facebook-media request", {
-      request_url: payload.facebook_url,
-      detected_type: detectedType,
-      facebook_object_id: objectId,
+      request_urls: facebookUrls,
+      url_count: facebookUrls.length,
       event_id: payload.event_id || null,
       gallery_id: payload.gallery_id || null,
       force_resync: payload.force_resync === true,
     });
 
-    // Skip checking existing imports since we no longer store in facebook_media_imports
-    // We only return the images for direct display
-    const existingList: any[] = [];
+    // Deduplicate images across all URLs
+    const seenImageUrls = new Set<string>();
+    const allSavedImages: Array<Record<string, unknown>> = [];
+    let totalImportedCount = 0;
+    let totalSkippedCount = 0;
 
-    if (existingList.length > 0 && !payload.force_resync) {
-      return {
-        ok: true,
-        already_imported: true,
-        message: "This Facebook source was already imported. Enable re-sync to fetch new images.",
-        detected_type: detectedType,
-        facebook_object_id: objectId,
-        imported_count: 0,
-        existing_count: existingList.length,
-        images: existingList.map((row: any) => ({
-          id: row.id,
-          image_url_original: row.image_url_original,
-          image_path_local: row.image_path_local,
-          public_url: `${this.supabaseUrl}/storage/v1/object/public/event-gallery/${row.image_path_local}`,
-          sort_order: row.sort_order,
-          caption: row.caption,
-        })),
-      };
-    }
+    for (const facebookUrl of facebookUrls) {
+      try {
+        const { detectedType, objectId } = await this.resolveTypeAndObject({
+          facebook_url: facebookUrl,
+          content_type: payload.content_type,
+          event_id: payload.event_id,
+          gallery_id: payload.gallery_id,
+          force_resync: payload.force_resync,
+        });
 
-    let sourceTitle: string | null = null;
-    let sourceDescription: string | null = null;
-    let sourceCaption: string | null = null;
-    let sourcePermalink = payload.facebook_url;
-    let sourceImages: SourceImage[] = [];
+        const sourceType: SourceType = detectedType === "album" ? "facebook_album" : "facebook_post";
+        let sourceImages: SourceImage[] = [];
 
-    if (detectedType === "post") {
-      const postData = await this.graphService.fetchFacebookPost(objectId, pageToken);
-      sourceTitle = "Facebook Post";
-      sourceDescription = null;
-      sourceCaption = postData.post?.message || null;
-      sourcePermalink = postData.post?.permalink_url || payload.facebook_url;
-      sourceImages = postData.images;
+        if (detectedType === "post") {
+          const postData = await this.graphService.fetchFacebookPost(objectId, pageToken);
+          sourceImages = postData.images;
+        } else {
+          const albumData = await this.graphService.fetchFacebookAlbumPhotos(objectId, pageToken);
+          sourceImages = albumData.images;
+        }
 
-      if (sourceImages.length === 0) {
-        throw new HttpError(422, "This Facebook post has no images", "post_has_no_images");
-      }
-    } else {
-      const albumData = await this.graphService.fetchFacebookAlbumPhotos(objectId, pageToken);
-      sourceTitle = albumData.album?.name || "Facebook Album";
-      sourceDescription = albumData.album?.description || null;
-      sourceCaption = null;
-      sourcePermalink = albumData.album?.link || payload.facebook_url;
-      sourceImages = albumData.images;
+        if (sourceImages.length === 0) {
+          console.warn("import-facebook-media no images", {
+            facebook_url: facebookUrl,
+            detected_type: detectedType,
+          });
+          continue;
+        }
 
-      if (sourceImages.length === 0) {
-        throw new HttpError(422, "This Facebook album is empty", "empty_album");
-      }
-    }
+        // Add images from this URL, skipping duplicates across all URLs
+        for (let i = 0; i < sourceImages.length; i += 1) {
+          const sourceImage = sourceImages[i];
 
-    const existingByOriginalUrl = new Set(existingList.map((row: any) => String(row.image_url_original || "")));
+          if (seenImageUrls.has(sourceImage.imageUrl)) {
+            totalSkippedCount += 1;
+            continue;
+          }
 
-    let importedCount = 0;
-    let skippedCount = 0;
-    const savedImages: Array<Record<string, unknown>> = [];
-
-    for (let i = 0; i < sourceImages.length; i += 1) {
-      const sourceImage = sourceImages[i];
-
-      if (existingByOriginalUrl.has(sourceImage.imageUrl)) {
-        skippedCount += 1;
+          seenImageUrls.add(sourceImage.imageUrl);
+          totalImportedCount += 1;
+          allSavedImages.push({
+            id: crypto.randomUUID(),
+            image_url_original: sourceImage.imageUrl,
+            image_path_local: '',
+            public_url: sourceImage.imageUrl,
+            sort_order: allSavedImages.length,
+            caption: sourceImage.caption,
+            source_url: facebookUrl,
+          });
+        }
+      } catch (error) {
+        console.error("import-facebook-media url fetch error", {
+          facebook_url: facebookUrl,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Continue with next URL instead of failing
         continue;
       }
+    }
 
-      // Skip downloading/storing - we only return original URLs from Facebook
-      // No need to store locally since we use URL-only storage model
-      const sortOrder = i;
-
-      importedCount += 1;
-      savedImages.push({
-        id: crypto.randomUUID(),
-        image_url_original: sourceImage.imageUrl,
-        image_path_local: '', // Empty since not storing locally
-        public_url: sourceImage.imageUrl, // Use original Facebook URL directly
-        sort_order: sortOrder,
-        caption: sourceImage.caption || sourceCaption,
-      });
+    if (allSavedImages.length === 0) {
+      throw new HttpError(422, "No images found in any of the provided Facebook URLs", "no_images_found");
     }
 
     console.log("import-facebook-media result", {
-      request_url: payload.facebook_url,
-      detected_type: detectedType,
-      facebook_object_id: objectId,
-      imported_count: importedCount,
-      skipped_count: skippedCount,
+      request_urls: facebookUrls,
+      url_count: facebookUrls.length,
+      imported_count: totalImportedCount,
+      skipped_count: totalSkippedCount,
+      total_images: allSavedImages.length,
     });
 
     return {
       ok: true,
-      already_imported: false,
-      message: `Imported ${importedCount} image(s)${skippedCount > 0 ? `, skipped ${skippedCount} duplicate(s)` : ""}.`,
-      detected_type: detectedType,
-      facebook_object_id: objectId,
-      source_type: sourceType,
-      source_url: sourcePermalink,
-      source_title: sourceTitle,
-      source_description: sourceDescription,
-      source_caption: sourceCaption,
-      imported_count: importedCount,
-      skipped_count: skippedCount,
-      images: savedImages,
+      message: `Imported ${totalImportedCount} image(s)${totalSkippedCount > 0 ? `, skipped ${totalSkippedCount} duplicate(s)` : ""} from ${facebookUrls.length} source(s).`,
+      imported_count: totalImportedCount,
+      skipped_count: totalSkippedCount,
+      total_urls: facebookUrls.length,
+      images: allSavedImages,
     };
   }
 }
