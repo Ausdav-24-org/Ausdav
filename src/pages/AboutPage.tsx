@@ -10,6 +10,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import LazyImage from "@/components/LazyImage";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
 import History from "@/assets/AboutUs/hostory.jpg";
 import WhoWeAre from "@/assets/AboutUs/who we are.png";
@@ -242,10 +243,11 @@ const AboutPage: React.FC = () => {
               className="relative"
             >
               <div className="h-[400px] rounded-xl overflow-hidden border border-cyan-500/20">
-                <img
+                <LazyImage
                   src={WhoWeAre}
                   alt="Who We Are"
-                  className="w-full h-full object-cover"
+                  ratio="video"
+                  preloadMargin="200px"
                 />
               </div>
             </motion.div>
@@ -292,10 +294,11 @@ const AboutPage: React.FC = () => {
               className="relative order-1 md:order-2"
             >
               <div className="h-[300px] md:h-[500px] rounded-xl overflow-hidden border border-cyan-500/20">
-                <img
+                <LazyImage
                   src={WhatWeDo}
                   alt="What We Do"
-                  className="w-full h-full object-cover"
+                  ratio="video"
+                  preloadMargin="200px"
                 />
               </div>
             </motion.div>
@@ -343,10 +346,11 @@ const AboutPage: React.FC = () => {
               className="relative"
             >
               <div className="h-[400px] rounded-xl overflow-hidden border border-cyan-500/20">
-                <img
+                <LazyImage
                   src={History}
                   alt="Our Story"
-                  className="w-full h-full object-cover"
+                  ratio="video"
+                  preloadMargin="200px"
                 />
               </div>
             </motion.div>

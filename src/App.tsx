@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,55 +10,63 @@ import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
 import NeuralNetworkSplash from "@/components/NeuralNetworkSplash";
 import Layout from "@/components/layout/Layout";
 
-import HomePage from "@/pages/HomePage";
-import AboutPage from "@/pages/AboutPage";
-import UnderConstructionPage from "@/pages/UnderConstructionPage";
-import CommitteePage from "@/pages/CommitteePage";
-import ExamPage from "@/pages/ExamPage";
-import QuizPage from "@/pages/QuizPage";
-import ResourcesPage from "@/pages/ResourcesPage";
-import SeminarPage from "@/pages/SeminarPage";
-import EventsPage from "@/pages/EventsPage";
-import EventDetailsPage from "@/pages/EventDetailsPage";
-import DonatePage from "@/pages/DonatePage";
-import LoginPage from "@/pages/LoginPage";
-import NotFoundPage from "@/pages/NotFoundPage";
-import SignupPortalPage from "@/pages/SignupPortalPage";
-import ProfilePage from "@/pages/ProfilePage";
-import { AuthCallback } from "@/pages/AuthCallback";
+// Lazy load all pages for code splitting
+const HomePage = lazy(() => import("@/pages/HomePage"));
+const AboutPage = lazy(() => import("@/pages/AboutPage"));
+const UnderConstructionPage = lazy(() => import("@/pages/UnderConstructionPage"));
+const CommitteePage = lazy(() => import("@/pages/CommitteePage"));
+const ExamPage = lazy(() => import("@/pages/ExamPage"));
+const QuizPage = lazy(() => import("@/pages/QuizPage"));
+const ResourcesPage = lazy(() => import("@/pages/ResourcesPage"));
+const SeminarPage = lazy(() => import("@/pages/SeminarPage"));
+const EventsPage = lazy(() => import("@/pages/EventsPage"));
+const EventDetailsPage = lazy(() => import("@/pages/EventDetailsPage"));
+const DonatePage = lazy(() => import("@/pages/DonatePage"));
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
+const SignupPortalPage = lazy(() => import("@/pages/SignupPortalPage"));
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+const AuthCallback = lazy(() => import("@/pages/AuthCallback").then(m => ({ default: m.AuthCallback })));
 
-// Admin imports
-import { AdminLayout } from "@/components/admin/AdminLayout";
-import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
-import AdminProfilePage from "@/pages/admin/AdminProfilePage";
-import AdminMembersPage from "@/pages/admin/AdminMembersPage";
-import AdminAnnouncementsPage from "@/pages/admin/AdminAnnouncementsPage";
-import AdminAuditPage from "@/pages/admin/AdminAuditPage";
-import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
-import AdminPermissionsPage from "@/pages/admin/AdminPermissionsPage";
-import AdminEventsPage from "@/pages/admin/AdminEventsPage";
-import AdminFeedbackPage from "@/pages/admin/AdminFeedbackPage";
-import UpdatePasswordPage from "@/pages/UpdatePasswordPage";
-import ContactSettingsPage from "@/pages/admin/ContactSettingsPage";
-import FinanceSubmitPage from "@/pages/admin/finance/FinanceSubmitPage";
-import FinanceVerifyPage from "@/pages/admin/finance/FinanceVerifyPage";
-import FinanceLedgerPage from "@/pages/admin/finance/FinanceLedgerPage";
-import ProfileSetupPage from "@/pages/admin/ProfileSetupPage";
-import AdminExamPage from "@/pages/admin/AdminExamPage";
-import AdminQuizPage from "@/pages/admin/AdminQuizPage";
-import AdminSeminarPage from "@/pages/admin/AdminSeminarPage";
-import AdminPastPaperPage from "@/pages/admin/AdminPastPaperPage";
-import AdminApplicantsPage from "@/pages/admin/AdminApplicantsPage";
-import ClaimPermissionPage from "@/pages/admin/ClaimPermissionPage";
+// Admin imports - lazy loaded
+const AdminLayout = lazy(() => import("@/components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
+const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage"));
+const AdminProfilePage = lazy(() => import("@/pages/admin/AdminProfilePage"));
+const AdminMembersPage = lazy(() => import("@/pages/admin/AdminMembersPage"));
+const AdminAnnouncementsPage = lazy(() => import("@/pages/admin/AdminAnnouncementsPage"));
+const FinanceAuditLogPage = lazy(() => import("@/pages/admin/finance/FinanceAuditLogPage"));
+const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettingsPage"));
+const AdminPermissionsPage = lazy(() => import("@/pages/admin/AdminPermissionsPage"));
+const AdminEventsPage = lazy(() => import("@/pages/admin/AdminEventsPage"));
+const AdminFeedbackPage = lazy(() => import("@/pages/admin/AdminFeedbackPage"));
+const UpdatePasswordPage = lazy(() => import("@/pages/UpdatePasswordPage"));
+const ContactSettingsPage = lazy(() => import("@/pages/admin/ContactSettingsPage"));
+const FinanceSubmitPage = lazy(() => import("@/pages/admin/finance/FinanceSubmitPage"));
+const FinanceVerifyPage = lazy(() => import("@/pages/admin/finance/FinanceVerifyPage"));
+const FinanceLedgerPage = lazy(() => import("@/pages/admin/finance/FinanceLedgerPage"));
+const ProfileSetupPage = lazy(() => import("@/pages/admin/ProfileSetupPage"));
+const AdminExamPage = lazy(() => import("@/pages/admin/AdminExamPage"));
+const AdminQuizPage = lazy(() => import("@/pages/admin/AdminQuizPage"));
+const AdminSeminarPage = lazy(() => import("@/pages/admin/AdminSeminarPage"));
+const AdminPastPaperPage = lazy(() => import("@/pages/admin/AdminPastPaperPage"));
+const AdminApplicantsPage = lazy(() => import("@/pages/admin/AdminApplicantsPage"));
+const ClaimPermissionPage = lazy(() => import("@/pages/admin/ClaimPermissionPage"));
+const AdminPatronsPage = lazy(() => import("@/pages/admin/AdminPatronsPage"));
+const AdminSiteModePage = lazy(() => import("@/pages/admin/AdminSiteModePage"));
+const AdminResultsPage = lazy(() => import("@/pages/admin/AdminResultsPage"));
+const AdminDesignationsPage = lazy(() => import("@/pages/admin/AdminDesignationsPage"));
+const AdminDetailsPage = lazy(() => import("@/pages/admin/AdminDetailsPage"));
+const AdminMasterAdminPage = lazy(() => import("@/pages/admin/AdminMasterAdminPage"));
+const AdminBulkQRGeneratorPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
+const AdminIDCardPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
+const VerifyMemberPage = lazy(() => import("@/pages/VerifyMemberPage"));
 
-import AdminPatronsPage from "@/pages/admin/AdminPatronsPage";
-import AdminSiteModePage from "@/pages/admin/AdminSiteModePage";
-
-// ✅ ADD THIS IMPORT (create this file or update the path to your actual results page)
-import AdminResultsPage from "@/pages/admin/AdminResultsPage";
-import AdminDesignationsPage from "@/pages/admin/AdminDesignationsPage";
-import AdminDetailsPage from "@/pages/admin/AdminDetailsPage";
-import AdminMasterAdminPage from "@/pages/admin/AdminMasterAdminPage";
+// Loading fallback component
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400"></div>
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -139,7 +147,9 @@ const App = () => {
                     path="/"
                     element={
                       <Layout>
-                        <HomePage />
+                        <Suspense fallback={<PageLoader />}>
+                          <HomePage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -147,7 +157,9 @@ const App = () => {
                     path="/about"
                     element={
                       <Layout>
-                        <AboutPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <AboutPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -155,7 +167,9 @@ const App = () => {
                     path="/under-construction"
                     element={
                       <Layout>
-                        <UnderConstructionPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <UnderConstructionPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -163,7 +177,9 @@ const App = () => {
                     path="/committee"
                     element={
                       <Layout>
-                        <CommitteePage />
+                        <Suspense fallback={<PageLoader />}>
+                          <CommitteePage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -171,7 +187,9 @@ const App = () => {
                     path="/exam"
                     element={
                       <Layout>
-                        <ExamPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <ExamPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -180,7 +198,9 @@ const App = () => {
                     path="/quiz/:questionIndex"
                     element={
                       <Layout>
-                        <QuizPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <QuizPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -188,7 +208,9 @@ const App = () => {
                     path="/resources"
                     element={
                       <Layout>
-                        <ResourcesPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <ResourcesPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -196,7 +218,9 @@ const App = () => {
                     path="/events"
                     element={
                       <Layout>
-                        <EventsPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <EventsPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -204,7 +228,9 @@ const App = () => {
                     path="/events/:id"
                     element={
                       <Layout>
-                        <EventDetailsPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <EventDetailsPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -212,7 +238,9 @@ const App = () => {
                     path="/donate"
                     element={
                       <Layout>
-                        <DonatePage />
+                        <Suspense fallback={<PageLoader />}>
+                          <DonatePage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -220,7 +248,9 @@ const App = () => {
                     path="/login"
                     element={
                       <Layout>
-                        <LoginPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <LoginPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -229,7 +259,9 @@ const App = () => {
                     path="/auth/callback"
                     element={
                       <Layout>
-                        <AuthCallback />
+                        <Suspense fallback={<PageLoader />}>
+                          <AuthCallback />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -237,7 +269,9 @@ const App = () => {
                     path="/account/update-password"
                     element={
                       <Layout>
-                        <UpdatePasswordPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <UpdatePasswordPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -245,7 +279,9 @@ const App = () => {
                     path="/signup"
                     element={
                       <Layout>
-                        <SignupPortalPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <SignupPortalPage />
+                        </Suspense>
                       </Layout>
                     }
                   />
@@ -254,12 +290,26 @@ const App = () => {
                     element={<Navigate to="/signup" replace />}
                   />
 
+                  {/* Member QR Code Verification - Public Route */}
+                  <Route
+                    path="/verify-member"
+                    element={
+                      <Layout>
+                        <Suspense fallback={<PageLoader />}>
+                          <VerifyMemberPage />
+                        </Suspense>
+                      </Layout>
+                    }
+                  />
+
                   <Route
                     path="/profile"
                     element={
                       <AdminAuthProvider>
                         <Layout>
-                          <ProfilePage />
+                          <Suspense fallback={<PageLoader />}>
+                            <ProfilePage />
+                          </Suspense>
                         </Layout>
                       </AdminAuthProvider>
                     }
@@ -277,74 +327,50 @@ const App = () => {
                     path="/admin"
                     element={
                       <AdminAuthProvider>
-                        <AdminLayout />
+                        <Suspense fallback={<PageLoader />}>
+                          <AdminLayout />
+                        </Suspense>
                       </AdminAuthProvider>
                     }
                   >
-                    <Route index element={<AdminDashboardPage />} />
-                    <Route path="dashboard" element={<AdminDashboardPage />} />
-                    <Route
-                      path="profile-setup"
-                      element={<ProfileSetupPage />}
-                    />
-                    <Route path="profile" element={<AdminProfilePage />} />
-                    <Route path="members" element={<AdminMembersPage />} />
-                    <Route
-                      path="applicants"
-                      element={<AdminApplicantsPage />}
-                    />
-                    <Route path="patrons" element={<AdminPatronsPage />} />
-                    <Route path="results" element={<AdminResultsPage />} />
-                    <Route
-                      path="designations"
-                      element={<AdminDesignationsPage />}
-                    />
-                    <Route path="details" element={<AdminDetailsPage />} />
-                    <Route path="site-mode" element={<AdminSiteModePage />} />
-                    <Route path="events" element={<AdminEventsPage />} />
-                    <Route path="exam" element={<AdminExamPage />} />
-                    <Route path="quiz" element={<AdminQuizPage />} />
-                    <Route path="seminar" element={<AdminSeminarPage />} />
-                    <Route path="past-paper" element={<AdminPastPaperPage />} />
-                    <Route
-                      path="announcements"
-                      element={<AdminAnnouncementsPage />}
-                    />
-                    <Route path="feedback" element={<AdminFeedbackPage />} />
-                    <Route
-                      path="claim-permission"
-                      element={<ClaimPermissionPage />}
-                    />
-                    <Route
-                      path="permissions"
-                      element={<AdminPermissionsPage />}
-                    />
-                    <Route
-                      path="master-admin"
-                      element={<AdminMasterAdminPage />}
-                    />
-                    <Route path="contact" element={<ContactSettingsPage />} />
-                    <Route path="audit" element={<AdminAuditPage />} />
-                    <Route path="settings" element={<AdminSettingsPage />} />
-                    <Route
-                      path="finance/submit"
-                      element={<FinanceSubmitPage />}
-                    />
-                    <Route
-                      path="finance/verify"
-                      element={<FinanceVerifyPage />}
-                    />
-                    <Route
-                      path="finance/ledger"
-                      element={<FinanceLedgerPage />}
-                    />
+                    <Route index element={<Suspense fallback={<PageLoader />}><AdminDashboardPage /></Suspense>} />
+                    <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><AdminDashboardPage /></Suspense>} />
+                    <Route path="profile-setup" element={<Suspense fallback={<PageLoader />}><ProfileSetupPage /></Suspense>} />
+                    <Route path="profile" element={<Suspense fallback={<PageLoader />}><AdminProfilePage /></Suspense>} />
+                    <Route path="members" element={<Suspense fallback={<PageLoader />}><AdminMembersPage /></Suspense>} />
+                    <Route path="applicants" element={<Suspense fallback={<PageLoader />}><AdminApplicantsPage /></Suspense>} />
+                    <Route path="patrons" element={<Suspense fallback={<PageLoader />}><AdminPatronsPage /></Suspense>} />
+                    <Route path="results" element={<Suspense fallback={<PageLoader />}><AdminResultsPage /></Suspense>} />
+                    <Route path="designations" element={<Suspense fallback={<PageLoader />}><AdminDesignationsPage /></Suspense>} />
+                    <Route path="details" element={<Suspense fallback={<PageLoader />}><AdminDetailsPage /></Suspense>} />
+                    <Route path="site-mode" element={<Suspense fallback={<PageLoader />}><AdminSiteModePage /></Suspense>} />
+                    <Route path="events" element={<Suspense fallback={<PageLoader />}><AdminEventsPage /></Suspense>} />
+                    <Route path="exam" element={<Suspense fallback={<PageLoader />}><AdminExamPage /></Suspense>} />
+                    <Route path="quiz" element={<Suspense fallback={<PageLoader />}><AdminQuizPage /></Suspense>} />
+                    <Route path="seminar" element={<Suspense fallback={<PageLoader />}><AdminSeminarPage /></Suspense>} />
+                    <Route path="past-paper" element={<Suspense fallback={<PageLoader />}><AdminPastPaperPage /></Suspense>} />
+                    <Route path="announcements" element={<Suspense fallback={<PageLoader />}><AdminAnnouncementsPage /></Suspense>} />
+                    <Route path="feedback" element={<Suspense fallback={<PageLoader />}><AdminFeedbackPage /></Suspense>} />
+                    <Route path="claim-permission" element={<Suspense fallback={<PageLoader />}><ClaimPermissionPage /></Suspense>} />
+                    <Route path="permissions" element={<Suspense fallback={<PageLoader />}><AdminPermissionsPage /></Suspense>} />
+                    <Route path="master-admin" element={<Suspense fallback={<PageLoader />}><AdminMasterAdminPage /></Suspense>} />
+                    <Route path="bulk-qr-generator" element={<Suspense fallback={<PageLoader />}><AdminBulkQRGeneratorPage /></Suspense>} />
+                    <Route path="id-card-generator" element={<Suspense fallback={<PageLoader />}><AdminIDCardPage /></Suspense>} />
+                    <Route path="contact" element={<Suspense fallback={<PageLoader />}><ContactSettingsPage /></Suspense>} />
+                    <Route path="finance/audit" element={<Suspense fallback={<PageLoader />}><FinanceAuditLogPage /></Suspense>} />
+                    <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettingsPage /></Suspense>} />
+                    <Route path="finance/submit" element={<Suspense fallback={<PageLoader />}><FinanceSubmitPage /></Suspense>} />
+                    <Route path="finance/verify" element={<Suspense fallback={<PageLoader />}><FinanceVerifyPage /></Suspense>} />
+                    <Route path="finance/ledger" element={<Suspense fallback={<PageLoader />}><FinanceLedgerPage /></Suspense>} />
                   </Route>
 
                   <Route
                     path="*"
                     element={
                       <Layout>
-                        <NotFoundPage />
+                        <Suspense fallback={<PageLoader />}>
+                          <NotFoundPage />
+                        </Suspense>
                       </Layout>
                     }
                   />

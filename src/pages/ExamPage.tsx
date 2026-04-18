@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
-import emblemImg from "@/assets/Exam/AUSDAV_llogo.png";
+import emblemImg from "@/assets/logo/AUSDAV_llogo.png";
 
 // ✅ NEW: images for the two newly added teaser cards
 // Change these paths to your actual image paths
@@ -268,8 +268,11 @@ const ExamPage: React.FC = () => {
     if (!hash) return;
     if (hash === "apply" || hash === "results") {
       setActiveTab(hash as "apply" | "results");
-      const el = document.getElementById("exam-tabs");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Use requestAnimationFrame to defer scroll operation until after render
+      requestAnimationFrame(() => {
+        const el = document.getElementById("exam-tabs");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     }
   }, [location.hash]);
 
@@ -760,26 +763,22 @@ const ExamPage: React.FC = () => {
   const openApplyPortal = () => {
     setApplyPortalOpen(true);
     setRegPortalOpen(false);
-    window.setTimeout(
-      () =>
-        applyPortalRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        }),
-      50
-    );
+    requestAnimationFrame(() => {
+      applyPortalRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   };
   const openRegPortal = () => {
     setRegPortalOpen(true);
     setApplyPortalOpen(false);
-    window.setTimeout(
-      () =>
-        regPortalRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        }),
-      50
-    );
+    requestAnimationFrame(() => {
+      regPortalRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   };
 
   return (

@@ -249,50 +249,99 @@ export function useQuizPresenceListener(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'quiz_live_progress' },
         (payload) => {
-          if (payload.eventType === 'DELETE') {
-            const old = payload.old as any;
-            if (old?.school_name && old?.quiz_password_id != null) {
-              const key = `${old.school_name}_${old.quiz_password_id}`;
+          // Defer heavy state updates to requestIdleCallback to avoid blocking message handler
+          if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(() => {
+              if (payload.eventType === 'DELETE') {
+                const old = payload.old as any;
+                if (old?.school_name && old?.quiz_password_id != null) {
+                  const key = `${old.school_name}_${old.quiz_password_id}`;
+                  setParticipants((prev) => {
+                    const next = { ...prev };
+                    delete next[key];
+                    return next;
+                  });
+                }
+                return;
+              }
+
+              // INSERT or UPDATE
+              const row = payload.new as any;
+              if (!row?.school_name) return;
+              const key = `${row.school_name}_${row.quiz_password_id}`;
+
+              if (row.is_finished) {
+                // Finished — remove from active map
+                setParticipants((prev) => {
+                  if (!prev[key]) return prev;
+                  const next = { ...prev };
+                  delete next[key];
+                  return next;
+                });
+              } else {
+                // Active — add / update
+                setParticipants((prev) => ({
+                  ...prev,
+                  [key]: {
+                    school_name: row.school_name,
+                    quiz_password_id: row.quiz_password_id,
+                    quiz_name: row.quiz_name ?? '',
+                    current_question_index: row.current_question_index ?? 0,
+                    total_questions: row.total_questions ?? 0,
+                    answered_count: row.answered_count ?? 0,
+                    time_bonus: row.time_bonus ?? 0,
+                    extras: row.extras ?? {},
+                    started_at: row.started_at ?? '',
+                    updated_at: row.updated_at ?? '',
+                    is_finished: false,
+                  },
+                }));
+              }
+            });
+          } else {
+            // Fallback for older browsers without requestIdleCallback
+            if (payload.eventType === 'DELETE') {
+              const old = payload.old as any;
+              if (old?.school_name && old?.quiz_password_id != null) {
+                const key = `${old.school_name}_${old.quiz_password_id}`;
+                setParticipants((prev) => {
+                  const next = { ...prev };
+                  delete next[key];
+                  return next;
+                });
+              }
+              return;
+            }
+
+            const row = payload.new as any;
+            if (!row?.school_name) return;
+            const key = `${row.school_name}_${row.quiz_password_id}`;
+
+            if (row.is_finished) {
               setParticipants((prev) => {
+                if (!prev[key]) return prev;
                 const next = { ...prev };
                 delete next[key];
                 return next;
               });
+            } else {
+              setParticipants((prev) => ({
+                ...prev,
+                [key]: {
+                  school_name: row.school_name,
+                  quiz_password_id: row.quiz_password_id,
+                  quiz_name: row.quiz_name ?? '',
+                  current_question_index: row.current_question_index ?? 0,
+                  total_questions: row.total_questions ?? 0,
+                  answered_count: row.answered_count ?? 0,
+                  time_bonus: row.time_bonus ?? 0,
+                  extras: row.extras ?? {},
+                  started_at: row.started_at ?? '',
+                  updated_at: row.updated_at ?? '',
+                  is_finished: false,
+                },
+              }));
             }
-            return;
-          }
-
-          // INSERT or UPDATE
-          const row = payload.new as any;
-          if (!row?.school_name) return;
-          const key = `${row.school_name}_${row.quiz_password_id}`;
-
-          if (row.is_finished) {
-            // Finished — remove from active map
-            setParticipants((prev) => {
-              if (!prev[key]) return prev;
-              const next = { ...prev };
-              delete next[key];
-              return next;
-            });
-          } else {
-            // Active — add / update
-            setParticipants((prev) => ({
-              ...prev,
-              [key]: {
-                school_name: row.school_name,
-                quiz_password_id: row.quiz_password_id,
-                quiz_name: row.quiz_name ?? '',
-                current_question_index: row.current_question_index ?? 0,
-                total_questions: row.total_questions ?? 0,
-                answered_count: row.answered_count ?? 0,
-                time_bonus: row.time_bonus ?? 0,
-                extras: row.extras ?? {},
-                started_at: row.started_at ?? '',
-                updated_at: row.updated_at ?? '',
-                is_finished: false,
-              },
-            }));
           }
         },
       )
