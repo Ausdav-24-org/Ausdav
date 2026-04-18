@@ -367,6 +367,8 @@ class FacebookGraphService {
   }
 
   private extractPostImages(post: any): SourceImage[] {
+    const MAX_IMAGES = 20; // Increased limit for better content coverage
+
     const imageMap = new Map<string, SourceImage>();
 
     const maybePush = (imageUrl?: string | null, source: Partial<SourceImage> = {}) => {
@@ -392,6 +394,31 @@ class FacebookGraphService {
 
     const attachments = Array.isArray(post?.attachments?.data) ? post.attachments.data : [];
     for (const attachment of attachments) {
+      if (imageMap.size >= MAX_IMAGES) break;
+
+      const subattachments = Array.isArray(attachment?.subattachments?.data)
+        ? attachment.subattachments.data
+        : [];
+
+      // If this is a gallery/carousel post, use only subattachments.
+      // The parent attachment image is usually just the cover/preview.
+      if (subattachments.length > 0) {
+        for (const sub of subattachments) {
+          if (imageMap.size >= MAX_IMAGES) break;
+
+          const subMediaType = String(sub?.media_type || "").toLowerCase();
+          const subImage = sub?.media?.image?.src || sub?.media?.image?.source;
+
+          if (subMediaType === "photo" || subImage) {
+            maybePush(subImage, {
+              link: sub?.url || attachment?.url || post?.permalink_url || null,
+            });
+          }
+        }
+        continue;
+      }
+
+      // Single-image post: use parent attachment image
       const mediaType = String(attachment?.media_type || "").toLowerCase();
       const mediaImage = attachment?.media?.image?.src || attachment?.media?.image?.source;
       if (mediaType === "photo" || mediaImage) {
@@ -415,7 +442,7 @@ class FacebookGraphService {
       }
     }
 
-    return Array.from(imageMap.values());
+    return Array.from(imageMap.values()).slice(0, MAX_IMAGES);
   }
 
   async fetchFacebookPost(postId: string, token: string) {
@@ -464,16 +491,14 @@ class FacebookGraphService {
     );
   }
 
-  async fetchFacebookAlbumPhotos(albumId: string, token: string) {
-    const album = await this.fetchFacebookAlbum(albumId, token);
-
+  async fetchFacebookAlbumPhotos(albumId: string, token: string, maxImages: number = Infinity) {
     const images: SourceImage[] = [];
     const seenUrls = new Set<string>();
     let nextPath = `/${albumId}/photos`;
     let hasNext = true;
     let afterCursor: string | null = null;
 
-    while (hasNext) {
+    while (hasNext && images.length < maxImages) {
       const params: Record<string, string> = {
         fields: "id,name,images,created_time,link",
         limit: "100",
@@ -489,6 +514,7 @@ class FacebookGraphService {
       const rows = Array.isArray(page?.data) ? page.data : [];
 
       for (const row of rows) {
+        if (images.length >= maxImages) break;
         const best = Array.isArray(row?.images) && row.images.length > 0 ? row.images[0] : null;
         const source = best?.source;
         if (source && !seenUrls.has(source)) {
@@ -503,6 +529,7 @@ class FacebookGraphService {
         }
       }
 
+      if (images.length >= maxImages) break;
       afterCursor = page?.paging?.cursors?.after || null;
       hasNext = Boolean(afterCursor);
     }
@@ -953,7 +980,7 @@ class FacebookImportController {
           const postData = await this.graphService.fetchFacebookPost(objectId, pageToken);
           sourceImages = postData.images;
         } else {
-          const albumData = await this.graphService.fetchFacebookAlbumPhotos(objectId, pageToken);
+          const albumData = await this.graphService.fetchFacebookAlbumPhotos(objectId, pageToken, 20);
           sourceImages = albumData.images;
         }
 
