@@ -10,6 +10,7 @@ import 'katex/dist/katex.min.css';
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { compressImageBlob } from "@/lib/imageCompression";
 import Papa from "papaparse";
 import QuizAttemptDetailsModal from "@/components/QuizAttemptDetailsModal";
 import QuizLiveMonitor from "@/components/admin/QuizLiveMonitor";
@@ -70,6 +72,7 @@ type SchoolQuizResult = {
 
 const AdminQuizPage: React.FC = () => {
   const { language } = useLanguage();
+  const { logDangerAction } = useDangerZoneLog();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [schoolResults, setSchoolResults] = useState<SchoolQuizResult[]>([]);
   // allow negative scores as low as -1500; upper bound 5000
@@ -573,6 +576,14 @@ const AdminQuizPage: React.FC = () => {
       fetchSchoolAnswersMap().catch(() => {});
 
       toast.success("All school results and answers deleted successfully");
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'quiz',
+        action: 'delete_all_results',
+        targetId: 'all',
+        targetName: `${allResults?.length || 0} quiz results`,
+      });
 
       // Verify deletion by fetching fresh data
       setTimeout(() => fetchSchoolResults(), 500);
@@ -608,6 +619,15 @@ const AdminQuizPage: React.FC = () => {
       if (aErr) console.error("Error deleting school answers:", aErr);
 
       toast.success(`Deleted results for ${schoolName}`);
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'quiz',
+        action: 'delete_school_results',
+        targetId: schoolName,
+        targetName: `Results for ${schoolName}`,
+      });
+      
       fetchSchoolResults();
       fetchSchoolAnswersMap().catch(() => {});
     } catch (err) {
@@ -713,6 +733,15 @@ const AdminQuizPage: React.FC = () => {
       if (error) throw error;
 
       toast.success("Question deleted");
+      
+      // Log the deletion
+      await logDangerAction({
+        page: 'quiz',
+        action: 'delete_question',
+        targetId: String(id),
+        targetName: `Question #${id}`,
+      });
+      
       fetchQuestions();
     } catch (error) {
       console.error("Error deleting question:", error);
@@ -771,11 +800,24 @@ const AdminQuizPage: React.FC = () => {
         }
       }
 
+      // Compress image before uploading
+      const compressedBlob = await compressImageBlob(file, {
+        maxSize: 1200,
+        quality: 0.92,
+        mimeType: "image/jpeg",
+      });
+
+      const compressedSize = compressedBlob.size;
+      const originalSize = file.size;
+      const savingsPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+
       // Upload new image
       const fileName = `${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from("quiz-question-images")
-        .upload(`questions/${fileName}`, file);
+        .upload(`questions/${fileName}`, compressedBlob, {
+          contentType: "image/jpeg",
+        });
 
       if (uploadError) throw uploadError;
 
@@ -786,6 +828,10 @@ const AdminQuizPage: React.FC = () => {
         ...formData,
         image_path: relativePath,
       });
+
+      if (savingsPercent > 0) {
+        toast.success(`Question image compressed! (${savingsPercent}% smaller)`);
+      }
 
       // Show preview using the public URL
       const { data } = supabase.storage

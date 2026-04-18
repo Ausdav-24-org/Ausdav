@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { DownloadCompressionDialog } from "@/components/DownloadCompressionDialog";
+import { useDownloadWithCompression } from "@/hooks/useDownloadWithCompression";
 import BG1 from "@/assets/AboutUs/BG1.jpg";
 import { renderCyanTail } from "@/utils/text";
 
@@ -34,6 +36,15 @@ type PastPaper = {
 
 const ResourcesPage: React.FC = () => {
   const { t, language } = useLanguage();
+
+  const {
+    dialogOpen,
+    selectedFile,
+    isDownloading,
+    openDownloadDialog,
+    closeDownloadDialog,
+    handleDownload,
+  } = useDownloadWithCompression();
 
   const seminarRef = useRef<HTMLDivElement>(null);
   const pastPaperRef = useRef<HTMLDivElement>(null);
@@ -68,7 +79,7 @@ const ResourcesPage: React.FC = () => {
     },
   });
 
-  const openDownload = (
+  const openDownload = async (
     resource: Seminar | PastPaper,
     type: "paper" | "answers" | "scheme",
     isSeminar: boolean
@@ -116,15 +127,41 @@ const ResourcesPage: React.FC = () => {
       return;
     }
 
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    if (data?.publicUrl) {
-      window.open(data.publicUrl, "_blank");
-    } else {
-      toast.error(
-        language === "en"
-          ? "Download link not available"
-          : "பதிவிறக்க இணைப்பு கிடைக்கவில்லை"
-      );
+    // Get file size from storage metadata
+    try {
+      const { data: fileList } = await supabase.storage.from(bucket).list(path.substring(0, path.lastIndexOf('/')));
+      const fileName = path.split('/').pop();
+      const fileData = fileList?.find(f => f.name === fileName);
+      const fileSize = fileData?.metadata?.size || 0;
+
+      // Generate filename
+      const resource_yrs = (resource as any).yrs || new Date().getFullYear();
+      let filename = '';
+      if (isSeminar) {
+        filename = `Seminar_${resource_yrs}_${type}.pdf`;
+      } else {
+        const paper = resource as PastPaper;
+        filename = type === 'paper' 
+          ? `Exam_${resource_yrs}_${paper.subject}.pdf`
+          : `Scheme_${resource_yrs}_${paper.subject}.pdf`;
+      }
+
+      // Open download dialog
+      openDownloadDialog(bucket, path, filename, 'pdf', fileSize);
+    } catch (err) {
+      console.error('Error fetching file size:', err);
+      // Fallback: open dialog with 0 size
+      const resource_yrs = (resource as any).yrs || new Date().getFullYear();
+      let filename = '';
+      if (isSeminar) {
+        filename = `Seminar_${resource_yrs}_${type}.pdf`;
+      } else {
+        const paper = resource as PastPaper;
+        filename = type === 'paper' 
+          ? `Exam_${resource_yrs}_${paper.subject}.pdf`
+          : `Scheme_${resource_yrs}_${paper.subject}.pdf`;
+      }
+      openDownloadDialog(bucket, path, filename, 'pdf', 0);
     }
   };
 
@@ -574,7 +611,16 @@ const ResourcesPage: React.FC = () => {
         </div>
       </section>
 
-      
+      {/* Download Compression Dialog */}
+      <DownloadCompressionDialog
+        open={dialogOpen}
+        onOpenChange={closeDownloadDialog}
+        filename={selectedFile?.filename || ''}
+        fileType={selectedFile?.fileType || 'pdf'}
+        originalSize={selectedFile?.originalSize || 0}
+        onDownload={handleDownload}
+        isLoading={isDownloading}
+      />
     </div>
   );
 };

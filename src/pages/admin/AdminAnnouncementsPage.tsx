@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PermissionGate } from '@/components/admin/PermissionGate';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,6 +57,8 @@ export default function AdminAnnouncementsPage() {
   const [saving, setSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  
+  const { logDangerAction } = useDangerZoneLog();
 
   const [formData, setFormData] = useState({
     title_en: '',
@@ -277,18 +280,27 @@ export default function AdminAnnouncementsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (announcement: Announcement) => {
     if (!confirm('Are you sure you want to delete this announcement?')) return;
-    if (deletingAnnouncementId === id) return;
-    setDeletingAnnouncementId(id);
+    if (deletingAnnouncementId === announcement.id) return;
+    setDeletingAnnouncementId(announcement.id);
 
     try {
       const { error } = await (supabase as any)
         .from('announcements')
         .delete()
-        .eq('announcement_id', id);
+        .eq('announcement_id', announcement.id);
       if (error) throw error;
-      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      setAnnouncements((prev) => prev.filter((a) => a.id !== announcement.id));
+      
+      // Log danger zone action
+      logDangerAction({
+        page: 'announcements',
+        action: 'delete_announcement',
+        targetId: announcement.id,
+        targetName: announcement.title_en || 'Unknown',
+      });
+      
       toast.success('Announcement deleted');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete');
@@ -407,7 +419,7 @@ export default function AdminAnnouncementsPage() {
                           variant="ghost"
                           size="icon"
                           className="text-red-400 hover:text-red-300 h-8 sm:h-9 w-8 sm:w-9"
-                          onClick={() => handleDelete(announcement.id)}
+                          onClick={() => handleDelete(announcement)}
                           disabled={deletingAnnouncementId === announcement.id}
                         >
                           {deletingAnnouncementId === announcement.id ? <Loader2 className="h-3 sm:h-4 w-3 sm:w-4 animate-spin" /> : <Trash2 className="h-3 sm:h-4 w-3 sm:w-4" />}

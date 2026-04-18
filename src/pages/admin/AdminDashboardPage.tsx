@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
-import invokeFunction from '@/integrations/supabase/functions';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,27 +62,88 @@ export default function AdminDashboardPage() {
   const fetchDashboardStats = async (): Promise<{ batch: string; count: number }[]> => {
     try {
       setLoading(true);
-      const { data, error } = await invokeFunction('fetch-dashboard-stats', {});
-      if (error) throw error;
+      
+      // Fetch all required data directly from database instead of using edge function
+      const [membersRes, financeRes, batchRes] = await Promise.all([
+        db.from('members').select('*', { count: 'exact' }),
+        db.from('finance').select('*', { count: 'exact' }),
+        db.from('members').select('batch'),
+      ]);
 
-      // debug: log payload to see if batches are included
-      console.debug('dashboard stats payload', data);
+      if (membersRes.error) throw membersRes.error;
+      if (financeRes.error) throw financeRes.error;
+      if (batchRes.error) throw batchRes.error;
 
-      const batches = Array.isArray(data?.membersByBatch) ? data.membersByBatch : [];
+      // Process data
+      const members = Array.isArray(membersRes.data) ? membersRes.data : [];
+      const finances = Array.isArray(financeRes.data) ? financeRes.data : [];
+      
+      // Calculate stats
+      const totalMembers = members.length;
+      const activeMembers = members.filter((m: any) => m.admission_status === 'active').length;
+      
+      // Calculate monthly finance
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+      
+      const monthlyIncome = finances
+        .filter((f: any) => {
+          const fDate = new Date(f.txn_date || f.created_at);
+          return fDate.getMonth() === currentMonth && 
+                 fDate.getFullYear() === currentYear &&
+                 f.exp_type === 'income' &&
+                 f.approved === true;
+        })
+        .reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+      
+      const monthlyExpense = finances
+        .filter((f: any) => {
+          const fDate = new Date(f.txn_date || f.created_at);
+          return fDate.getMonth() === currentMonth && 
+                 fDate.getFullYear() === currentYear &&
+                 f.exp_type === 'expense' &&
+                 f.approved === true;
+        })
+        .reduce((sum: number, f: any) => sum + (f.amount || 0), 0);
+      
+      const pendingSubmissions = finances.filter((f: any) => f.approved === false).length;
+      
+      // Count members by batch
+      const batchData = Array.isArray(batchRes.data) ? batchRes.data : [];
+      const batchCounts: Record<string, number> = {};
+      batchData.forEach((member: any) => {
+        const batch = member.batch || 'Unknown';
+        batchCounts[batch] = (batchCounts[batch] || 0) + 1;
+      });
+      
+      const membersByBatch = Object.entries(batchCounts)
+        .map(([batch, count]) => ({ batch, count }))
+        .sort((a, b) => b.count - a.count);
 
-      setStats((prev) => ({
-        ...prev,
-        totalMembers: data?.totalMembers || 0,
-        activeMembers: data?.activeMembers || 0,
-        monthlyIncome: data?.monthlyIncome || 0,
-        monthlyExpense: data?.monthlyExpense || 0,
-        pendingSubmissions: data?.pendingSubmissions || 0,
-        membersByBatch: batches.length ? batches : prev.membersByBatch,
-      }));
+      setStats({
+        totalMembers,
+        activeMembers,
+        monthlyIncome,
+        monthlyExpense,
+        pendingSubmissions,
+        membersByBatch,
+      });
 
-      return batches;
+      console.debug('Dashboard stats loaded successfully', {
+        totalMembers,
+        activeMembers,
+        monthlyIncome,
+        monthlyExpense,
+        pendingSubmissions,
+        membersByBatch,
+      });
+
+      return membersByBatch;
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
+      // Use fallback direct member batch query
+      await fetchMembersByBatch();
       return [];
     } finally {
       setLoading(false);

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PermissionGate } from '@/components/admin/PermissionGate';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useDangerZoneLog } from '@/hooks/useDangerZoneLog';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -135,6 +137,7 @@ type EventFormState = {
 
 const AdminEventsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { logDangerAction } = useDangerZoneLog();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabaseDb = supabase as unknown as SupabaseClient<any, any, any, any>;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -145,8 +148,6 @@ const AdminEventsPage: React.FC = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [createdGalleryId, setCreatedGalleryId] = useState<string | null>(null);
   const [newGalleryYear, setNewGalleryYear] = useState('');
-  const [newGalleryDescriptionEn, setNewGalleryDescriptionEn] = useState('');
-  const [newGalleryDescriptionTa, setNewGalleryDescriptionTa] = useState('');
   const [formData, setFormData] = useState<EventFormState>({
     title_en: '',
     title_ta: '',
@@ -177,18 +178,16 @@ const AdminEventsPage: React.FC = () => {
     return true;
   };
 
-  // Fetch galleries for a specific year
+  // Fetch galleries for a specific event (all years)
   const { data: galleries, isLoading: galleriesLoading } = useQuery({
     queryKey: ['galleries', selectedEventForGallery?.id ?? null],
     queryFn: async () => {
       if (!selectedEventForGallery) return [];
-      const year = new Date(selectedEventForGallery.event_date).getFullYear();
       const { data, error } = await supabaseDb
         .from('galleries')
         .select('id, event_id, year, title, description_en, description_ta, max_images, created_at')
         .eq('event_id', selectedEventForGallery.id)
-        .eq('year', year)
-        .order('created_at', { ascending: false });
+        .order('year', { ascending: false });
       if (error) throw error;
       return (data || []) as Gallery[];
     },
@@ -286,51 +285,18 @@ const AdminEventsPage: React.FC = () => {
     mutationFn: async (galleryId: string) => {
       console.log('Starting gallery deletion for:', galleryId);
 
-      // First, get all images associated with this gallery
-      const { data: galleryImages, error: fetchError } = await supabaseDb
-        .from('gallery_images')
-        .select('id, file_path')
-        .eq('gallery_id', galleryId);
+      // First get the gallery data to log
+      const { data: galleryData, error: galleryFetchError } = await supabaseDb
+        .from('galleries')
+        .select('id,year,title')
+        .eq('id', galleryId)
+        .maybeSingle();
 
-      if (fetchError) {
-        console.error('Failed to fetch gallery images:', fetchError);
-        throw new Error('Failed to fetch gallery images: ' + fetchError.message);
+      if (galleryFetchError) {
+        console.error('Failed to fetch gallery data:', galleryFetchError);
       }
 
-      console.log('Found images to delete:', galleryImages?.length || 0);
-
-      // Delete images from storage if any exist
-      if (galleryImages && galleryImages.length > 0) {
-        const filePaths = galleryImages.map(img => img.file_path);
-        console.log('Deleting files from storage:', filePaths);
-
-        const { error: storageError } = await supabase.storage
-          .from('event-gallery')
-          .remove(filePaths);
-
-        if (storageError) {
-          console.error('Storage deletion failed:', storageError);
-          // Continue with database deletion even if storage fails
-          console.warn('Continuing with database deletion despite storage error');
-        } else {
-          console.log('Successfully deleted files from storage');
-        }
-
-        // Delete all gallery_images records
-        const { error: imagesDeleteError } = await supabaseDb
-          .from('gallery_images')
-          .delete()
-          .eq('gallery_id', galleryId);
-
-        if (imagesDeleteError) {
-          console.error('Failed to delete gallery images from database:', imagesDeleteError);
-          throw new Error('Failed to delete gallery images: ' + imagesDeleteError.message);
-        }
-
-        console.log('Successfully deleted gallery images from database');
-      }
-
-      // Finally, delete the gallery record
+      // Finally, delete the gallery record (cascade will handle related images)
       const { error: galleryDeleteError } = await supabaseDb
         .from('galleries')
         .delete()
@@ -342,9 +308,22 @@ const AdminEventsPage: React.FC = () => {
       }
 
       console.log('Successfully deleted gallery record');
+      
+      return galleryData;
     },
-    onSuccess: () => {
+    onSuccess: (galleryData) => {
       queryClient.invalidateQueries({ queryKey: ['galleries', selectedEventForGallery?.id ?? null] });
+      
+      // Log danger zone action
+      if (galleryData) {
+        logDangerAction({
+          page: 'events',
+          action: 'delete_gallery',
+          targetId: galleryData.id,
+          targetName: galleryData.title || `Gallery ${galleryData.year}`,
+        });
+      }
+      
       toast.success('Gallery and all associated images deleted successfully');
     },
     onError: (error) => {
@@ -358,7 +337,7 @@ const AdminEventsPage: React.FC = () => {
     mutationFn: async (id: number) => {
       const { data: eventData, error: fetchError } = await supabaseDb
         .from('events')
-        .select('image_bucket,image_path')
+        .select('id,title_en,image_bucket,image_path')
         .eq('id', id)
         .maybeSingle();
       if (fetchError) throw fetchError;
@@ -374,9 +353,22 @@ const AdminEventsPage: React.FC = () => {
         .delete()
         .eq('id', id.toString());
       if (error) throw error;
+      
+      return eventData;
     },
-    onSuccess: () => {
+    onSuccess: (eventData) => {
       queryClient.invalidateQueries({ queryKey: ['admin-events'] });
+      
+      // Log danger zone action
+      if (eventData) {
+        logDangerAction({
+          page: 'events',
+          action: 'delete_event',
+          targetId: String(eventData.id),
+          targetName: eventData.title_en || 'Unknown',
+        });
+      }
+      
       toast.success('Event deleted successfully');
     },
     onError: (error) => {
@@ -437,9 +429,7 @@ const AdminEventsPage: React.FC = () => {
     }
     createGalleryMutation.mutate({
       year,
-      title: `Gallery ${year}`,
-      description_en: newGalleryDescriptionEn || null,
-      description_ta: newGalleryDescriptionTa || null
+      title: `Gallery ${year}`
     });
   };
 
@@ -515,41 +505,6 @@ const AdminEventsPage: React.FC = () => {
     if (galleries.length === 0) return;
 
     for (const gallery of galleries) {
-      const { data: galleryImages, error: imagesError } = await supabaseDb
-        .from('gallery_images')
-        .select('file_path')
-        .eq('gallery_id', gallery.id);
-
-      if (imagesError) {
-        console.warn('Failed to fetch gallery images:', imagesError);
-        toast.error('Failed to delete gallery images');
-      } else {
-        const filePaths = (galleryImages || []).map((img) => img.file_path);
-        if (filePaths.length > 0) {
-          for (let i = 0; i < filePaths.length; i += 100) {
-            const chunk = filePaths.slice(i, i + 100);
-            const { error: storageError } = await supabase.storage
-              .from('event-gallery')
-              .remove(chunk);
-
-            if (storageError) {
-              console.warn('Failed to delete gallery images from storage:', storageError);
-              toast.error('Failed to delete gallery images from storage');
-            }
-          }
-        }
-      }
-
-      const { error: deleteImagesError } = await supabaseDb
-        .from('gallery_images')
-        .delete()
-        .eq('gallery_id', gallery.id);
-
-      if (deleteImagesError) {
-        console.warn('Failed to delete gallery images from database:', deleteImagesError);
-        toast.error('Failed to delete gallery images from database');
-      }
-
       const { error: deleteGalleryError } = await supabaseDb
         .from('galleries')
         .delete()
@@ -637,6 +592,9 @@ const AdminEventsPage: React.FC = () => {
               <DialogTitle className="text-lg sm:text-xl">
                 {editingEvent ? 'Edit Event' : 'Create New Event'}
               </DialogTitle>
+              <DialogDescription>
+                {editingEvent ? 'Update the event details and images' : 'Enter the event details and add an event image'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -747,8 +705,6 @@ const AdminEventsPage: React.FC = () => {
         setGalleryDialogOpen(open);
         if (!open) {
           setNewGalleryYear('');
-          setNewGalleryDescriptionEn('');
-          setNewGalleryDescriptionTa('');
           setSelectedEventForGallery(null);
           setShowBulkUpload(false);
           setCreatedGalleryId(null);
@@ -759,6 +715,9 @@ const AdminEventsPage: React.FC = () => {
             <DialogTitle className="text-lg sm:text-xl">
               {showBulkUpload ? 'Bulk Image Upload' : `Gallery Management - ${selectedEventForGallery ? new Date(selectedEventForGallery.event_date).getFullYear() : ''}`}
             </DialogTitle>
+            <DialogDescription>
+              {showBulkUpload ? 'Upload multiple images to the gallery' : 'Manage event galleries and upload images'}
+            </DialogDescription>
           </DialogHeader>
           {showBulkUpload && selectedEventForGallery ? (
             <GalleryBulkUpload
@@ -838,28 +797,7 @@ const AdminEventsPage: React.FC = () => {
                       className="text-xs sm:text-sm"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="gallery-description-en" className="text-xs sm:text-sm">Description (English)</Label>
-                    <Textarea
-                      id="gallery-description-en"
-                      placeholder="Enter gallery description in English"
-                      value={newGalleryDescriptionEn}
-                      onChange={(e) => setNewGalleryDescriptionEn(e.target.value)}
-                      rows={2}
-                      className="text-xs sm:text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="gallery-description-ta" className="text-xs sm:text-sm">Description (Tamil)</Label>
-                    <Textarea
-                      id="gallery-description-ta"
-                      placeholder="Enter gallery description in Tamil"
-                      value={newGalleryDescriptionTa}
-                      onChange={(e) => setNewGalleryDescriptionTa(e.target.value)}
-                      rows={2}
-                      className="text-xs sm:text-sm"
-                    />
-                  </div>
+
                   <Button
                     onClick={handleCreateGallery}
                     disabled={createGalleryMutation.isPending}

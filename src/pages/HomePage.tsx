@@ -25,13 +25,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import AnnouncementCarousel from "@/components/AnnouncementCarousel";
 import ReviewCarousel from "@/components/ReviewCarousel";
-import { supabase } from "@/integrations/supabase/client";
+import YouTubeEmbed from "@/components/YouTubeEmbed";
+import LazyImage from "@/components/LazyImage";
 import { useQuery } from "@tanstack/react-query";
 import { renderCyanTail } from "@/utils/text";
 
 import { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 import heroBg from "@/assets/Home/BG1.jpg";
-import logoImg from "@/assets/Exam/AUSDAV_llogo.png";
+import logoImg from "@/assets/logo/AUSDAV_llogo.png";
 import mountainImg from "@/assets/Home/removed.png";
 
 type AnnouncementRow = Tables<"announcements"> & {
@@ -324,13 +326,7 @@ const HomePage: React.FC = () => {
         if (r.university) workParts.push(r.university);
         const work = workParts.join(",");
         const signedUrl = execPhotoUrls.get(r.mem_id) || "";
-        let photo: string | null = signedUrl || null;
-        if (!photo && r.profile_path && r.profile_bucket) {
-          const { data } = supabase.storage
-            .from(r.profile_bucket)
-            .getPublicUrl(r.profile_path);
-          photo = data?.publicUrl || null;
-        }
+        const photo: string | null = signedUrl || null;
         return {
           id: r.mem_id,
           role: roleInfo.en,
@@ -685,17 +681,11 @@ const HomePage: React.FC = () => {
               transition={{ duration: 0.8 }}
               className="flex items-center justify-center"
             >
-              <div className="w-full max-w-3xl aspect-video rounded-2xl overflow-hidden border border-cyan-500/20 shadow-lg">
-                <iframe
-                  className="w-full h-full"
-                  src="https://www.youtube.com/embed/LbEa34kbbfg?autoplay=1&controls=0&mute=1&rel=0&modestbranding=1&start=0&end=34&loop=1&playlist=LbEa34kbbfg"
-                  title="AUSDAV Video"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
-              </div>
+              <YouTubeEmbed
+                videoId="LbEa34kbbfg"
+                title="AUSDAV - Who We Are"
+                className="w-full max-w-3xl"
+              />
             </motion.div>
           </div>
         </div>
@@ -750,17 +740,11 @@ const HomePage: React.FC = () => {
               transition={{ duration: 0.7 }}
               className="flex items-center justify-center"
             >
-              <div className="w-full max-w-3xl aspect-video rounded-2xl overflow-hidden border border-cyan-500/20 shadow-lg">
-                <iframe
-                  className="w-full h-full"
-                  src="https://www.youtube.com/embed/e7lYGW8D4pw?autoplay=1&controls=0&mute=1&loop=1&rel=0"
-                  title="AUSDAV Video"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
-              </div>
+              <YouTubeEmbed
+                videoId="e7lYGW8D4pw"
+                title="AUSDAV - Empowering Education"
+                className="w-full max-w-3xl"
+              />
             </motion.div>
 
             <motion.div
@@ -887,13 +871,12 @@ const HomePage: React.FC = () => {
                 >
                   <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow overflow-hidden">
                     {member.photo ? (
-                      <img
+                      <LazyImage
                         src={member.photo}
                         alt={`${member.name} photo`}
-                        className="w-full h-full rounded-2xl object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display = "none";
-                        }}
+                        className="rounded-2xl"
+                        ratio="square"
+                        preloadMargin="200px"
                       />
                     ) : (
                       <div
@@ -933,13 +916,12 @@ const HomePage: React.FC = () => {
                 >
                   <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary to-gold-light flex items-center justify-center neon-glow overflow-hidden">
                     {member.photo ? (
-                      <img
+                      <LazyImage
                         src={member.photo}
                         alt=""
-                        className="w-full h-full rounded-2xl object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display = "none";
-                        }}
+                        className="rounded-2xl"
+                        ratio="square"
+                        preloadMargin="200px"
                       />
                     ) : (
                       <div

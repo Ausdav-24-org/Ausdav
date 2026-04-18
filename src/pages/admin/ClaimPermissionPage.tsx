@@ -220,24 +220,7 @@ export default function ClaimPermissionPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <AdminHeader title="Claim Permission" breadcrumb="Admin / Claim Permission" />
-        
-        {/* Notification Bell */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="relative"
-          onClick={() => setShowNotifications(true)}
-        >
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </Button>
-      </div>
+      <AdminHeader title="Claim Permission" breadcrumb="Admin / Claim Permission" />
 
       {/* Notifications Dialog */}
       <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
