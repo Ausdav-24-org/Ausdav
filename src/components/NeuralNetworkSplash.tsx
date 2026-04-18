@@ -48,13 +48,21 @@ const NeuralNetworkSplash: React.FC<NeuralNetworkSplashProps> = ({
       return;
     }
 
-    const timer = setTimeout(() => {
-      setIsVisible(false);
-      sessionStorage.setItem("ausdav-splash-shown", "true");
-      setTimeout(onComplete, 500);
-    }, 2000);
+    // Use requestAnimationFrame to schedule state updates efficiently
+    let timeoutId: number;
+    const scheduleHide = () => {
+      timeoutId = window.setTimeout(() => {
+        setIsVisible(false);
+        sessionStorage.setItem("ausdav-splash-shown", "true");
+        // Use requestAnimationFrame instead of nested setTimeout
+        requestAnimationFrame(() => onComplete());
+      }, 2000);
+    };
 
-    return () => clearTimeout(timer);
+    // Start the timer
+    scheduleHide();
+
+    return () => clearTimeout(timeoutId);
   }, [onComplete, stayVisible]);
 
   // Initialize bubbles randomly
