@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface SplashScreenProps {
@@ -8,6 +8,8 @@ interface SplashScreenProps {
 const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
+  const animationFrameRef = useRef<number>();
 
   useEffect(() => {
     // Check for reduced motion preference
@@ -21,20 +23,35 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
       return;
     }
 
-    // Progress animation
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => Math.min(prev + 2, 100));
-    }, 40);
+    // Use requestAnimationFrame for smooth progress animation (60fps, no extra renders)
+    const startTime = performance.now();
+    const animateProgress = () => {
+      const elapsed = performance.now() - startTime;
+      const newProgress = Math.min((elapsed / 2000) * 100, 100);
+      
+      // Only update state if progress changed significantly (reduce re-renders)
+      if (Math.floor(newProgress) !== Math.floor(progressRef.current)) {
+        progressRef.current = newProgress;
+        setProgress(newProgress);
+      }
+      
+      if (elapsed < 2000) {
+        animationFrameRef.current = requestAnimationFrame(animateProgress);
+      } else {
+        // Hide splash after animation completes
+        setIsVisible(false);
+        sessionStorage.setItem("ausdav-splash-shown", "true");
+        // Schedule callback with minimal delay
+        requestAnimationFrame(() => onComplete());
+      }
+    };
 
-    const timer = setTimeout(() => {
-      setIsVisible(false);
-      sessionStorage.setItem("ausdav-splash-shown", "true");
-      setTimeout(onComplete, 500);
-    }, 2000);
+    animationFrameRef.current = requestAnimationFrame(animateProgress);
 
     return () => {
-      clearTimeout(timer);
-      clearInterval(progressInterval);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
   }, [onComplete]);
 
