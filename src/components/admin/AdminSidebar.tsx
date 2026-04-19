@@ -187,15 +187,6 @@ export function AdminSidebar() {
       roles: [],
     };
     filteredNavItems.splice(insertIndex + 1, 0, qrAndIdCardsItem);
-
-    // Add Emergency Lock item for Master Admins
-    const emergencyLockItem: NavItem = {
-      title: 'Emergency Lock',
-      href: '/admin/emergency-lock',
-      icon: Lock,
-      roles: [],
-    };
-    filteredNavItems.splice(insertIndex + 2, 0, emergencyLockItem);
   } else if (isSuperAdmin) {
     // Add QR Codes & ID Cards item for Super Admins (even if not Master Admin)
     const qrAndIdCardsItem: NavItem = {
