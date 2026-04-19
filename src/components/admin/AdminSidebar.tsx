@@ -178,6 +178,16 @@ export function AdminSidebar() {
       roles: [],
     };
     filteredNavItems.splice(insertIndex + 1, 0, qrAndIdCardsItem);
+  } else if (isSuperAdmin) {
+    // Add QR Codes & ID Cards item for Super Admins (even if not Master Admin)
+    const qrAndIdCardsItem: NavItem = {
+      title: 'QR Codes & ID Cards',
+      href: '/admin/bulk-qr-generator',
+      icon: QrCode,
+      roles: [],
+    };
+    const insertIndex = Math.max(0, filteredNavItems.length - 3);
+    filteredNavItems.splice(insertIndex, 0, qrAndIdCardsItem);
   }
 
   return (
