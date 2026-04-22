@@ -133,10 +133,14 @@ export function AdminSidebar() {
   const filteredNavItems = navItems.filter((item) => {
     if (!role) return false;
 
-    // Master admins should always see the full super admin sidebar set,
-    // plus their specialized pages injected below.
-    if (isMasterAdmin) {
-      return item.roles.includes('super_admin');
+    // Master admins only get access to Members, Designations, and Settings pages
+    if (isMasterAdmin && !isSuperAdmin) {
+      const allowedMasterAdminPages = [
+        '/admin/members',
+        '/admin/designations',
+        '/admin/settings',
+      ];
+      return allowedMasterAdminPages.includes(item.href);
     }
 
     // For super_admin, show all items they have role access to
