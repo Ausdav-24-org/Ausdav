@@ -528,16 +528,63 @@ class FacebookImportController {
   private adminClient: any;
   private graphService: FacebookGraphService;
   private supabaseUrl: string;
+  private anonKey: string;
   private allowedOrigins: string[];
 
   constructor(adminClient: any, supabaseUrl: string) {
     this.adminClient = adminClient;
     this.supabaseUrl = supabaseUrl;
+    this.anonKey = getEnv("SUPABASE_ANON_KEY", false) || getEnv("SUPABASE_PUBLISHABLE_KEY", false);
     this.graphService = new FacebookGraphService();
     this.allowedOrigins = (getEnv("FACEBOOK_IMPORT_ALLOWED_ORIGINS", false) || "")
       .split(",")
       .map((origin) => origin.trim())
       .filter(Boolean);
+  }
+
+  private createUserClient(token: string): any {
+    return createClient(this.supabaseUrl, this.anonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+
+  private async ensureImportPermission(userId: string, token: string) {
+    const userClient = this.createUserClient(token);
+
+    // First, prefer permission checks in user context (honors RLS and custom permission logic).
+    try {
+      const { data, error } = await userClient
+        .rpc("has_permission", { p_perm: "events" });
+      if (!error && data === true) {
+        return;
+      }
+    } catch {
+      // noop; fallback to explicit role checks below
+    }
+
+    // Fallback: role check using service role to avoid RLS false negatives.
+    // Safety: userId comes from a validated JWT via auth.getUser(token).
+    const { data: memberRow, error: memberErr } = await this.adminClient
+      .from("members")
+      .select("role, is_master_admin")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+
+    if (!memberErr && memberRow) {
+      if (
+        ["admin", "super_admin"].includes(memberRow.role) ||
+        memberRow.is_master_admin
+      ) {
+        return;
+      }
+    }
+
+    throw new HttpError(403, "Forbidden: events permission required to import to a gallery", "forbidden");
   }
 
   private assertOrigin(req: Request) {
@@ -602,20 +649,62 @@ class FacebookImportController {
     if (!allowed) {
       const { data: memberRow, error: memberErr } = await this.adminClient
         .from("members")
-        .select("role")
+        .select("role, is_master_admin")
         .eq("auth_user_id", userId)
         .maybeSingle();
 
-      if (!memberErr && memberRow?.role && ["admin", "super_admin"].includes(memberRow.role)) {
-        allowed = true;
+      if (!memberErr && memberRow) {
+        // Allow: super_admin, admin, master_admin
+        if (
+          ["admin", "super_admin"].includes(memberRow.role) || 
+          memberRow.is_master_admin
+        ) {
+          allowed = true;
+        }
       }
     }
 
     if (!allowed) {
-      throw new HttpError(403, "Forbidden: events admin permission required", "forbidden");
+      throw new HttpError(403, "Forbidden: events permission or admin role required", "forbidden");
     }
 
     return userId;
+  }
+
+  private async authenticateOptional(req: Request): Promise<{ userId: string | null; token: string | null }> {
+    const authHeader = req.headers.get("authorization")?.trim() || "";
+
+    if (!authHeader) {
+      // No auth header - allow public access for fetching (but not saving)
+      console.debug("import-facebook-media no Authorization header - allowing public access");
+      return { userId: null, token: null };
+    }
+
+    if (!/^Bearer\s+/i.test(authHeader)) {
+      // Invalid scheme but optional auth - allow public access
+      console.debug("import-facebook-media invalid Authorization scheme - allowing public access");
+      return { userId: null, token: null };
+    }
+
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) {
+      // Empty token - allow public access
+      console.debug("import-facebook-media empty bearer token - allowing public access");
+      return { userId: null, token: null };
+    }
+
+    const { data: userData, error: userErr } = await this.adminClient.auth.getUser(token) as any;
+    if (userErr || !userData?.user?.id) {
+      // Token was provided but invalid or expired - allow public access (not saving to gallery)
+      console.debug("import-facebook-media optional auth validation failed - allowing public access for preview", {
+        code: userErr?.code || null,
+        status: userErr?.status || null,
+        message: userErr?.message || "Cannot identify user",
+      });
+      return { userId: null, token: null };
+    }
+
+    return { userId: userData.user.id, token };
   }
 
   private validatePayload(input: unknown): ImportPayload {
@@ -917,7 +1006,8 @@ class FacebookImportController {
   async importFacebookUrl(req: Request) {
     this.assertOrigin(req);
 
-    const userId = await this.authenticateAdmin(req);
+    // Allow public access for fetching; only require auth if saving to a specific gallery
+    const { userId, token } = await this.authenticateOptional(req);
 
     let body: unknown;
     try {
@@ -927,7 +1017,21 @@ class FacebookImportController {
     }
 
     const payload = this.validatePayload(body);
-    await this.ensureEventAndGallery(payload);
+    
+    // If trying to import to a specific event/gallery, require authentication and permissions
+    if (payload.event_id || payload.gallery_id) {
+      if (!userId || !token) {
+        throw new HttpError(401, "Unauthorized: authentication required to import to a gallery", "unauthorized");
+      }
+      
+      // Verify user has permission to edit this event/gallery
+      await this.ensureEventAndGallery(payload);
+
+      await this.ensureImportPermission(userId, token);
+    } else {
+      // Just fetching preview, no permission check needed
+      console.debug("import-facebook-media preview request (no event/gallery specified)");
+    }
 
     const pageToken = await this.graphService.getPageAccessToken();
     const facebookUrls = payload.facebook_urls || [];

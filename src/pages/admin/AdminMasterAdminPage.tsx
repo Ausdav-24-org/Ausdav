@@ -25,6 +25,7 @@ import {
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeFunction } from '@/integrations/supabase/functions';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -401,6 +402,11 @@ export default function AdminMasterAdminPage() {
   const fetchPermissionChanges = async () => {
     setPermissionChangesLoading(true);
     try {
+      // Fetch members data for name lookup
+      const { data: edgeData, error: memberError } = await invokeFunction('fetch-members', {});
+      if (memberError) throw memberError;
+      const membersList = edgeData?.members || [];
+
       const { data, error } = await (supabase as any)
         .from('admin_granted_permissions')
         .select('*')
@@ -411,8 +417,8 @@ export default function AdminMasterAdminPage() {
       
       // Transform permission records into timeline changes
       const changes: PermissionChange[] = (data || []).map((perm: any) => {
-        const admin = members.find(m => m.auth_user_id === perm.admin_id);
-        const grantedBy = members.find(m => m.auth_user_id === perm.granted_by);
+        const admin = membersList.find(m => m.auth_user_id === perm.admin_id);
+        const grantedBy = membersList.find(m => m.auth_user_id === perm.granted_by);
         
         return {
           id: perm.id,
@@ -436,6 +442,11 @@ export default function AdminMasterAdminPage() {
   const fetchAdminActivityData = async () => {
     setAdminActivityLoading(true);
     try {
+      // Fetch members data for name lookup
+      const { data: edgeData, error: memberError } = await invokeFunction('fetch-members', {});
+      if (memberError) throw memberError;
+      const membersList = edgeData?.members || [];
+
       // Fetch danger zone logs and audit logs to build activity heatmap
       const { data: dangerLogs } = await (supabase as any)
         .from('admin_danger_zone_logs')
@@ -455,7 +466,7 @@ export default function AdminMasterAdminPage() {
         const hour = date.getHours();
         const dateStr = date.toISOString().split('T')[0];
         
-        const admin = members.find(m => m.auth_user_id === log.admin_id);
+        const admin = membersList.find(m => m.auth_user_id === log.admin_id);
         const key = `${log.admin_id}-${dateStr}-${hour}`;
         
         if (!activityMap[key]) {
@@ -480,7 +491,7 @@ export default function AdminMasterAdminPage() {
         const hour = date.getHours();
         const dateStr = date.toISOString().split('T')[0];
         
-        const admin = members.find(m => m.auth_user_id === log.uploaded_by);
+        const admin = membersList.find(m => m.auth_user_id === log.uploaded_by);
         const key = `${log.uploaded_by}-${dateStr}-${hour}`;
         
         if (!activityMap[key] && admin) {
@@ -680,12 +691,10 @@ export default function AdminMasterAdminPage() {
       if (masterError) throw masterError;
       setMasterAdmins((masterAdminsData as MasterAdmin[]) || []);
 
-      // Fetch all members
-      const { data: membersData, error: membersError } = await (supabase as any)
-        .from('members')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (membersError) throw membersError;
+      // Fetch all members using edge function
+      const { data: edgeFunctionData, error: membersFunctionError } = await invokeFunction('fetch-members', {});
+      if (membersFunctionError) throw membersFunctionError;
+      const membersData = edgeFunctionData?.members || [];
       setMembers((membersData as MemberDetails[]) || []);
 
       // Fetch admin permissions from admin_granted_permissions table with granted_by user details
@@ -711,7 +720,7 @@ export default function AdminMasterAdminPage() {
             // Get the user who granted this permission (search by auth_user_id)
             const grantedByUser = (membersData || []).find(m => m.auth_user_id === perm.granted_by);
             
-            const adminKey = admin?.email || perm.admin_id; // Use email as unique key
+            const adminKey = admin?.username || admin?.fullname || perm.admin_id; // Use username or fullname as unique key
             
             if (!permissionsByAdmin[adminKey]) {
               // Create first permission entry for this admin
@@ -721,7 +730,7 @@ export default function AdminMasterAdminPage() {
                 granted_by_id: 0,
                 permission_type: perm.permission_key, // Will be converted to array later
                 member_name: admin?.fullname || 'Unknown',
-                member_email: admin?.email || '',
+                member_email: admin?.username || '', // Use username since edge function doesn't return email
                 granted_by_name: grantedByUser?.fullname || 'Super Admin',
                 created_at: perm.granted_at,
               };
