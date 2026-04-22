@@ -19,6 +19,7 @@ import {
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeFunction } from '@/integrations/supabase/functions';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -107,19 +108,41 @@ export default function AdminQRAndIDCardsPage() {
   const fetchMembers = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await (supabase as any)
-        .from('members')
-        .select('mem_id, fullname, batch, role, nic, gender, profile_path, profile_bucket, university, school, designation')
-        .order('batch', { ascending: true });
-      
+      console.log('🔄 Starting to fetch members...');
+      // Use edge function so service-role can return all rows (including null auth_user_id)
+      const { data, error } = await invokeFunction('fetch-members', {});
       if (error) throw error;
-      setMembers((data as MemberDetails[]) || []);
+
+      const rows = ((data?.members ?? []) as unknown) as MemberDetails[];
+      
+      console.log('✅ Fetched members count:', rows?.length || 0);
+      
+      if (!rows || rows.length === 0) {
+        console.warn('⚠️ No members returned from service');
+        setMembers([]);
+        return;
+      }
+      
+      console.log('📋 First few members:', rows.slice(0, 3));
+      
+      const batchesFromData = [...new Set(rows.map((m: any) => m.batch).filter((b: any) => b !== null && b !== undefined))];
+      batchesFromData.sort((a: any, b: any) => a - b);
+      console.log('🏢 Unique batches found:', batchesFromData);
+      
+      const batchCounts: any = {};
+      rows.forEach((m: any) => {
+        const batch = m.batch || 'null';
+        batchCounts[batch] = (batchCounts[batch] || 0) + 1;
+      });
+      console.log('👥 Members by batch:', batchCounts);
+      
+      setMembers((rows as MemberDetails[]) || []);
     } catch (err: any) {
-      console.error('Error fetching members:', err);
+      console.error('❌ Error fetching members:', err.message || err);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to load members',
+        description: 'Failed to load members: ' + (err.message || 'Unknown error'),
       });
     } finally {
       setIsLoading(false);
@@ -139,10 +162,10 @@ export default function AdminQRAndIDCardsPage() {
 
   // ===== BULK QR GENERATOR FUNCTIONS =====
   const uniqueBatches = useMemo(() => {
-    const batches = members
-      .map(m => m.batch)
-      .filter((b) => b !== undefined) as number[];
-    return Array.from(new Set(batches)).sort((a, b) => a - b);
+    const allBatches = [...new Set(members.map((m) => m.batch).filter((b) => b !== null && b !== undefined))];
+    const sorted = (allBatches as number[]).sort((a, b) => a - b);
+    console.log('🎯 uniqueBatches computed:', sorted, 'from', members.length, 'members');
+    return sorted;
   }, [members]);
 
   const filteredMembers = useMemo(() => {
@@ -407,10 +430,10 @@ export default function AdminQRAndIDCardsPage() {
 
   // ===== BATCH-WISE ID CARD FUNCTIONS =====
   const uniqueBatchesIdCard = useMemo(() => {
-    const batches = members
-      .map(m => m.batch)
-      .filter((b) => b !== undefined) as number[];
-    return Array.from(new Set(batches)).sort((a, b) => a - b);
+    const allBatches = [...new Set(members.map((m) => m.batch).filter((b) => b !== null && b !== undefined))];
+    const sorted = (allBatches as number[]).sort((a, b) => a - b);
+    console.log('🎫 uniqueBatchesIdCard computed:', sorted, 'from', members.length, 'members');
+    return sorted;
   }, [members]);
 
   const toggleBatchIdCard = (batch: number) => {

@@ -84,14 +84,18 @@ serve(async (req: Request) => {
 
     // Prefer members table lookup, but allow a fallback to user metadata for admins
     let callerRole: string | null = null;
+    let isMasterAdmin = false;
     try {
       const { data: callerRow, error: callerErr } = await adminClient
         .from('members')
-        .select('mem_id, role')
+        .select('mem_id, role, is_master_admin')
         .eq('auth_user_id', userId)
         .maybeSingle();
       if (callerErr) throw callerErr;
-      if (callerRow && callerRow.role) callerRole = callerRow.role;
+      if (callerRow && callerRow.role) {
+        callerRole = callerRow.role;
+        isMasterAdmin = callerRow.is_master_admin ?? false;
+      }
     } catch (e) {
       console.error('members lookup failed', e);
     }
@@ -103,7 +107,8 @@ serve(async (req: Request) => {
       else if (Array.isArray(meta?.roles) && meta.roles.includes('admin')) callerRole = 'admin';
     }
 
-    if (!callerRole || !['admin','super_admin'].includes(callerRole)) {
+    // Allow super_admin, admin, or master_admin
+    if (!callerRole || (!['admin','super_admin'].includes(callerRole) && !isMasterAdmin)) {
       return new Response(JSON.stringify({ error: 'Forbidden: not an admin' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
