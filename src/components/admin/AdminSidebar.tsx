@@ -132,11 +132,23 @@ export function AdminSidebar() {
   const filteredNavItems = navItems.filter((item) => {
     if (!role) return false;
 
+    // Master admins only get access to Members, Designations, and Settings pages
+    if (isMasterAdmin && !isSuperAdmin) {
+      const allowedMasterAdminPages = [
+        '/admin/members',
+        '/admin/designations',
+        '/admin/settings',
+      ];
+      return allowedMasterAdminPages.includes(item.href);
+    }
+
+    // For super_admin, show all items they have role access to
+    if (isSuperAdmin) {
+      return item.roles.includes(role);
+    }
+
     // Check if role is allowed
     if (!item.roles.includes(role)) return false;
-
-    // For super_admin, always show all items they have role access to
-    if (isSuperAdmin) return true;
 
     // For admin, check if they have the required permission
     if (role === 'admin' && item.permissionKey) {
@@ -210,7 +222,9 @@ export function AdminSidebar() {
                 <img src={logoImg} alt="AUSDAV" className="w-full h-full object-contain neon-glow" />
               </div>
               <span className="font-semibold text-foreground">
-                {role === 'super_admin'
+                {isMasterAdmin && role === 'super_admin'
+                  ? 'AUSDAV Master Admin'
+                  : role === 'super_admin'
                   ? 'AUSDAV Super Admin'
                   : role === 'admin'
                     ? 'AUSDAV Admin'
