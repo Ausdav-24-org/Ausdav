@@ -1,1 +1,4 @@
 project_id = "dsslgiqqtwgnhikdgxsz"
+
+[functions.import-facebook-media]
+verify_jwt = false
