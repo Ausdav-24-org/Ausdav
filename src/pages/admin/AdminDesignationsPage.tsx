@@ -35,21 +35,21 @@ const OPTIONS: { value: string; label: string }[] = [
 ];
 
 export default function AdminDesignationsPage() {
-  const { isSuperAdmin } = useAdminAuth();
+  const { isSuperAdmin, isMasterAdmin } = useAdminAuth();
   const [admins, setAdmins] = useState<AdminMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingIds, setSavingIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (isSuperAdmin) fetchAdmins();
+    if (isSuperAdmin || isMasterAdmin) fetchAdmins();
   }, []);
 
-  if (!isSuperAdmin) {
+  if (!isSuperAdmin && !isMasterAdmin) {
     return (
       <div className="p-8">
         <h3 className="text-lg font-medium">Access denied</h3>
-        <p className="text-sm text-muted-foreground mt-2">Only super admins can view or assign designations.</p>
+        <p className="text-sm text-muted-foreground mt-2">Only super admins or master admins can view or assign designations.</p>
       </div>
     );
   }
@@ -74,8 +74,8 @@ export default function AdminDesignationsPage() {
   };
 
   const updateDesignation = async (mem_id: number, designation: string | null) => {
-    if (!isSuperAdmin) {
-      toast.error('Only super admins can update designations');
+    if (!isSuperAdmin && !isMasterAdmin) {
+      toast.error('Only super admins or master admins can update designations');
       return;
     }
     setSavingIds((s) => [...s, mem_id]);

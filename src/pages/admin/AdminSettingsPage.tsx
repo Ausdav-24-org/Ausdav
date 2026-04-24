@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
 export default function AdminSettingsPage() {
-  const { isSuperAdmin, user } = useAdminAuth();
+  const { isSuperAdmin, isMasterAdmin, user } = useAdminAuth();
   type AppSettings = {
     allow_signup: boolean;
     updated_at: string | null;
@@ -35,7 +35,7 @@ export default function AdminSettingsPage() {
   const [committeeUpdatedBy, setCommitteeUpdatedBy] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!isSuperAdmin && !isMasterAdmin) return;
 
     const loadSettings = async () => {
       setSettingsError(null);
@@ -224,7 +224,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  if (!isSuperAdmin) {
+  if (!isSuperAdmin && !isMasterAdmin) {
     return (
       <div className="min-h-screen">
         <AdminHeader title="Settings" breadcrumb="System" />
@@ -234,7 +234,7 @@ export default function AdminSettingsPage() {
               <Settings className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h2 className="text-xl font-semibold mb-2">Access Restricted</h2>
               <p className="text-muted-foreground">
-                System settings are only accessible to super administrators.
+                System settings are only accessible to super administrators or master admins.
               </p>
             </CardContent>
           </Card>

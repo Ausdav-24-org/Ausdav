@@ -78,7 +78,7 @@ type RawMember = Pick<
 >;
 
 export default function AdminMembersPage() {
-  const { isSuperAdmin, isAdmin, role } = useAdminAuth();
+  const { isSuperAdmin, isMasterAdmin, isAdmin, role } = useAdminAuth();
   const { logDangerAction } = useDangerZoneLog();
   const [members, setMembers] = useState<Member[]>([]);
   const [committeeChangingPhase, setCommitteeChangingPhase] = useState<boolean | null>(null);
@@ -186,9 +186,9 @@ export default function AdminMembersPage() {
     if (changingRoleLoading) return;
     setChangingRoleLoading(true);
     // Only super admins may change roles
-    if (!isSuperAdmin) {
-      console.error('changeRole blocked: isSuperAdmin=', isSuperAdmin, 'role=', role);
-      toast.error('Only super admins can change roles');
+    if (!isSuperAdmin && !isMasterAdmin) {
+      console.error('changeRole blocked: isSuperAdmin=', isSuperAdmin, 'isMasterAdmin=', isMasterAdmin, 'role=', role);
+      toast.error('Only super admins or master admins can change roles');
       setChangingRoleLoading(false);
       return;
     }
@@ -276,7 +276,7 @@ export default function AdminMembersPage() {
 
     // Check permissions: admins may only delete members (role === 'member')
     const targets = members.filter((m) => targetIds.includes(m.mem_id));
-    if (!isSuperAdmin) {
+    if (!isSuperAdmin && !isMasterAdmin) {
       const invalid = targets.find((t) => t.role !== 'member');
       if (invalid) {
         toast.error('Insufficient permissions: admins can only remove members');
