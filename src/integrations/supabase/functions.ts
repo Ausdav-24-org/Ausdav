@@ -2,6 +2,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 type InvokeResult = { data: any | null; error: any | null };
 
+function isLikelyJwt(value: string | undefined): boolean {
+  if (!value) return false;
+  return value.split('.').length === 3;
+}
+
 /**
  * Invoke a Supabase Edge Function with a fetch-based fallback for environments
  * where `supabase.functions.invoke` may fail (network/host resolution issues).
@@ -14,10 +19,12 @@ export async function invokeFunction(name: string, body: any): Promise<InvokeRes
     // of supabase-js do not reliably forward custom headers via
     // `supabase.functions.invoke`.
     const base = import.meta.env.VITE_SUPABASE_URL;
-    const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const anonJwtKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const apiKey = publishableKey || anonJwtKey;
     if (!base) throw new Error('Missing VITE_SUPABASE_URL');
 
-    let authHeader: Record<string, string> = {};
+    let userAccessToken = '';
     try {
       const s = await supabase.auth.getSession();
       let token = s?.data?.session?.access_token;
@@ -36,10 +43,18 @@ export async function invokeFunction(name: string, body: any): Promise<InvokeRes
           // ignore parsing errors
         }
       }
-      if (token) authHeader = { Authorization: `Bearer ${token}` };
+      if (token) userAccessToken = token;
     } catch (_e) {
       // ignore
     }
+
+    // Gateway JWT verification accepts JWTs, not publishable key format.
+    // If no user session exists, fallback to anon JWT key when available.
+    const bearerFallbackToken = isLikelyJwt(anonJwtKey)
+      ? anonJwtKey
+      : (isLikelyJwt(apiKey) ? apiKey : '');
+    const bearerToken = userAccessToken || bearerFallbackToken;
+    const authHeader = bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {};
 
     // Debugging: log a masked token sample and expiry (if present) so we can
     // confirm what the client will send to Edge Functions without printing
@@ -64,6 +79,11 @@ export async function invokeFunction(name: string, body: any): Promise<InvokeRes
         console.debug('invokeFunction will send Authorization sample=', `${sample.slice(0,8)}...`, expInfo);
       } else {
         console.debug('invokeFunction: no Authorization header will be sent');
+        if (apiKey && !bearerFallbackToken) {
+          console.debug(
+            'invokeFunction: no user access token and no JWT anon fallback. If function JWT verification is enabled, public calls will return 401.',
+          );
+        }
       }
     } catch (_e) {
       // ignore logging errors
@@ -74,7 +94,7 @@ export async function invokeFunction(name: string, body: any): Promise<InvokeRes
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(anon ? { apikey: anon } : {}),
+        ...(apiKey ? { apikey: apiKey } : {}),
         ...authHeader,
       },
       body: JSON.stringify(body),
@@ -95,26 +115,34 @@ export async function invokeFunction(name: string, body: any): Promise<InvokeRes
     // Fallback: call the function endpoint directly and surface detailed errors
     try {
       const base = import.meta.env.VITE_SUPABASE_URL;
-      const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const anonJwtKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const apiKey = publishableKey || anonJwtKey;
       if (!base) throw err;
       const url = `${base.replace(/\/$/, '')}/functions/v1/${name}`;
 
       // Include the current session access token so Edge Functions can
       // authenticate the caller (falls back to anon key if not available).
-      let authHeader: Record<string, string> = {};
+      let userAccessToken = '';
       try {
         const s = await supabase.auth.getSession();
         const token = s?.data?.session?.access_token;
-        if (token) authHeader = { Authorization: `Bearer ${token}` };
+        if (token) userAccessToken = token;
       } catch (_e) {
         // ignore
       }
+
+      const bearerFallbackToken = isLikelyJwt(anonJwtKey)
+        ? anonJwtKey
+        : (isLikelyJwt(apiKey) ? apiKey : '');
+      const bearerToken = userAccessToken || bearerFallbackToken;
+      const authHeader = bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {};
 
       const r = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(anon ? { apikey: anon } : {}),
+          ...(apiKey ? { apikey: apiKey } : {}),
           ...authHeader,
         },
         body: JSON.stringify(body),
