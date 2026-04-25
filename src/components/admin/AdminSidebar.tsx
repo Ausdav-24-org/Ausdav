@@ -133,12 +133,13 @@ export function AdminSidebar() {
   const filteredNavItems = navItems.filter((item) => {
     if (!role) return false;
 
-    // Master admins only get access to Members, Designations, and Settings pages
+    // Master admins only get access to Members, Designations, Settings, and Site Mode pages
     if (isMasterAdmin && !isSuperAdmin) {
       const allowedMasterAdminPages = [
         '/admin/members',
         '/admin/designations',
         '/admin/settings',
+        '/admin/site-mode',
       ];
       return allowedMasterAdminPages.includes(item.href);
     }
@@ -191,6 +192,15 @@ export function AdminSidebar() {
       roles: [],
     };
     filteredNavItems.splice(insertIndex + 1, 0, qrAndIdCardsItem);
+
+    // Add Emergency Lock item for Master Admins
+    const emergencyLockItem: NavItem = {
+      title: 'Emergency Lock',
+      href: '/admin/emergency-lock',
+      icon: Lock,
+      roles: [],
+    };
+    filteredNavItems.splice(insertIndex + 2, 0, emergencyLockItem);
   } else if (isSuperAdmin) {
     // Add QR Codes & ID Cards item for Super Admins (even if not Master Admin)
     const qrAndIdCardsItem: NavItem = {
