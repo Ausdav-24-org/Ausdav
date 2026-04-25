@@ -2,6 +2,7 @@ import React from 'react';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import MobileNavWidget from '@/components/MobileNavWidget';
+import { MaintenanceBanner } from '@/components/MaintenanceBanner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,6 +11,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col">
+      <MaintenanceBanner />
       <Navbar />
       {/* non-static container required by framer-motion for correct viewport/scroll offsets */}
       <main className="relative flex-1 pb-24 lg:pb-0">{children}</main>
