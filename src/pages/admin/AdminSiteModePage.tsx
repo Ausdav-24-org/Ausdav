@@ -53,34 +53,44 @@ export default function AdminSiteModePage() {
     setSettings((s) => (s ? { ...s, [key]: value } : { id: 1, [key]: value } as any));
   };
 
-  const handleSave = async () => {
-    if (!settings) return;
+  const handleSettingChange = async (key: keyof AppSettings, value: boolean) => {
+    // Update local state immediately
+    updateSetting(key, value);
+    
+    // Auto-save to database
     setSaving(true);
     try {
+      const newSettings = { ...settings, [key]: value };
       const payload = {
         id: 1,
-        site_under_construction: !!settings.site_under_construction,
-        restrict_public_access: !!settings.restrict_public_access,
-        allow_signup_when_construction: !!settings.allow_signup_when_construction,
-        show_maintenance_countdown: !!settings.show_maintenance_countdown,
-        allow_admin_login: !!settings.allow_admin_login,
-        show_under_construction_banner: !!settings.show_under_construction_banner,
+        site_under_construction: !!newSettings.site_under_construction,
+        restrict_public_access: !!newSettings.restrict_public_access,
+        allow_signup_when_construction: !!newSettings.allow_signup_when_construction,
+        show_maintenance_countdown: !!newSettings.show_maintenance_countdown,
+        allow_admin_login: !!newSettings.allow_admin_login,
+        show_under_construction_banner: !!newSettings.show_under_construction_banner,
       };
 
-      const res: any = await (supabase as any)
+      // Use the correct Supabase upsert syntax
+      const { data, error } = await supabase
         .from('app_settings')
-        .upsert(payload, { returning: 'representation', onConflict: 'id' })
-        .select()
-        .maybeSingle();
+        .upsert(payload)
+        .select();
 
-      const data = res?.data;
-      const err = res?.error;
-      if (err) throw err;
-      toast.success('Settings saved');
-      if (data) setSettings((s) => (s ? { ...s, updated_at: data.updated_at ?? new Date().toISOString() } : s));
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      toast.success(`${key.replace(/_/g, ' ')} updated`);
+      if (data?.[0]) {
+        setSettings(data[0]);
+      }
     } catch (err) {
-      console.error('Failed to save settings', err);
-      toast.error('Failed to save settings');
+      console.error('Failed to save setting', err);
+      toast.error('Failed to save setting');
+      // Revert the change if save failed
+      setSettings((s) => (s ? { ...s, [key]: !value } : s));
     } finally {
       setSaving(false);
     }
@@ -95,81 +105,99 @@ export default function AdminSiteModePage() {
             <CardTitle>Under Construction Controls</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Enable Under Construction Mode</Label>
-                  <div className="text-sm text-muted-foreground">When enabled, public pages will show the under construction page.</div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-4 pb-4 border-b border-border/50">
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Enable Under Construction Mode</Label>
+                    <div className="text-sm text-muted-foreground mt-1">When enabled, public pages will show the under construction page.</div>
+                  </div>
+                  <Switch
+                    checked={Boolean(settings?.site_under_construction)}
+                    onCheckedChange={(v) => handleSettingChange('site_under_construction', Boolean(v))}
+                    disabled={saving}
+                    className="mt-1"
+                  />
                 </div>
-                <Switch
-                  checked={Boolean(settings?.site_under_construction)}
-                  onCheckedChange={(v) => updateSetting('site_under_construction', Boolean(v))}
-                />
+
+                <div className="flex items-start justify-between gap-4 pb-4 border-b border-border/50">
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Allow Signups</Label>
+                    <div className="text-sm text-muted-foreground mt-1">Allow new users to sign up while in construction mode.</div>
+                  </div>
+                  <Switch
+                    checked={Boolean(settings?.allow_signup_when_construction)}
+                    onCheckedChange={(v) => handleSettingChange('allow_signup_when_construction', Boolean(v))}
+                    disabled={saving}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Allow Admin Login</Label>
+                    <div className="text-sm text-muted-foreground mt-1">Allow admin users to sign in while site is under construction.</div>
+                  </div>
+                  <Switch
+                    checked={Boolean(settings?.allow_admin_login)}
+                    onCheckedChange={(v) => handleSettingChange('allow_admin_login', Boolean(v))}
+                    disabled={saving}
+                    className="mt-1"
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Restrict Public Access</Label>
-                  <div className="text-sm text-muted-foreground">Block non-admin users from accessing most pages.</div>
+              {/* Right Column */}
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-4 pb-4 border-b border-border/50">
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Restrict Public Access</Label>
+                    <div className="text-sm text-muted-foreground mt-1">Block non-admin users from accessing most pages.</div>
+                  </div>
+                  <Switch
+                    checked={Boolean(settings?.restrict_public_access)}
+                    onCheckedChange={(v) => handleSettingChange('restrict_public_access', Boolean(v))}
+                    disabled={saving}
+                    className="mt-1"
+                  />
                 </div>
-                <Switch
-                  checked={Boolean(settings?.restrict_public_access)}
-                  onCheckedChange={(v) => updateSetting('restrict_public_access', Boolean(v))}
-                />
-              </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Allow Signups</Label>
-                  <div className="text-sm text-muted-foreground">Allow new users to sign up while in construction mode.</div>
+                <div className="flex items-start justify-between gap-4 pb-4 border-b border-border/50">
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Show Maintenance Countdown</Label>
+                    <div className="text-sm text-muted-foreground mt-1">Display a countdown timer on the under construction page.</div>
+                  </div>
+                  <Switch
+                    checked={Boolean(settings?.show_maintenance_countdown)}
+                    onCheckedChange={(v) => handleSettingChange('show_maintenance_countdown', Boolean(v))}
+                    disabled={saving}
+                    className="mt-1"
+                  />
                 </div>
-                <Switch
-                  checked={Boolean(settings?.allow_signup_when_construction)}
-                  onCheckedChange={(v) => updateSetting('allow_signup_when_construction', Boolean(v))}
-                />
-              </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Show Maintenance Countdown</Label>
-                  <div className="text-sm text-muted-foreground">Display a countdown timer on the under construction page.</div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Show Banner</Label>
+                    <div className="text-sm text-muted-foreground mt-1">Show a small banner on top of pages indicating maintenance mode.</div>
+                  </div>
+                  <Switch
+                    checked={Boolean(settings?.show_under_construction_banner)}
+                    onCheckedChange={(v) => handleSettingChange('show_under_construction_banner', Boolean(v))}
+                    disabled={saving}
+                    className="mt-1"
+                  />
                 </div>
-                <Switch
-                  checked={Boolean(settings?.show_maintenance_countdown)}
-                  onCheckedChange={(v) => updateSetting('show_maintenance_countdown', Boolean(v))}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Allow Admin Login</Label>
-                  <div className="text-sm text-muted-foreground">Allow admin users to sign in while site is under construction.</div>
-                </div>
-                <Switch
-                  checked={Boolean(settings?.allow_admin_login)}
-                  onCheckedChange={(v) => updateSetting('allow_admin_login', Boolean(v))}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Show Banner</Label>
-                  <div className="text-sm text-muted-foreground">Show a small banner on top of pages indicating maintenance mode.</div>
-                </div>
-                <Switch
-                  checked={Boolean(settings?.show_under_construction_banner)}
-                  onCheckedChange={(v) => updateSetting('show_under_construction_banner', Boolean(v))}
-                />
               </div>
             </div>
 
-            <div className="mt-6 flex items-center gap-3">
-              <Button onClick={handleSave} disabled={saving || loading}>
-                {saving ? 'Saving...' : 'Save Settings'}
-              </Button>
+            <div className="mt-8 flex flex-wrap items-center gap-3 pt-6 border-t border-border/50">
               <Button variant="outline" onClick={() => window.location.reload()}>
                 Refresh
               </Button>
+              {saving && (
+                <span className="text-sm text-muted-foreground animate-pulse">Saving...</span>
+              )}
             </div>
           </CardContent>
         </Card>
