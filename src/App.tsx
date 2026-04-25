@@ -9,6 +9,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
 import NeuralNetworkSplash from "@/components/NeuralNetworkSplash";
 import Layout from "@/components/layout/Layout";
+import { SiteModeGuard } from "@/components/SiteModeGuard";
+import { EmergencyLockGuard } from "@/components/EmergencyLockGuard";
 
 // Lazy load all pages for code splitting
 const HomePage = lazy(() => import("@/pages/HomePage"));
@@ -57,6 +59,8 @@ const AdminResultsPage = lazy(() => import("@/pages/admin/AdminResultsPage"));
 const AdminDesignationsPage = lazy(() => import("@/pages/admin/AdminDesignationsPage"));
 const AdminDetailsPage = lazy(() => import("@/pages/admin/AdminDetailsPage"));
 const AdminMasterAdminPage = lazy(() => import("@/pages/admin/AdminMasterAdminPage"));
+const AdminEmergencyLockPage = lazy(() => import("@/pages/admin/AdminEmergencyLockPage"));
+const AccessDeniedPage = lazy(() => import("@/pages/AccessDeniedPage"));
 const AdminBulkQRGeneratorPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
 const AdminIDCardPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
 const VerifyMemberPage = lazy(() => import("@/pages/VerifyMemberPage"));
@@ -130,6 +134,8 @@ const App = () => {
                   future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
                 >
                 <ScrollToTop />
+                <EmergencyLockGuard>
+                <SiteModeGuard>
                 <Routes>
                   {/* Public routes with Layout */}
                   <Route
@@ -171,6 +177,14 @@ const App = () => {
                           <UnderConstructionPage />
                         </Suspense>
                       </Layout>
+                    }
+                  />
+                  <Route
+                    path="/access-denied"
+                    element={
+                      <Suspense fallback={<PageLoader />}>
+                        <AccessDeniedPage />
+                      </Suspense>
                     }
                   />
                   <Route
@@ -354,6 +368,7 @@ const App = () => {
                     <Route path="claim-permission" element={<Suspense fallback={<PageLoader />}><ClaimPermissionPage /></Suspense>} />
                     <Route path="permissions" element={<Suspense fallback={<PageLoader />}><AdminPermissionsPage /></Suspense>} />
                     <Route path="master-admin" element={<Suspense fallback={<PageLoader />}><AdminMasterAdminPage /></Suspense>} />
+                    <Route path="emergency-lock" element={<Suspense fallback={<PageLoader />}><AdminEmergencyLockPage /></Suspense>} />
                     <Route path="bulk-qr-generator" element={<Suspense fallback={<PageLoader />}><AdminBulkQRGeneratorPage /></Suspense>} />
                     <Route path="id-card-generator" element={<Suspense fallback={<PageLoader />}><AdminIDCardPage /></Suspense>} />
                     <Route path="contact" element={<Suspense fallback={<PageLoader />}><ContactSettingsPage /></Suspense>} />
@@ -375,6 +390,8 @@ const App = () => {
                     }
                   />
                 </Routes>
+                </SiteModeGuard>
+                </EmergencyLockGuard>
               </BrowserRouter>
             )}
           </TooltipProvider>
