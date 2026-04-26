@@ -56,7 +56,7 @@ interface QRCode {
 }
 
 export default function AdminQRAndIDCardsPage() {
-  const { isMasterAdmin } = useAdminAuth();
+  const { isSuperAdmin, isMasterAdmin } = useAdminAuth();
   const { toast } = useToast();
 
   // Tab state
@@ -522,11 +522,11 @@ export default function AdminQRAndIDCardsPage() {
     }
   };
 
-  if (!isMasterAdmin) {
+  if (!isSuperAdmin && !isMasterAdmin) {
     return (
       <div className="p-8">
         <h3 className="text-lg font-medium">Access Denied</h3>
-        <p className="text-sm text-muted-foreground mt-2">Only admins can access QR codes and ID cards.</p>
+        <p className="text-sm text-muted-foreground mt-2">Only Super Admins and Master Admins can access QR codes and ID cards.</p>
       </div>
     );
   }

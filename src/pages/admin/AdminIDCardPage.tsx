@@ -33,7 +33,7 @@ interface MemberData {
 }
 
 export default function AdminIDCardPage() {
-  const { isMasterAdmin } = useAdminAuth();
+  const { isSuperAdmin, isMasterAdmin } = useAdminAuth();
   const { toast } = useToast();
   
   const [members, setMembers] = useState<MemberData[]>([]);
@@ -162,11 +162,11 @@ export default function AdminIDCardPage() {
     window.print();
   };
 
-  if (!isMasterAdmin) {
+  if (!isSuperAdmin && !isMasterAdmin) {
     return (
       <div className="p-8">
         <h3 className="text-lg font-medium">Access Denied</h3>
-        <p className="text-sm text-muted-foreground mt-2">Only Master Admin can access ID card generation.</p>
+        <p className="text-sm text-muted-foreground mt-2">Only Super Admins and Master Admins can access ID card generation.</p>
       </div>
     );
   }
