@@ -8,6 +8,7 @@ export function AdminLayout() {
   const { user, profile, role, loading, needsProfileSetup } = useAdminAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const isSetupRoute = location.pathname.includes('/profile-setup');
 
   useEffect(() => {
     if (!loading) {
@@ -15,12 +16,12 @@ export function AdminLayout() {
         navigate('/login');
         return;
       }
-      if (needsProfileSetup && !location.pathname.includes('/profile-setup')) {
+      if (needsProfileSetup && !isSetupRoute) {
         navigate('/admin/profile-setup');
         return;
       }
     }
-  }, [user, loading, navigate, needsProfileSetup, location.pathname]);
+  }, [user, loading, navigate, needsProfileSetup, isSetupRoute]);
 
   if (loading) {
     return (
@@ -38,18 +39,17 @@ export function AdminLayout() {
     return null;
   }
 
-  // Allow these routes even without full profile setup
-  const isSetupRoute = location.pathname.includes('/profile-setup');
-  
-  // Only block if user needs profile setup AND it's not a setup route
-  if (!profile && needsProfileSetup && !isSetupRoute) {
+  // Hard block any non-setup admin route while profile completion is required.
+  if (needsProfileSetup && !isSetupRoute) {
     return null;
   }
 
+  const lockToProfileSetup = needsProfileSetup && isSetupRoute;
+
   return (
     <div className="min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="pl-16 lg:pl-60 min-h-screen">
+      {!lockToProfileSetup && <AdminSidebar />}
+      <main className={lockToProfileSetup ? 'min-h-screen' : 'pl-16 lg:pl-60 min-h-screen'}>
         <Outlet />
       </main>
     </div>

@@ -22,6 +22,18 @@ const signupSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
+const getProfileSetupRedirect = () => {
+  const { protocol, hostname, port } = window.location;
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  if (isLocal) {
+    const localPort = port || '8080';
+    return `${protocol}//localhost:${localPort}/admin/profile-setup`;
+  }
+
+  return 'https://www.ausdav.org/admin/profile-setup';
+};
+
 const SignupPortalPage = () => {
   const [state, setState] = useState<SignupState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +99,7 @@ const SignupPortalPage = () => {
       }
 
       setSuccess('Welcome to AUSDAV! Redirecting you to complete your profile...');
-      navigate('/admin/profile-setup');
+      window.location.assign(getProfileSetupRedirect());
     } catch (err: any) {
       setError(err.message || 'Unable to create your account. Please try again.');
     } finally {
@@ -97,16 +109,28 @@ const SignupPortalPage = () => {
 
   const handleGoogleSignup = async () => {
     if (!signupOpen) return;
-    const redirect =
-      import.meta.env.VITE_GOOGLE_REDIRECT ||
-      window.location.origin + '/admin/profile-setup';
-    const { error } = await supabase.auth.signInWithOAuth({
+    const redirect = getProfileSetupRedirect();
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: redirect },
+      options: { redirectTo: redirect, skipBrowserRedirect: true },
     });
     if (error) {
       toast.error(error.message);
+      return;
     }
+
+    if (!data?.url) {
+      toast.error('Unable to start Google sign up. Please try again.');
+      return;
+    }
+
+    const encodedRedirect = encodeURIComponent(redirect);
+    if (!data.url.includes(encodedRedirect)) {
+      toast.error('OAuth redirect URL is not allowed in Supabase settings for localhost.');
+      return;
+    }
+
+    window.location.assign(data.url);
   };
 
   return (

@@ -6,15 +6,32 @@ export const EmergencyLockGuard: React.FC<{ children: React.ReactNode }> = ({ ch
   const navigate = useNavigate();
   const location = useLocation();
   const [lastRedirect, setLastRedirect] = React.useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active) return;
+      setCurrentUserId(session?.user?.id ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user?.id ?? null);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
     const checkEmergencyLock = async () => {
       try {
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
         // Skip checks if already on access-denied or emergency-lock pages
         if (
           location.pathname.includes('access-denied') || 
@@ -23,6 +40,7 @@ export const EmergencyLockGuard: React.FC<{ children: React.ReactNode }> = ({ ch
         ) {
           return;
         }
+        if (!currentUserId) return;
 
         // Check if emergency lock is enabled
         // @ts-expect-error - Column exists in database after migration
@@ -43,7 +61,7 @@ export const EmergencyLockGuard: React.FC<{ children: React.ReactNode }> = ({ ch
             const { data: memberData } = await supabase
               .from('members')
               .select('is_master_admin')
-              .eq('user_id', user.id)
+              .eq('auth_user_id', currentUserId)
               .maybeSingle();
 
             // If not master admin, redirect to access denied (only once per redirect)
@@ -77,7 +95,7 @@ export const EmergencyLockGuard: React.FC<{ children: React.ReactNode }> = ({ ch
       active = false;
       clearInterval(interval);
     };
-  }, [location.pathname, navigate, lastRedirect]);
+  }, [location.pathname, navigate, lastRedirect, currentUserId]);
 
   return <>{children}</>;
 };
