@@ -685,6 +685,7 @@ const HomePage: React.FC = () => {
                 videoId="LbEa34kbbfg"
                 title="AUSDAV - Who We Are"
                 className="w-full max-w-3xl"
+                autoPlay
               />
             </motion.div>
           </div>
@@ -744,6 +745,7 @@ const HomePage: React.FC = () => {
                 videoId="e7lYGW8D4pw"
                 title="AUSDAV - Empowering Education"
                 className="w-full max-w-3xl"
+                autoPlay
               />
             </motion.div>
 
