@@ -13,7 +13,7 @@ interface MemberProfile {
   gender: boolean;
   role: AppRole;
   batch: number;
-  university: string;
+  university: string | null;
   uni_degree?: string | null;
   school: string;
   phone: string;
@@ -51,7 +51,47 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserData = async (userId: string) => {
+  const getCurrentCommitteeBatch = async (): Promise<number | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('members')
+        .select('batch')
+        .not('designation', 'is', null)
+        .neq('designation', 'none')
+        .neq('designation', '')
+        .order('batch', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data?.batch ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const shouldForceProfileCompletion = async (memberData: MemberProfile): Promise<boolean> => {
+    if (memberData.role !== 'member') {
+      return false;
+    }
+
+    const hasUniversity = typeof memberData.university === 'string' && memberData.university.trim().length > 0;
+    const hasDegree = typeof memberData.uni_degree === 'string' && memberData.uni_degree.trim().length > 0;
+
+    if (hasUniversity && hasDegree) {
+      return false;
+    }
+
+    const committeeBatch = await getCurrentCommitteeBatch();
+    const memberBatch = Number(memberData.batch);
+    const skipAllowedForBatch =
+      committeeBatch !== null && !Number.isNaN(memberBatch) && memberBatch === committeeBatch + 2;
+
+    // Missing university/degree is only allowed for exactly committeeBatch + 2.
+    return !skipAllowedForBatch;
+  };
+
+  const fetchUserData = async (userId: string, sessionUser?: User | null) => {
     try {
       const { data: memberData, error } = await supabase
         .from('members')
@@ -62,14 +102,15 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
 
       if (memberData) {
-        setProfile(memberData as MemberProfile);
-        setRole(memberData.role as AppRole);
-        setNeedsProfileSetup(false);
+        const normalized = memberData as MemberProfile;
+        setProfile(normalized);
+        setRole(normalized.role as AppRole);
+        const requiresCompletion = await shouldForceProfileCompletion(normalized);
+        setNeedsProfileSetup(requiresCompletion);
       } else {
         // No members row found, check user metadata for role fallback
-        const { data: userData, error: userErr } = await supabase.auth.getUser(userId);
-        if (!userErr && userData?.user) {
-          const meta = userData.user.user_metadata;
+        const meta = (sessionUser ?? user)?.user_metadata as Record<string, any> | undefined;
+        if (meta) {
           let fallbackRole: AppRole | null = null;
           if (meta?.is_super_admin === true) fallbackRole = 'super_admin';
           else if (Array.isArray(meta?.roles) && meta.roles.includes('super_admin')) fallbackRole = 'super_admin';
@@ -107,7 +148,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           setTimeout(() => {
-            fetchUserData(session.user!.id);
+            fetchUserData(session.user!.id, session.user);
           }, 0);
         } else {
           setProfile(null);
@@ -123,7 +164,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserData(session.user.id);
+        fetchUserData(session.user.id, session.user);
       }
       setLoading(false);
     });

@@ -50,6 +50,7 @@ export default function ProfileSetupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batchDisabled, setBatchDisabled] = useState(false);
+  const [committeeBatch, setCommitteeBatch] = useState<number | null>(null);
   const [showUniversitySuggestions, setShowUniversitySuggestions] = useState(false);
   const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false);
 
@@ -90,6 +91,9 @@ export default function ProfileSetupPage() {
   const filteredSchools = schoolOptions.filter((name) =>
     name.toLowerCase().includes(form.school.trim().toLowerCase())
   );
+  const batchNum = Number(form.batch);
+  const universityAndCourseOptional =
+    committeeBatch !== null && !Number.isNaN(batchNum) && batchNum === committeeBatch + 2;
 
   useEffect(() => {
     if (!user) {
@@ -118,18 +122,46 @@ export default function ProfileSetupPage() {
     loadBatchSetting();
   }, []);
 
+  useEffect(() => {
+    // Use the latest committee-designated batch as the current committee batch
+    const loadCommitteeBatch = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('members')
+          .select('batch')
+          .not('designation', 'is', null)
+          .neq('designation', 'none')
+          .neq('designation', '')
+          .order('batch', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        setCommitteeBatch(data?.batch ?? null);
+      } catch (err) {
+        setCommitteeBatch(null);
+      }
+    };
+
+    loadCommitteeBatch();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!user) return;
 
-    if (!form.fullname || !form.username || !form.nic || !form.batch || !form.university || !form.school || !form.phone) {
+    if (!form.fullname || !form.username || !form.nic || !form.batch || !form.school || !form.phone) {
       setError('Please fill in all required fields.');
       return;
     }
 
-    const batchNum = Number(form.batch);
+    if (!universityAndCourseOptional && (!form.university.trim() || !form.uni_degree.trim())) {
+      setError('Please fill in university and degree/course.');
+      return;
+    }
+
     if (Number.isNaN(batchNum)) {
       setError('Batch must be a number.');
       return;
@@ -168,7 +200,7 @@ export default function ProfileSetupPage() {
         gender: form.gender === 'male',
         role: 'member',
         batch: batchNum,
-        university: form.university,
+        university: form.university.trim() || null,
         uni_degree: form.uni_degree || null,
         school: form.school,
         phone: form.phone,
@@ -371,13 +403,15 @@ export default function ProfileSetupPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2 relative">
-                  <Label htmlFor="university">University</Label>
+                  <Label htmlFor="university">
+                    University{universityAndCourseOptional ? ' (optional for this batch)' : ''}
+                  </Label>
                   <Input
                     id="university"
                     value={form.university}
                     onChange={(e) => setForm({ ...form, university: e.target.value })}
                     placeholder="University name"
-                    required
+                    required={!universityAndCourseOptional}
                     className="bg-background/50"
                     autoComplete="off"
                     onFocus={() => setShowUniversitySuggestions(true)}
@@ -411,12 +445,15 @@ export default function ProfileSetupPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label>Degree / Course</Label>
+                  <Label>
+                    Degree / Course{universityAndCourseOptional ? ' (optional for this batch)' : ''}
+                  </Label>
                   <Input
                     value={form.uni_degree}
                     onChange={(e) => setForm({ ...form, uni_degree: e.target.value })}
                     placeholder="e.g. BSc Computer Science"
                     className="bg-background/50"
+                    required={!universityAndCourseOptional}
                   />
                 </div>
               </div>
