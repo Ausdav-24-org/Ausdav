@@ -7,6 +7,7 @@ interface YouTubeEmbedProps {
   title: string;
   className?: string;
   onPlay?: () => void;
+  autoPlay?: boolean;
 }
 
 /**
@@ -21,6 +22,7 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
   title,
   className = '',
   onPlay,
+  autoPlay = false,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -56,13 +58,15 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
     onPlay?.();
   };
 
+  const shouldAutoplay = autoPlay || isLoaded;
+
   return (
     <div
       ref={containerRef}
       className={`relative aspect-video rounded-2xl overflow-hidden border border-cyan-500/20 shadow-lg bg-black ${className}`}
     >
       {/* Thumbnail + Play Button (until loaded) */}
-      {!isLoaded && (
+      {!isLoaded && !autoPlay && (
         <>
           {/* YouTube Thumbnail */}
           <img
@@ -98,13 +102,13 @@ const YouTubeEmbed: React.FC<YouTubeEmbedProps> = ({
       )}
 
       {/* iframe - loads only after click or scroll visibility */}
-      {(isLoaded || isVisible) && (
+      {(autoPlay || isLoaded || isVisible) && (
         <iframe
           className="w-full h-full absolute inset-0"
-          src={`https://www.youtube.com/embed/${videoId}?autoplay=${isLoaded ? 1 : 0}&controls=1&rel=0&modestbranding=1`}
+          src={`https://www.youtube.com/embed/${videoId}?autoplay=${shouldAutoplay ? 1 : 0}&mute=${autoPlay ? 1 : 0}&playsinline=1&controls=1&rel=0&modestbranding=1`}
           title={title}
           frameBorder="0"
-          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           referrerPolicy="strict-origin-when-cross-origin"
           allowFullScreen
         />
