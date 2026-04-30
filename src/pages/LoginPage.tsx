@@ -34,6 +34,12 @@ const LoginPage: React.FC = () => {
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
 
+  const getLocalSafeOrigin = () => {
+    const { protocol, hostname, port } = window.location;
+    const normalizedHost = hostname === '127.0.0.1' ? 'localhost' : hostname;
+    return `${protocol}//${normalizedHost}${port ? `:${port}` : ''}`;
+  };
+
   useEffect(() => {
     // if callback returned an error parameter, show it
     const params = new URLSearchParams(location.search);
@@ -211,12 +217,29 @@ const LoginPage: React.FC = () => {
     }
 
     try {
-      await supabase.auth.signInWithOAuth({
+      const redirect = `${getLocalSafeOrigin()}/auth/callback`;
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirect,
+          skipBrowserRedirect: true,
         },
       });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.url) {
+        throw new Error('Unable to start Google login.');
+      }
+
+      const encodedRedirect = encodeURIComponent(redirect);
+      if (!data.url.includes(encodedRedirect)) {
+        throw new Error('OAuth redirect URL is not allowed in Supabase settings for localhost.');
+      }
+
+      window.location.assign(data.url);
     } catch (e: any) {
       setError(e.message || 'OAuth error');
       setIsLoading(false);
