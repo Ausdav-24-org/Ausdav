@@ -142,7 +142,7 @@ export default function AdminProfilePage() {
         nic: formData.nic,
         gender: formData.gender === 'male',
         batch: Number(formData.batch),
-        university: formData.university,
+        university: formData.university.trim() || null,
         uni_degree: formData.uni_degree || null,
         school: formData.school,
         phone: phoneDigits,
