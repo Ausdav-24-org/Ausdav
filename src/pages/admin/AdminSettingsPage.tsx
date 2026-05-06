@@ -17,7 +17,7 @@ export default function AdminSettingsPage() {
     updated_at: string | null;
     updated_by: string | null;
     // batch may be stored as a number in the DB but we keep it as number|string|null to avoid
-    // repeated conversions while still allowing input editing as string.
+    // repeated conversions while still allowing input editing as string. good
     batch?: number | string | null;
   };
 
