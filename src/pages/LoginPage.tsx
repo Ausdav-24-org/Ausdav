@@ -179,23 +179,13 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
     try {
       const redirect = import.meta.env.VITE_RESET_REDIRECT || 'http://localhost:8080/account/update-password';
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-password-reset-email`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            email: resetEmail,
-            redirectTo: redirect,
-          }),
-        }
-      );
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: redirect,
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to send reset email');
+      if (error) {
+        throw error;
       }
 
       setResetSent(true);
