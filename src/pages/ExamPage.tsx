@@ -91,7 +91,10 @@ interface ResultDisplay {
 
 // Apply form options
 const applyExams = ["-- Select Your Stream --", "Maths", "Biology"];
+
 const schoolOptions = [
+  "Kanakarayankulam Maha Vidyalayam",
+  "V/Vavuniya Muslim Maha Vidyalayam",
   "Vavuniya Tamil Madhya Maha Vidyalayam",
   "V/Rambaikulam Girls' Maha Vidyalayam",
   "Saivapragasa Ladies College",
@@ -99,6 +102,7 @@ const schoolOptions = [
   "Puthukkulam Maha Vidyalayam",
   "Vavuniya Nelukkulam Kalaimakal Maha Vidyalayam",
   "Cheddikulam Maha Vidyalayam",
+
 ];
 
 const resultsStreams = ["Maths", "Biology"];
