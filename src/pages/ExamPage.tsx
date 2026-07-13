@@ -77,6 +77,7 @@ interface ApplicantRecord {
 
 // Combined result for display
 interface ResultDisplay {
+  type: "science" | "commerce";
   name: string;
   school: string;
   nic: string;
@@ -87,6 +88,30 @@ interface ResultDisplay {
   maths_or_bio_label: string;
   zscore: string;
   rank: number | null;
+  economicsResult?: string;
+  businessResult?: string;
+  accountsResult?: string;
+}
+
+interface CommerceResultResponse {
+  success?: boolean;
+  found?: boolean;
+  message?: string;
+  indexNo?: string | number;
+  index?: string | number;
+  studentName?: string;
+  name?: string;
+  schoolName?: string;
+  school?: string;
+  economicsResult?: string;
+  businessResult?: string;
+  accountsResult?: string;
+  economics?: string;
+  business?: string;
+  accounts?: string;
+  rank?: number | string | null;
+  zScore?: number | string | null;
+  zscore?: number | string | null;
 }
 
 // Apply form options
@@ -105,8 +130,15 @@ const schoolOptions = [
 
 ];
 
-const resultsStreams = ["Maths", "Biology"];
+const resultsStreamGroups = ["Science Stream", "Commerce Stream"];
+const scienceResultStreams = [
+  { value: "Biology", label: "Science" },
+  { value: "Maths", label: "Maths" },
+];
 const idTypes = ["Index No", "NIC No"];
+const commerceIdTypes = ["Index No"];
+const commerceResultsUrl =
+  "https://script.google.com/macros/s/AKfycbx2WjA-JFg6tEjsY7OQ7mheOsjhzj8txQwxCOSV70Tp6PVoomSS4_pSOjqLNBwMvzUbHg/exec";
 
 const collapseVariants = {
   hidden: { height: 0, opacity: 0 },
@@ -187,13 +219,17 @@ const ExamPage: React.FC = () => {
     idValue: "",
     year: "",
   };
+  const [resultsStreamGroup, setResultsStreamGroup] = useState("");
   const [resultsForm, setResultsForm] = useState(defaultResultsForm);
 
   const [resultData, setResultData] = useState<ResultDisplay | null>(null);
   const [showResultSheet, setShowResultSheet] = useState(false);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsNotice, setResultsNotice] = useState("");
 
   // ✅ NEW: store the applicant's real index number (works even when searching by NIC)
   const [foundIndexNo, setFoundIndexNo] = useState<string>("");
+  const commerceResultsCacheRef = useRef<Record<string, ResultDisplay>>({});
 
   const [downloading, setDownloading] = useState(false);
   const [examApplicationsOpen, setExamApplicationsOpen] = useState(true);
@@ -533,7 +569,17 @@ const ExamPage: React.FC = () => {
   const handleResultsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!resultsForm.stream || !resultsForm.year || !resultsForm.idValue) {
+    if (resultsLoading) return;
+    setResultsNotice("");
+
+    const isCommerceResult = resultsStreamGroup === "Commerce Stream";
+    const trimmedIdValue = resultsForm.idValue.trim();
+
+    if (
+      !resultsForm.stream ||
+      !trimmedIdValue ||
+      !resultsForm.year
+    ) {
       toast.error(
         language === "en"
           ? "Please fill all fields"
@@ -552,7 +598,97 @@ const ExamPage: React.FC = () => {
       return;
     }
 
+    if (isCommerceResult && resultsForm.year !== "2026") {
+      setResultsNotice(
+        language === "en"
+          ? "Results are not released yet for this year."
+          : "இந்த ஆண்டுக்கான முடிவுகள் இன்னும் வெளியிடப்படவில்லை."
+      );
+      setResultData(null);
+      setShowResultSheet(false);
+      setFoundIndexNo("");
+      return;
+    }
+
     try {
+      setResultsLoading(true);
+
+      if (isCommerceResult) {
+        const cacheKey = `${resultsForm.year}:${trimmedIdValue}`;
+        const cachedResult = commerceResultsCacheRef.current[cacheKey];
+        if (cachedResult) {
+          setFoundIndexNo(
+            cachedResult.type === "commerce" ? trimmedIdValue : foundIndexNo
+          );
+          setResultData(cachedResult);
+          setShowResultSheet(true);
+          return;
+        }
+
+        const response = await fetch(
+          `${commerceResultsUrl}?index=${encodeURIComponent(
+            trimmedIdValue
+          )}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Commerce result request failed: ${response.status}`);
+        }
+
+        const commerceData =
+          (await response.json()) as CommerceResultResponse;
+        const commerceFound =
+          commerceData.success === true || commerceData.found === true;
+
+        if (!commerceFound) {
+          setResultsNotice(
+            commerceData.message ||
+              (language === "en" ? "Results are not released yet." : "முடிவுகள் இன்னும் வெளியிடப்படவில்லை.")
+          );
+          setResultData(null);
+          setShowResultSheet(false);
+          setFoundIndexNo("");
+          return;
+        }
+
+        const commerceIndex =
+          commerceData.indexNo ?? commerceData.index ?? trimmedIdValue;
+        const commerceName = commerceData.studentName ?? commerceData.name;
+        const commerceSchool = commerceData.schoolName ?? commerceData.school;
+        const commerceZScore = commerceData.zScore ?? commerceData.zscore;
+        const commerceRank =
+          commerceData.rank === null || commerceData.rank === undefined
+            ? null
+            : Number(commerceData.rank);
+
+        setFoundIndexNo(String(commerceIndex));
+        const displayResult: ResultDisplay = {
+          type: "commerce",
+          name: commerceName || "-",
+          school: commerceSchool || "-",
+          nic: "",
+          stream: "Commerce Stream",
+          physics_grade: "-",
+          chemistry_grade: "-",
+          maths_or_bio_grade: "-",
+          maths_or_bio_label: "-",
+          zscore: commerceZScore === null || commerceZScore === undefined
+            ? "-"
+            : String(commerceZScore),
+          rank: Number.isFinite(commerceRank) ? commerceRank : null,
+          economicsResult:
+            commerceData.economicsResult ?? commerceData.economics ?? "-",
+          businessResult:
+            commerceData.businessResult ?? commerceData.business ?? "-",
+          accountsResult:
+            commerceData.accountsResult ?? commerceData.accounts ?? "-",
+        };
+        commerceResultsCacheRef.current[cacheKey] = displayResult;
+        setResultData(displayResult);
+        setShowResultSheet(true);
+        return;
+      }
+
       let applicantQuery = supabase
         .from("applicants")
         .select("*")
@@ -611,6 +747,7 @@ const ExamPage: React.FC = () => {
       const isMaths = applicant.stream === "Maths";
 
       const displayResult: ResultDisplay = {
+        type: "science",
         name: applicant.fullname,
         school: applicant.school,
         nic: applicant.nic,
@@ -630,21 +767,31 @@ const ExamPage: React.FC = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("Error fetching results:", error);
+      const errorDetails =
+        error instanceof Error ? error.message : String(error ?? "");
       toast.error(
-        language === "en"
+        isCommerceResult && errorDetails
+          ? language === "en"
+            ? `Failed to fetch commerce results: ${errorDetails}`
+            : `Commerce முடிவுகளைப் பெற முடியவில்லை: ${errorDetails}`
+          : language === "en"
           ? "Failed to fetch results"
           : "முடிவுகளைப் பெற முடியவில்லை"
       );
       setResultData(null);
       setShowResultSheet(false);
       setFoundIndexNo("");
+    } finally {
+      setResultsLoading(false);
     }
   };
 
   const handleResultsReset = () => {
+    setResultsStreamGroup("");
     setResultsForm(defaultResultsForm);
     setResultData(null);
     setShowResultSheet(false);
+    setResultsNotice("");
     setFoundIndexNo("");
   };
 
@@ -724,6 +871,10 @@ const ExamPage: React.FC = () => {
   const mathsOrBioGrade = resultData?.maths_or_bio_grade ?? "-";
   const mathsOrBioLabel = resultData?.maths_or_bio_label ?? "Maths/Bio";
   const zScore = resultData?.zscore ?? "-";
+  const isCommerceSheet = resultData?.type === "commerce";
+  const economicsResult = resultData?.economicsResult ?? "-";
+  const businessResult = resultData?.businessResult ?? "-";
+  const accountsResult = resultData?.accountsResult ?? "-";
 
   const downloadSheetAsImage = async () => {
     try {
@@ -748,7 +899,9 @@ const ExamPage: React.FC = () => {
       const dataUrl = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = dataUrl;
-      a.download = `GCE-AL-${certYear}-${certIndex}.png`;
+      a.download = isCommerceSheet
+        ? `GCE-AL-Commerce-${certIndex}.png`
+        : `GCE-AL-${certYear}-${certIndex}.png`;
       a.click();
 
       toast.success(language === "en" ? "Downloaded!" : "பதிவிறக்கப்பட்டது!");
@@ -1608,13 +1761,15 @@ const ExamPage: React.FC = () => {
                                     : "பிரிவைத் தேர்ந்தெடுக்கவும்"}
                                 </label>
                                 <Select
-                                  value={resultsForm.stream}
-                                  onValueChange={(v) =>
+                                  value={resultsStreamGroup}
+                                  onValueChange={(v) => {
+                                    setResultsStreamGroup(v);
                                     setResultsForm({
                                       ...resultsForm,
-                                      stream: v,
-                                    })
-                                  }
+                                      stream: v === "Commerce Stream" ? "Commerce" : "",
+                                      idType: v === "Commerce Stream" ? "Index No" : resultsForm.idType,
+                                    });
+                                  }}
                                 >
                                   <SelectTrigger>
                                     <SelectValue
@@ -1626,7 +1781,7 @@ const ExamPage: React.FC = () => {
                                     />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {resultsStreams.map((s) => (
+                                    {resultsStreamGroups.map((s) => (
                                       <SelectItem key={s} value={s}>
                                         {s}
                                       </SelectItem>
@@ -1634,6 +1789,42 @@ const ExamPage: React.FC = () => {
                                   </SelectContent>
                                 </Select>
                               </div>
+
+                              {resultsStreamGroup === "Science Stream" && (
+                                <div>
+                                  <label className="block text-sm font-medium text-foreground mb-1">
+                                    {language === "en"
+                                      ? "Select Science / Maths"
+                                      : "Science / Maths தேர்ந்தெடுக்கவும்"}
+                                  </label>
+                                  <Select
+                                    value={resultsForm.stream}
+                                    onValueChange={(v) =>
+                                      setResultsForm({
+                                        ...resultsForm,
+                                        stream: v,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue
+                                        placeholder={
+                                          language === "en"
+                                            ? "Choose science or maths"
+                                            : "Science அல்லது Maths தேர்வு செய்க"
+                                        }
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {scienceResultStreams.map((s) => (
+                                        <SelectItem key={s.value} value={s.value}>
+                                          {s.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
 
                               <div>
                                 <label className="block text-sm font-medium text-foreground mb-1">
@@ -1655,7 +1846,10 @@ const ExamPage: React.FC = () => {
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {idTypes.map((type) => (
+                                      {(resultsStreamGroup === "Commerce Stream"
+                                        ? commerceIdTypes
+                                        : idTypes
+                                      ).map((type) => (
                                         <SelectItem key={type} value={type}>
                                           {type}
                                         </SelectItem>
@@ -1679,7 +1873,6 @@ const ExamPage: React.FC = () => {
                                 </div>
                               </div>
 
-                              {/* ✅ UPDATED: Year input (4 digits) */}
                               <div>
                                 <label className="block text-sm font-medium text-foreground mb-1">
                                   {language === "en"
@@ -1697,11 +1890,21 @@ const ExamPage: React.FC = () => {
                                   }
                                   placeholder={
                                     language === "en"
-                                      ? "e.g. 2025"
-                                      : "எ.கா. 2025"
+                                      ? "e.g. 2026"
+                                      : "எ.கா. 2026"
                                   }
                                 />
                               </div>
+
+                              {resultsNotice && (
+                                <Card className="border-cyan-500/30 bg-cyan-500/10">
+                                  <CardContent className="p-4">
+                                    <p className="text-sm font-medium text-cyan-100">
+                                      {resultsNotice}
+                                    </p>
+                                  </CardContent>
+                                </Card>
+                              )}
 
                               <div className="grid grid-cols-2 gap-3 pt-2">
                                 <Button
@@ -1716,10 +1919,15 @@ const ExamPage: React.FC = () => {
                                   type="submit"
                                   variant="donate"
                                   className="w-full"
+                                  disabled={resultsLoading}
                                 >
-                                  {language === "en"
+                                  {resultsLoading
+                                    ? language === "en"
+                                      ? "Fetching..."
+                                      : "Fetching..."
+                                    : language === "en"
                                     ? "View Results"
-                                    : "முடிவுகளை காண"}
+                                    : "View Results"}
                                 </Button>
                               </div>
                             </form>
@@ -1769,27 +1977,46 @@ const ExamPage: React.FC = () => {
 
                                   <div className="mt-8 rounded-2xl bg-white/90 backdrop-blur border border-cyan-200 shadow-sm">
                                     <div className="p-8">
-                                      <div className="grid grid-cols-1 gap-5 text-base">
-                                        <Row label="Name" value={certName} />
-                                        <Row
-                                          label="Index Number"
-                                          value={certIndex}
-                                        />
-                                        <Row
-                                          label="NIC Number"
-                                          value={certNIC}
-                                        />
-                                        <Row
-                                          label="School"
-                                          value={certSchool}
-                                        />
-                                        <Row
-                                          label="Stream"
-                                          value={certStream}
-                                        />
-                                        <Row label="Z-Score" value={zScore} />
-                                        <Row label="Rank" value={certRank} />
-                                      </div>
+                                      {isCommerceSheet ? (
+                                        <div className="grid grid-cols-1 gap-5 text-base">
+                                          <Row
+                                            label="Index No"
+                                            value={certIndex}
+                                          />
+                                          <Row
+                                            label="Student Name"
+                                            value={certName}
+                                          />
+                                          <Row
+                                            label="School Name"
+                                            value={certSchool}
+                                          />
+                                          <Row label="Rank" value={certRank} />
+                                          <Row label="Z Score" value={zScore} />
+                                        </div>
+                                      ) : (
+                                        <div className="grid grid-cols-1 gap-5 text-base">
+                                          <Row label="Name" value={certName} />
+                                          <Row
+                                            label="Index Number"
+                                            value={certIndex}
+                                          />
+                                          <Row
+                                            label="NIC Number"
+                                            value={certNIC}
+                                          />
+                                          <Row
+                                            label="School"
+                                            value={certSchool}
+                                          />
+                                          <Row
+                                            label="Stream"
+                                            value={certStream}
+                                          />
+                                          <Row label="Z-Score" value={zScore} />
+                                          <Row label="Rank" value={certRank} />
+                                        </div>
+                                      )}
 
                                       <div className="mt-10 overflow-hidden rounded-xl border border-slate-700">
                                         <div className="grid grid-cols-2 bg-slate-700 text-white font-semibold">
@@ -1802,21 +2029,36 @@ const ExamPage: React.FC = () => {
                                         </div>
 
                                         <div className="bg-white">
-                                          {[
-                                            {
-                                              subject:
-                                                mathsOrBioLabel.toUpperCase(),
-                                              result: mathsOrBioGrade,
-                                            },
-                                            {
-                                              subject: "PHYSICS",
-                                              result: physicsGrade,
-                                            },
-                                            {
-                                              subject: "CHEMISTRY",
-                                              result: chemistryGrade,
-                                            },
-                                          ].map((r) => (
+                                          {(isCommerceSheet
+                                            ? [
+                                                {
+                                                  subject: "ECONOMICS",
+                                                  result: economicsResult,
+                                                },
+                                                {
+                                                  subject: "BUSINESS",
+                                                  result: businessResult,
+                                                },
+                                                {
+                                                  subject: "ACCOUNTS",
+                                                  result: accountsResult,
+                                                },
+                                              ]
+                                            : [
+                                                {
+                                                  subject:
+                                                    mathsOrBioLabel.toUpperCase(),
+                                                  result: mathsOrBioGrade,
+                                                },
+                                                {
+                                                  subject: "PHYSICS",
+                                                  result: physicsGrade,
+                                                },
+                                                {
+                                                  subject: "CHEMISTRY",
+                                                  result: chemistryGrade,
+                                                },
+                                              ]).map((r) => (
                                             <div
                                               key={r.subject}
                                               className="grid grid-cols-2 border-t border-slate-200"
@@ -1961,3 +2203,4 @@ const ExamPage: React.FC = () => {
 };
 
 export default ExamPage;
+
