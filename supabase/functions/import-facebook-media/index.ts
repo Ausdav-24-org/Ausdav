@@ -426,20 +426,6 @@ class FacebookGraphService {
           link: attachment?.url || post?.permalink_url || null,
         });
       }
-
-      const subattachments = Array.isArray(attachment?.subattachments?.data)
-        ? attachment.subattachments.data
-        : [];
-
-      for (const sub of subattachments) {
-        const subMediaType = String(sub?.media_type || "").toLowerCase();
-        const subImage = sub?.media?.image?.src || sub?.media?.image?.source;
-        if (subMediaType === "photo" || subImage) {
-          maybePush(subImage, {
-            link: sub?.url || attachment?.url || post?.permalink_url || null,
-          });
-        }
-      }
     }
 
     return Array.from(imageMap.values()).slice(0, MAX_IMAGES);
@@ -492,6 +478,7 @@ class FacebookGraphService {
   }
 
   async fetchFacebookAlbumPhotos(albumId: string, token: string, maxImages: number = Infinity) {
+    const album = await this.fetchFacebookAlbum(albumId, token);
     const images: SourceImage[] = [];
     const seenUrls = new Set<string>();
     let nextPath = `/${albumId}/photos`;
