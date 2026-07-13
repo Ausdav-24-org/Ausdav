@@ -1284,7 +1284,7 @@ export default function AdminApplicantsPage() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
-                                  onClick={() => {
+                                  onSelect={() => {
                                     setSelectedApplicant(applicant);
                                     setDetailsOpen(true);
                                   }}
@@ -1310,7 +1310,13 @@ export default function AdminApplicantsPage() {
               </CardContent>
             </Card>
 
-            <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <Dialog
+              open={detailsOpen}
+              onOpenChange={(open) => {
+                setDetailsOpen(open);
+                if (!open) setSelectedApplicant(null);
+              }}
+            >
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Applicant Details</DialogTitle>

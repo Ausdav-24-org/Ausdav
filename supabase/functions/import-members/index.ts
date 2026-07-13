@@ -110,16 +110,20 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'Cannot identify user' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Prefer member lookup, fallback to user metadata for super_admin
+    // Prefer member lookup, fallback to user metadata for super_admin/master_admin
     let callerRole: string | null = null;
+    let callerIsMasterAdmin = false;
     try {
       const { data: memberRow, error: memberErr } = await adminClient
         .from('members')
-        .select('role')
+        .select('role, is_master_admin')
         .eq('auth_user_id', userId)
         .maybeSingle();
       if (memberErr) throw memberErr;
-      if (memberRow) callerRole = memberRow.role;
+      if (memberRow) {
+        callerRole = memberRow.role;
+        callerIsMasterAdmin = memberRow.is_master_admin === true;
+      }
     } catch (e) {
       console.error('members lookup failed', e);
     }
@@ -127,11 +131,13 @@ serve(async (req: Request) => {
     if (!callerRole) {
       const meta = userMeta;
       if (meta?.is_super_admin === true) callerRole = 'super_admin';
+      else if (meta?.is_master_admin === true) callerIsMasterAdmin = true;
       else if (Array.isArray(meta?.roles) && meta.roles.includes('super_admin')) callerRole = 'super_admin';
+      else if (Array.isArray(meta?.roles) && meta.roles.includes('master_admin')) callerIsMasterAdmin = true;
     }
 
-    if (!callerRole || callerRole !== 'super_admin') {
-      return new Response(JSON.stringify({ error: 'Forbidden: super admin only' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!(callerRole === 'super_admin' || callerIsMasterAdmin)) {
+      return new Response(JSON.stringify({ error: 'Forbidden: super admin or master admin only' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   } catch (e) {
     console.error('Auth check failed', e);
