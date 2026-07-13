@@ -60,11 +60,13 @@ serve(async (req: Request) => {
     // Check if user is admin
     const { data: memberRow } = await adminClient
       .from('members')
-      .select('role')
+      .select('role, is_master_admin')
       .eq('auth_user_id', user.id)
       .single();
 
-    if (!memberRow || !['admin', 'super_admin'].includes(memberRow.role)) {
+    const canInvite = !!memberRow && (['admin', 'super_admin'].includes(memberRow.role) || memberRow.is_master_admin === true);
+
+    if (!canInvite) {
       return new Response(JSON.stringify({ error: 'Not authorized' }), { status: 403, headers: corsHeaders });
     }
 

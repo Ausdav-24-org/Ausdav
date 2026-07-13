@@ -84,14 +84,18 @@ serve(async (req: Request) => {
 
     // Prefer member lookup, fallback to user metadata
     let callerRole: string | null = null;
+    let callerIsMasterAdmin = false;
     try {
       const { data: memberRow, error: memberErr } = await adminClient
         .from('members')
-        .select('role')
+        .select('role, is_master_admin')
         .eq('auth_user_id', userId)
         .maybeSingle();
       if (memberErr) throw memberErr;
-      if (memberRow) callerRole = memberRow.role;
+      if (memberRow) {
+        callerRole = memberRow.role;
+        callerIsMasterAdmin = memberRow.is_master_admin === true;
+      }
     } catch (e) {
       console.error('members lookup failed', e);
     }
@@ -99,14 +103,18 @@ serve(async (req: Request) => {
     if (!callerRole) {
       const meta = userMeta;
       if (meta?.is_super_admin === true) callerRole = 'super_admin';
+      else if (meta?.is_master_admin === true) callerIsMasterAdmin = true;
       else if (Array.isArray(meta?.roles) && meta.roles.includes('super_admin')) callerRole = 'super_admin';
+      else if (Array.isArray(meta?.roles) && meta.roles.includes('master_admin')) callerIsMasterAdmin = true;
       else if (Array.isArray(meta?.roles) && meta.roles.includes('admin')) callerRole = 'admin';
     }
 
-    if (!callerRole) return new Response(JSON.stringify({ error: 'Forbidden: not an admin' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!callerRole && !callerIsMasterAdmin) return new Response(JSON.stringify({ error: 'Forbidden: not an admin' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    // If caller is admin (not super_admin), ensure targets are only role='member'
-    if (callerRole !== 'super_admin') {
+    const callerCanDeleteAnyRole = callerRole === 'super_admin' || callerIsMasterAdmin;
+
+    // If caller is admin (not super_admin/master_admin), ensure targets are only role='member'
+    if (!callerCanDeleteAnyRole) {
       if (callerRole !== 'admin') {
         return new Response(JSON.stringify({ error: 'Forbidden: admin only' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
