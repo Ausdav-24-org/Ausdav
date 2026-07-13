@@ -85,17 +85,19 @@ serve(async (req: Request) => {
 
     // Prefer member lookup, fallback to user metadata roles
     let callerRole: string | null = null;
+    let callerIsMasterAdmin = false;
     let callerMemId: number | null = null;
     try {
       const { data: memberRow, error: memberErr } = await adminClient
         .from('members')
-        .select('mem_id, role')
+        .select('mem_id, role, is_master_admin')
         .eq('auth_user_id', userId)
         .maybeSingle();
       if (memberErr) throw memberErr;
       if (memberRow) {
         callerRole = memberRow.role;
         callerMemId = memberRow.mem_id;
+        callerIsMasterAdmin = memberRow.is_master_admin === true;
       }
     } catch (e) {
       console.error('members lookup failed', e);
@@ -104,7 +106,9 @@ serve(async (req: Request) => {
     if (!callerRole) {
       const meta = userMeta;
       if (meta?.is_super_admin === true) callerRole = 'super_admin';
+      else if (meta?.is_master_admin === true) callerIsMasterAdmin = true;
       else if (Array.isArray(meta?.roles) && meta.roles.includes('super_admin')) callerRole = 'super_admin';
+      else if (Array.isArray(meta?.roles) && meta.roles.includes('master_admin')) callerIsMasterAdmin = true;
       else if (Array.isArray(meta?.roles) && meta.roles.includes('admin')) callerRole = 'admin';
     }
 
@@ -138,11 +142,13 @@ serve(async (req: Request) => {
       committeeChangingPhase = null;
     }
 
-    console.log('update-member-role called by', userId, 'callerRole=', callerRole, 'callerMemId=', callerMemId, 'memIds=', memIds, 'newRole=', newRole, 'totalSuper=', totalSuper);
+    const callerCanManageMembers = callerRole === 'super_admin' || callerIsMasterAdmin;
 
-    // Only super_admin can change roles
-    if (callerRole !== 'super_admin') {
-      return new Response(JSON.stringify({ error: 'Only super admins can change roles' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    console.log('update-member-role called by', userId, 'callerRole=', callerRole, 'callerIsMasterAdmin=', callerIsMasterAdmin, 'callerMemId=', callerMemId, 'memIds=', memIds, 'newRole=', newRole, 'totalSuper=', totalSuper);
+
+    // Only super admins or master admins can change roles
+    if (!callerCanManageMembers) {
+      return new Response(JSON.stringify({ error: 'Only super admins or master admins can change roles' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Enforce at most 2 super_admins: if promoting targets to super_admin, ensure limit
