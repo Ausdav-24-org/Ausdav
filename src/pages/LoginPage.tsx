@@ -196,13 +196,6 @@ const sendReset = async () => {
       });
 
     if (resetError) {
-      console.error('Supabase password reset error:', {
-        name: resetError.name,
-        message: resetError.message,
-        status: resetError.status,
-        code: resetError.code,
-      });
-
       throw resetError;
     }
 
@@ -214,7 +207,12 @@ const sendReset = async () => {
         : 'இந்த மின்னஞ்சலுக்கு கணக்கு இருந்தால், மீட்டமைப்பு இணைப்பு அனுப்பப்பட்டுள்ளது.'
     );
   } catch (e: any) {
-    console.error('Password reset request failed:', e);
+    console.error('Password reset request failed:', {
+      name: e?.name,
+      message: e?.message,
+      status: e?.status,
+      code: e?.code,
+    });
 
     setError(
       language === 'en'
