@@ -45,6 +45,10 @@ const SUBJECTS = [
   'Biology',
   'Physics',
   'Chemistry',
+  'Economics',
+  'Accounting',
+  'Business Studies',
+  'ICT',
 ];
 
 export default function AdminExamPage() {

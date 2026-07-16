@@ -47,7 +47,16 @@ interface PastPaper {
   updated_at: string;
 }
 
-const SUBJECT_OPTIONS = ['Physics', 'Mathematics', 'Biology', 'Chemistry'] as const;
+const SUBJECT_OPTIONS = [
+  'Physics',
+  'Mathematics',
+  'Biology',
+  'Chemistry',
+  'Economics',
+  'Accounting',
+  'Business Studies',
+  'ICT',
+] as const;
 
 export default function AdminPastPaperPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
