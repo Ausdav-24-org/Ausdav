@@ -64,6 +64,8 @@ const AccessDeniedPage = lazy(() => import("@/pages/AccessDeniedPage"));
 const AdminBulkQRGeneratorPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
 const AdminIDCardPage = lazy(() => import("@/pages/admin/AdminQRAndIDCardsPage"));
 const VerifyMemberPage = lazy(() => import("@/pages/VerifyMemberPage"));
+const ChangePasswordPage = lazy(() => import('@/pages/ChangePasswordPage'),);
+
 
 // Loading fallback component
 const PageLoader = () => (
@@ -377,6 +379,7 @@ const App = () => {
                     <Route path="finance/submit" element={<Suspense fallback={<PageLoader />}><FinanceSubmitPage /></Suspense>} />
                     <Route path="finance/verify" element={<Suspense fallback={<PageLoader />}><FinanceVerifyPage /></Suspense>} />
                     <Route path="finance/ledger" element={<Suspense fallback={<PageLoader />}><FinanceLedgerPage /></Suspense>} />
+                    <Route path="/account/change-password"  element={<Layout><Suspense fallback={<PageLoader />}><ChangePasswordPage /></Suspense></Layout>}/>
                   </Route>
 
                   <Route
