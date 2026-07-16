@@ -169,43 +169,62 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const sendReset = async () => {
-    setError(null);
-    setResetSent(false);
-    if (!resetEmail) {
-      setError(language === 'en' ? 'Enter your email' : 'மின்னஞ்சலை உள்ளிடவும்');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const redirect = import.meta.env.VITE_RESET_REDIRECT || 'http://localhost:8080/account/update-password';
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-password-reset-email`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            email: resetEmail,
-            redirectTo: redirect,
-          }),
-        }
-      );
+const sendReset = async () => {
+  setError(null);
+  setResetSent(false);
 
-      if (!response.ok) {
-        throw new Error('Failed to send reset email');
-      }
+  const email = resetEmail.trim().toLowerCase();
 
-      setResetSent(true);
-      toast.success(language === 'en' ? 'Reset email sent' : 'மறுசீரமைப்பு மின்னஞ்சல் அனுப்பப்பட்டது');
-    } catch (e: any) {
-      setError(e.message || 'Unable to send reset email');
-    } finally {
-      setIsLoading(false);
+  if (!email) {
+    setError(
+      language === 'en'
+        ? 'Enter your email'
+        : 'மின்னஞ்சலை உள்ளிடவும்'
+    );
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const redirectTo =
+      `${getLocalSafeOrigin()}/account/update-password`;
+
+    const { error: resetError } =
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+
+    if (resetError) {
+      console.error('Supabase password reset error:', {
+        name: resetError.name,
+        message: resetError.message,
+        status: resetError.status,
+        code: resetError.code,
+      });
+
+      throw resetError;
     }
-  };
+
+    setResetSent(true);
+
+    toast.success(
+      language === 'en'
+        ? 'If an account exists for this email, a reset link has been sent.'
+        : 'இந்த மின்னஞ்சலுக்கு கணக்கு இருந்தால், மீட்டமைப்பு இணைப்பு அனுப்பப்பட்டுள்ளது.'
+    );
+  } catch (e: any) {
+    console.error('Password reset request failed:', e);
+
+    setError(
+      language === 'en'
+        ? 'Unable to send the reset email. Please try again later.'
+        : 'மீட்டமைப்பு மின்னஞ்சலை அனுப்ப முடியவில்லை. பின்னர் மீண்டும் முயற்சிக்கவும்.'
+    );
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleGoogleLogin = async () => {
     setError(null);
