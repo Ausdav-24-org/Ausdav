@@ -32,8 +32,19 @@ export const AuthCallback: React.FC = () => {
           .from('members' as any)
           .select('role')
           .eq('auth_user_id', userId)
-          .single();
-        if (mErr || !member) {
+          .maybeSingle();
+
+        if (mErr) {
+          console.error('Member lookup failed:', mErr);
+
+          await supabase.auth.signOut();
+          navigate('/login?error=auth_failed');
+          return;
+        }
+
+        if (!member) {
+          console.error('No member row found for auth user:', userId);
+
           await supabase.auth.signOut();
           navigate('/login?error=not_member');
           return;

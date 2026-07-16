@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import logo from '@/assets/logo/AUSDAV_llogo.png';
+import googleLogo from '@/assets/logo/google.png';
 
 
 /**
@@ -325,7 +326,7 @@ const sendReset = async () => {
                   onClick={handleGoogleLogin}
                   disabled={isLoading || !form.email}
                 >
-                  <img src="/src/assets/logo/google.png" alt="Google" className="w-5 h-5" />
+                  <img src={googleLogo} alt="Google" className="w-5 h-5" />
                   {language === 'en' ? 'Continue with Google' : 'கூகிள் மூலம் தொடரவும்'}
                 </Button>
               </div>

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import googleLogo from '@/assets/logo/google.png';
 
 interface SignupState {
   allow_signup: boolean;
@@ -282,7 +283,7 @@ const SignupPortalPage = () => {
                       onClick={handleGoogleSignup}
                       disabled={!signupOpen}
                     >
-                      <img src="/src/assets/logo/google.png" alt="Google" className="w-5 h-5" />
+                       <img src={googleLogo} alt="Google" className="w-5 h-5" />
                       Sign up with Google
                     </Button>
                   </div>
