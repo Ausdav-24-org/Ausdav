@@ -91,6 +91,7 @@ interface ResultDisplay {
   economicsResult?: string;
   businessResult?: string;
   accountsResult?: string;
+  ictResult?: string;
 }
 
 interface CommerceResultResponse {
@@ -106,9 +107,11 @@ interface CommerceResultResponse {
   economicsResult?: string;
   businessResult?: string;
   accountsResult?: string;
+  ictResult?: string;
   economics?: string;
   business?: string;
   accounts?: string;
+  ict?: string;
   rank?: number | string | null;
   zScore?: number | string | null;
   zscore?: number | string | null;
@@ -138,7 +141,7 @@ const scienceResultStreams = [
 const idTypes = ["Index No", "NIC No"];
 const commerceIdTypes = ["Index No"];
 const commerceResultsUrl =
-  "https://script.google.com/macros/s/AKfycbx2WjA-JFg6tEjsY7OQ7mheOsjhzj8txQwxCOSV70Tp6PVoomSS4_pSOjqLNBwMvzUbHg/exec";
+  "https://script.google.com/macros/s/AKfycbzMGU1LYQUcGrRw8oZvGmMdrNem-I92bZnogJjvyUcQ-8IZLlC7LNuCS7DcgIGqYDBxNA/exec";
 
 const collapseVariants = {
   hidden: { height: 0, opacity: 0 },
@@ -660,6 +663,8 @@ const ExamPage: React.FC = () => {
           commerceData.rank === null || commerceData.rank === undefined
             ? null
             : Number(commerceData.rank);
+        const commerceIctResult =
+          commerceData.ictResult ?? commerceData.ict ?? "-";
 
         setFoundIndexNo(String(commerceIndex));
         const displayResult: ResultDisplay = {
@@ -682,6 +687,7 @@ const ExamPage: React.FC = () => {
             commerceData.businessResult ?? commerceData.business ?? "-",
           accountsResult:
             commerceData.accountsResult ?? commerceData.accounts ?? "-",
+          ictResult: commerceIctResult,
         };
         commerceResultsCacheRef.current[cacheKey] = displayResult;
         setResultData(displayResult);
@@ -854,7 +860,7 @@ const ExamPage: React.FC = () => {
   const certName = resultData?.name ?? "-";
   const certSchool = resultData?.school ?? "-";
   const certNIC = resultData?.nic ?? "-";
-  const certRank = resultData?.rank ?? "-";
+  const certRank = resultData?.rank && resultData.rank !== 0 ? String(resultData.rank) : "-";
 
   // From search form + applicant result
   const certStream = resultsForm.stream || "-";
@@ -870,11 +876,12 @@ const ExamPage: React.FC = () => {
   const chemistryGrade = resultData?.chemistry_grade ?? "-";
   const mathsOrBioGrade = resultData?.maths_or_bio_grade ?? "-";
   const mathsOrBioLabel = resultData?.maths_or_bio_label ?? "Maths/Bio";
-  const zScore = resultData?.zscore ?? "-";
+  const zScore = resultData?.zscore && resultData.zscore !== "-" ? String(resultData.zscore) : "-";
   const isCommerceSheet = resultData?.type === "commerce";
   const economicsResult = resultData?.economicsResult ?? "-";
   const businessResult = resultData?.businessResult ?? "-";
   const accountsResult = resultData?.accountsResult ?? "-";
+  const ictResult = resultData?.ictResult ?? "-";
 
   const downloadSheetAsImage = async () => {
     try {
@@ -2029,48 +2036,68 @@ const ExamPage: React.FC = () => {
                                         </div>
 
                                         <div className="bg-white">
-                                          {(isCommerceSheet
-                                            ? [
-                                                {
-                                                  subject: "ECONOMICS",
-                                                  result: economicsResult,
-                                                },
-                                                {
-                                                  subject: "BUSINESS",
-                                                  result: businessResult,
-                                                },
-                                                {
-                                                  subject: "ACCOUNTS",
-                                                  result: accountsResult,
-                                                },
-                                              ]
-                                            : [
-                                                {
-                                                  subject:
-                                                    mathsOrBioLabel.toUpperCase(),
-                                                  result: mathsOrBioGrade,
-                                                },
-                                                {
-                                                  subject: "PHYSICS",
-                                                  result: physicsGrade,
-                                                },
-                                                {
-                                                  subject: "CHEMISTRY",
-                                                  result: chemistryGrade,
-                                                },
-                                              ]).map((r) => (
-                                            <div
-                                              key={r.subject}
-                                              className="grid grid-cols-2 border-t border-slate-200"
-                                            >
-                                              <div className="px-6 py-6 text-slate-700 font-semibold">
-                                                {r.subject}
+                                          {(() => {
+                                            const commerceSubjects = [
+                                              { subject: "ECONOMICS", result: economicsResult },
+                                              { subject: "BUSINESS", result: businessResult },
+                                              { subject: "ACCOUNTS", result: accountsResult },
+                                              ...(ictResult && ictResult !== "-" && ictResult !== "NA"
+                                                ? [{ subject: "ICT", result: ictResult }]
+                                                : []),
+                                            ].filter(
+                                              (s) =>
+                                                s.result &&
+                                                s.result !== "-" &&
+                                                s.result !== "NA" &&
+                                                s.result.trim() !== ""
+                                            );
+
+                                            const scienceSubjects = [
+                                              {
+                                                subject: mathsOrBioLabel.toUpperCase(),
+                                                result: mathsOrBioGrade,
+                                              },
+                                              { subject: "PHYSICS", result: physicsGrade },
+                                              { subject: "CHEMISTRY", result: chemistryGrade },
+                                            ].filter(
+                                              (s) =>
+                                                s.result &&
+                                                s.result !== "-" &&
+                                                s.result !== "NA" &&
+                                                s.result.trim() !== ""
+                                            );
+
+                                            const subjects = isCommerceSheet
+                                              ? commerceSubjects
+                                              : scienceSubjects;
+
+                                            return subjects.length > 0 ? (
+                                              subjects.map((r) => (
+                                                <div
+                                                  key={r.subject}
+                                                  className="grid grid-cols-2 border-t border-slate-200"
+                                                >
+                                                  <div className="px-6 py-6 text-slate-700 font-semibold">
+                                                    {r.subject}
+                                                  </div>
+                                                  <div className="px-6 py-6 text-center font-extrabold text-cyan-700 text-xl">
+                                                    {r.result}
+                                                  </div>
+                                                </div>
+                                              ))
+                                            ) : (
+                                              <div className="grid grid-cols-2 border-t border-slate-200">
+                                                <div className="px-6 py-6 text-slate-700 font-semibold">
+                                                  {language === "en"
+                                                    ? "No subjects available"
+                                                    : "விஷயங்கள் கிடைக்கவில்லை"}
+                                                </div>
+                                                <div className="px-6 py-6 text-center font-extrabold text-cyan-700 text-xl">
+                                                  -
+                                                </div>
                                               </div>
-                                              <div className="px-6 py-6 text-center font-extrabold text-cyan-700 text-xl">
-                                                {r.result}
-                                              </div>
-                                            </div>
-                                          ))}
+                                            );
+                                          })()}
                                         </div>
                                       </div>
 
