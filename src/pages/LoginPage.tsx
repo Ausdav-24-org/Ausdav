@@ -187,8 +187,11 @@ const sendReset = async () => {
   setIsLoading(true);
 
   try {
+    const siteUrl =
+      import.meta.env.VITE_SITE_URL || window.location.origin;
+
     const redirectTo =
-      `${getLocalSafeOrigin()}/account/update-password`;
+      `${siteUrl.replace(/\/$/, '')}/account/update-password`;
 
     const { error: resetError } =
       await supabase.auth.resetPasswordForEmail(email, {
