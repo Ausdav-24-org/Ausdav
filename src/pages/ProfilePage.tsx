@@ -12,6 +12,8 @@ import {
   BadgeCheck,
   Building2,
   ArrowLeft,
+  KeyRound,
+
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -21,6 +23,7 @@ import { compressImageBlob } from '@/lib/imageCompression';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ImageCropper } from '@/components/ui/ImageCropper';
+import { useNavigate } from 'react-router-dom';
 
 /** ✅ SVG overlay ONLY (no background fill) so it matches your site's container background */
 const SpaceOverlay: React.FC<{ opacity?: number }> = ({ opacity = 0.35 }) => {
@@ -124,6 +127,7 @@ const ProfilePage: React.FC = () => {
   const { theme } = useTheme();
   const { profile, user } = useAdminAuth();
   const isDark = theme === 'dark';
+  const navigate = useNavigate();
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -436,6 +440,89 @@ const ProfilePage: React.FC = () => {
               ))}
             </div>
 
+<div className="grid sm:grid-cols-2 gap-4">
+  {rows.map((r, i) => (
+    <motion.div
+      key={r.label}
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ delay: i * 0.05 }}
+      className={cn(
+        'rounded-xl border p-4 flex items-start gap-3 transition',
+        isDark
+          ? 'bg-white/5 border-white/10 hover:border-white/20'
+          : 'bg-white/60 border-border/60 hover:bg-white'
+      )}
+    >
+      <div
+        className={cn(
+          'h-10 w-10 rounded-lg flex items-center justify-center border',
+          isDark
+            ? 'bg-white/5 border-white/10'
+            : 'bg-muted/40 border-border/60'
+        )}
+      >
+        <r.icon
+          className={cn(
+            'w-5 h-5',
+            isDark ? 'text-cyan-200' : 'text-primary'
+          )}
+        />
+      </div>
+
+      <div className="min-w-0">
+        <p
+          className={cn(
+            'text-xs font-semibold uppercase tracking-wide',
+            textSub
+          )}
+        >
+          {r.label}
+        </p>
+
+        <p className={cn('mt-1 font-medium break-words', textMain)}>
+          {r.value}
+        </p>
+      </div>
+    </motion.div>
+  ))}
+</div>
+
+{/* Add the button here */}
+<button
+  type="button"
+  onClick={() => navigate('/account/change-password')}
+  className={cn(
+    'mt-6 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 font-medium transition',
+    isDark
+      ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
+      : 'border-border bg-background text-foreground hover:bg-muted'
+  )}
+>
+  <KeyRound className="h-5 w-5" />
+
+  {language === 'en'
+    ? 'Change password'
+    : 'கடவுச்சொல்லை மாற்றவும்'}
+</button>
+
+{/* Existing profile footer */}
+<div className="mt-6 flex justify-center">
+  <div
+    className={cn(
+      'px-4 py-2 rounded-full border text-sm font-semibold',
+      isDark
+        ? 'bg-gradient-to-r from-cyan-300/15 to-indigo-400/15 border-white/10 text-white/90'
+        : 'bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 border-border/60 text-foreground'
+    )}
+  >
+    {language === 'en'
+      ? 'AUSDAV Member Profile'
+      : 'AUSDAV உறுப்பினர் சுயவிவரம்'}
+  </div>
+</div>
+
             <div className="mt-6 flex justify-center">
               <div
                 className={cn(
@@ -454,5 +541,4 @@ const ProfilePage: React.FC = () => {
     </div>
   );
 };
-
 export default ProfilePage;
