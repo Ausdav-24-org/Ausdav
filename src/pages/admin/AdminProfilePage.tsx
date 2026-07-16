@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Shield, Save, Loader2, UploadCloud, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { User, Shield, Save, Loader2, UploadCloud, X, KeyRound } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { compressImageBlob } from '@/lib/imageCompression';
 
 export default function AdminProfilePage() {
   const { profile, role, refreshProfile } = useAdminAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
@@ -585,7 +587,11 @@ export default function AdminProfilePage() {
                   )}
                 </div>
 
-                <Button onClick={handleSave} disabled={loading || !isDirty} className="w-full">
+                <Button
+                  onClick={handleSave}
+                  disabled={loading || !isDirty}
+                  className="w-full"
+                >
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -597,6 +603,16 @@ export default function AdminProfilePage() {
                       Save Changes
                     </>
                   )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/account/change-password')}
+                  className="w-full"
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Change Password
                 </Button>
               </CardContent>
             </Card>
