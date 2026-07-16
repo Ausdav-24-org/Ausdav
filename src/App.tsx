@@ -292,6 +292,16 @@ const App = () => {
                     }
                   />
                   <Route
+                    path="/account/change-password"
+                    element={
+                      <Layout>
+                        <Suspense fallback={<PageLoader />}>
+                          <ChangePasswordPage />
+                        </Suspense>
+                      </Layout>
+                    }
+                  />
+                  <Route
                     path="/signup"
                     element={
                       <Layout>
@@ -379,7 +389,6 @@ const App = () => {
                     <Route path="finance/submit" element={<Suspense fallback={<PageLoader />}><FinanceSubmitPage /></Suspense>} />
                     <Route path="finance/verify" element={<Suspense fallback={<PageLoader />}><FinanceVerifyPage /></Suspense>} />
                     <Route path="finance/ledger" element={<Suspense fallback={<PageLoader />}><FinanceLedgerPage /></Suspense>} />
-                    <Route path="/account/change-password"  element={<Layout><Suspense fallback={<PageLoader />}><ChangePasswordPage /></Suspense></Layout>}/>
                   </Route>
 
                   <Route
