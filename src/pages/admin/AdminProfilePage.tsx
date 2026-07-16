@@ -362,6 +362,18 @@ export default function AdminProfilePage() {
                     </Badge>
                     <Badge className="bg-muted text-muted-foreground border-border">{profile?.designation}</Badge>
                   </div>
+                  <div className="mt-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate('/account/change-password')}
+                      className="gap-2"
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      Change Password
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -605,15 +617,6 @@ export default function AdminProfilePage() {
                   )}
                 </Button>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate('/account/change-password')}
-                  className="w-full"
-                >
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  Change Password
-                </Button>
               </CardContent>
             </Card>
           </motion.div>

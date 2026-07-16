@@ -446,6 +446,20 @@ const ProfilePage: React.FC = () => {
                   {profileData.designation}
                 </span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => navigate("/account/change-password")}
+                className={cn(
+                  "mt-3 flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition",
+                  isDark
+                    ? "border-white/15 bg-white/5 text-white hover:bg-white/10"
+                    : "border-border bg-background text-foreground hover:bg-muted",
+                )}
+              >
+                <KeyRound className="h-4 w-4" />
+                {language === "en" ? "Change Password" : "கடவுச்சொல்லை மாற்றவும்"}
+              </button>
             </div>
 
             <div
@@ -502,21 +516,6 @@ const ProfilePage: React.FC = () => {
                 </motion.div>
               ))}
             </div>
-
-            {/* Change password navigation */}
-            <button
-              type="button"
-              onClick={() => navigate("/account/change-password")}
-              className={cn(
-                "mt-6 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 font-medium transition",
-                isDark
-                  ? "border-white/15 bg-white/5 text-white hover:bg-white/10"
-                  : "border-border bg-background text-foreground hover:bg-muted",
-              )}
-            >
-              <KeyRound className="h-5 w-5" />
-              {language === "en" ? "Change Password" : "கடவுச்சொல்லை மாற்றவும்"}
-            </button>
 
             <div className="mt-6 flex justify-center">
               <div
