@@ -12,9 +12,35 @@ export interface AdminPermission {
 }
 
 export const useAdminPermissions = () => {
-  const { user, role, isSuperAdmin, isAdmin } = useAdminAuth();
+  const { user, role, isSuperAdmin, isMasterAdmin, isAdmin } = useAdminAuth();
   const [permissions, setPermissions] = useState<AdminPermission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
+
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
+  const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
+
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    const syncMasterAdminSuperView = () => {
+      setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === 'true');
+    };
+
+    syncMasterAdminSuperView();
+    window.addEventListener('storage', syncMasterAdminSuperView);
+    window.addEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+
+    return () => {
+      window.removeEventListener('storage', syncMasterAdminSuperView);
+      window.removeEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+    };
+  }, [masterAdminSuperViewKey]);
 
   const fetchPermissions = useCallback(async () => {
     if (!user) return;
@@ -39,7 +65,7 @@ export const useAdminPermissions = () => {
   }, [fetchPermissions]);
 
   const togglePermission = async (permissionKey: string, newValue: boolean) => {
-    if (!isSuperAdmin) return false;
+    if (!effectiveSuperAdmin) return false;
 
     try {
       const { error } = await supabase
@@ -70,7 +96,7 @@ export const useAdminPermissions = () => {
 
   const checkPermission = (permissionKey: string): boolean => {
     // Super admin always has all permissions
-    if (isSuperAdmin) return true;
+    if (effectiveSuperAdmin) return true;
 
     // Admin needs the permission to be enabled
     if (isAdmin) {

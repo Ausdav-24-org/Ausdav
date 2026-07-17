@@ -45,9 +45,6 @@ interface AuditAction {
 const DEFAULT_BUCKET = "audit-reports";
 
 export default function FinanceAuditLogPage() {
-  const { role, isSuperAdmin, isAdmin } = useAdminAuth();
-  const { hasPermission } = useAdminGrantedPermissions();
-
   return (
     <PermissionGate permissionKey="finance" permissionName="Finance Module">
       <FinanceAuditLogContent />
@@ -56,7 +53,7 @@ export default function FinanceAuditLogPage() {
 }
 
 function FinanceAuditLogContent() {
-  const { role, isSuperAdmin, isAdmin } = useAdminAuth();
+  const { user, isSuperAdmin, isMasterAdmin, isAdmin } = useAdminAuth();
   const { hasPermission } = useAdminGrantedPermissions();
 
   const queryClient = useQueryClient();
@@ -74,6 +71,13 @@ function FinanceAuditLogContent() {
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
+
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
+  const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
+  const effectiveAdmin = isAdmin || effectiveSuperAdmin;
 
   const { data: records, isLoading } = useQuery({
     queryKey: ["audit-actions"],
@@ -112,6 +116,26 @@ function FinanceAuditLogContent() {
     };
     run();
   }, []);
+
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    const syncMasterAdminSuperView = () => {
+      setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === "true");
+    };
+
+    syncMasterAdminSuperView();
+    window.addEventListener("storage", syncMasterAdminSuperView);
+    window.addEventListener("ausdav-master-admin-super-view-change", syncMasterAdminSuperView);
+
+    return () => {
+      window.removeEventListener("storage", syncMasterAdminSuperView);
+      window.removeEventListener("ausdav-master-admin-super-view-change", syncMasterAdminSuperView);
+    };
+  }, [masterAdminSuperViewKey]);
 
   const resetForm = () => {
     setFormData({
@@ -330,7 +354,7 @@ function FinanceAuditLogContent() {
   });
 
   const handleCreate = () => {
-    if (!hasPermission("finance")) {
+    if (!effectiveSuperAdmin && !hasPermission("finance")) {
       toast.error("Only users with finance permission can create audit files");
       return;
     }
@@ -395,7 +419,7 @@ function FinanceAuditLogContent() {
     );
   }
 
-  if (!isAdmin && !isSuperAdmin) {
+  if (!effectiveAdmin) {
     return (
       <div className="p-6 text-center text-muted-foreground">
         You do not have access to this page.
@@ -403,7 +427,7 @@ function FinanceAuditLogContent() {
     );
   }
 
-  const canManageAudit = isSuperAdmin || hasPermission("finance");
+  const canManageAudit = effectiveSuperAdmin || hasPermission("finance");
 
   return (
     <>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ShieldX, Loader2 } from 'lucide-react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { useAdminGrantedPermissions } from '@/hooks/useAdminGrantedPermissions';
@@ -13,12 +13,39 @@ interface PermissionGateProps {
 }
 
 export function PermissionGate({ permissionKey, permissionName, children }: PermissionGateProps) {
-  const { isSuperAdmin, role } = useAdminAuth();
+  const { user, isSuperAdmin, isMasterAdmin, role } = useAdminAuth();
   const { hasPermission, loading } = useAdminGrantedPermissions();
   const navigate = useNavigate();
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
+
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
+
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    const syncMasterAdminSuperView = () => {
+      setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === 'true');
+    };
+
+    syncMasterAdminSuperView();
+    window.addEventListener('storage', syncMasterAdminSuperView);
+    window.addEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+
+    return () => {
+      window.removeEventListener('storage', syncMasterAdminSuperView);
+      window.removeEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+    };
+  }, [masterAdminSuperViewKey]);
+
+  const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
 
   // Super admins always have access
-  if (isSuperAdmin) {
+  if (effectiveSuperAdmin) {
     return <>{children}</>;
   }
 

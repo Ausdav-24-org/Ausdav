@@ -87,7 +87,7 @@ const allPermissionKeys = Object.keys(permissionConfig);
 const adminPermissionKeys = allPermissionKeys.filter(k => k !== 'results');
 
 const AdminPermissionsPage: React.FC = () => {
-  const { isSuperAdmin } = useAdminAuth();
+  const { user, isSuperAdmin, isMasterAdmin } = useAdminAuth();
   const { permissions, loading: permissionsLoading, togglePermission } = useAdminPermissions();
   const {
     requests,
@@ -166,6 +166,12 @@ const AdminPermissionsPage: React.FC = () => {
   const [requestsExpanded, setRequestsExpanded] = useState(true);
   const [selectedAdminForGrant, setSelectedAdminForGrant] = useState<AdminWithPermissions | null>(null);
   const [selectedPermissionToGrant, setSelectedPermissionToGrant] = useState<string>('');
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
+
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
+  const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
 
   // --- Members permission review state (only show Quiz & Event columns) ---
   type MemberRow = { mem_id: number; auth_user_id: string | null; fullname: string; username: string };
@@ -175,7 +181,27 @@ const AdminPermissionsPage: React.FC = () => {
 
   const loading = permissionsLoading || requestsLoading || membersLoading;
 
-  if (!isSuperAdmin) {
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    const syncMasterAdminSuperView = () => {
+      setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === 'true');
+    };
+
+    syncMasterAdminSuperView();
+    window.addEventListener('storage', syncMasterAdminSuperView);
+    window.addEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+
+    return () => {
+      window.removeEventListener('storage', syncMasterAdminSuperView);
+      window.removeEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+    };
+  }, [masterAdminSuperViewKey]);
+
+  if (!effectiveSuperAdmin) {
     return (
       <div className="p-6">
         <AdminHeader title="Permission Management" breadcrumb="Settings / Permissions" />
