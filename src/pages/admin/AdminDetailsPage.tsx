@@ -60,7 +60,7 @@ interface AdminDocument {
 }
 
 export default function AdminDetailsPage() {
-  const { isSuperAdmin } = useAdminAuth();
+  const { user, isSuperAdmin, isMasterAdmin } = useAdminAuth();
   const { toast } = useToast();
   const { logDangerAction } = useDangerZoneLog();
 
@@ -87,6 +87,12 @@ export default function AdminDetailsPage() {
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imageName, setImageName] = useState('');
   const [loadingImages, setLoadingImages] = useState(false);
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
+
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
+  const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
 
   // Derived states
   const contacts = allContacts.filter(item => item.contact_type === 'contact');
@@ -96,11 +102,31 @@ export default function AdminDetailsPage() {
 
   // Load data on mount
   useEffect(() => {
-    if (isSuperAdmin) {
+    if (effectiveSuperAdmin) {
       loadContacts();
       loadDocuments();
     }
-  }, [isSuperAdmin]);
+  }, [effectiveSuperAdmin]);
+
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    const syncMasterAdminSuperView = () => {
+      setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === 'true');
+    };
+
+    syncMasterAdminSuperView();
+    window.addEventListener('storage', syncMasterAdminSuperView);
+    window.addEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+
+    return () => {
+      window.removeEventListener('storage', syncMasterAdminSuperView);
+      window.removeEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+    };
+  }, [masterAdminSuperViewKey]);
 
   // ===== CONTACTS & PATRONS FUNCTIONS (UNIFIED) =====
   const loadContacts = async () => {
@@ -661,7 +687,7 @@ export default function AdminDetailsPage() {
   };
 
   // ===== UI RENDER =====
-  if (!isSuperAdmin) {
+  if (!effectiveSuperAdmin) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

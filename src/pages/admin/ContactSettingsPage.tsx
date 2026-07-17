@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function ContactSettingsPage() {
-  const { isAdmin, isSuperAdmin, user } = useAdminAuth();
+  const { isAdmin, isSuperAdmin, isMasterAdmin, user } = useAdminAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -27,10 +27,17 @@ export default function ContactSettingsPage() {
 
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [updatedBy, setUpdatedBy] = useState<string | null>(null);
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
   const queryClient = useQueryClient();
 
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
+  const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
+  const effectiveAdmin = isAdmin || effectiveSuperAdmin;
+
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!effectiveAdmin) return;
 
     const load = async () => {
       setLoading(true);
@@ -65,10 +72,30 @@ export default function ContactSettingsPage() {
     };
 
     load();
-  }, [isAdmin]);
+  }, [effectiveAdmin]);
+
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    const syncMasterAdminSuperView = () => {
+      setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === 'true');
+    };
+
+    syncMasterAdminSuperView();
+    window.addEventListener('storage', syncMasterAdminSuperView);
+    window.addEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+
+    return () => {
+      window.removeEventListener('storage', syncMasterAdminSuperView);
+      window.removeEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+    };
+  }, [masterAdminSuperViewKey]);
 
   const save = async () => {
-    if (!isSuperAdmin || saving) return;
+    if (!effectiveSuperAdmin || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -111,7 +138,7 @@ export default function ContactSettingsPage() {
     }
   };
 
-  if (!isAdmin) {
+  if (!effectiveAdmin) {
     return (
       <div className="min-h-screen">
         <AdminHeader title="Contact Settings" breadcrumb="System" />
@@ -142,31 +169,31 @@ export default function ContactSettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Phone</Label>
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!isSuperAdmin} />
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!effectiveSuperAdmin} />
                 </div>
                 <div>
                   <Label>Email</Label>
-                  <Input value={email} onChange={(e) => setEmail(e.target.value)} disabled={!isSuperAdmin} />
+                  <Input value={email} onChange={(e) => setEmail(e.target.value)} disabled={!effectiveSuperAdmin} />
                 </div>
                 <div className="md:col-span-2">
                   <Label>Address</Label>
-                  <Textarea value={address} onChange={(e) => setAddress(e.target.value)} disabled={!isSuperAdmin} />
+                  <Textarea value={address} onChange={(e) => setAddress(e.target.value)} disabled={!effectiveSuperAdmin} />
                 </div>
                 <div>
                   <Label>Bank Name</Label>
-                  <Input value={bankName} onChange={(e) => setBankName(e.target.value)} disabled={!isSuperAdmin} />
+                  <Input value={bankName} onChange={(e) => setBankName(e.target.value)} disabled={!effectiveSuperAdmin} />
                 </div>
                 <div>
                   <Label>Account Name</Label>
-                  <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} disabled={!isSuperAdmin} />
+                  <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} disabled={!effectiveSuperAdmin} />
                 </div>
                 <div>
                   <Label>Account Number</Label>
-                  <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} disabled={!isSuperAdmin} />
+                  <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} disabled={!effectiveSuperAdmin} />
                 </div>
                 <div>
                   <Label>Branch</Label>
-                  <Input value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!isSuperAdmin} />
+                  <Input value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!effectiveSuperAdmin} />
                 </div>
               </div>
 
@@ -177,8 +204,8 @@ export default function ContactSettingsPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {!isSuperAdmin && <div className="text-sm text-muted-foreground">View only</div>}
-                  {isSuperAdmin && (
+                  {!effectiveSuperAdmin && <div className="text-sm text-muted-foreground">View only</div>}
+                  {effectiveSuperAdmin && (
                     <Button onClick={save} disabled={saving || loading}>
                       {saving ? 'Saving...' : 'Save Changes'}
                     </Button>

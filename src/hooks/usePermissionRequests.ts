@@ -50,17 +50,43 @@ export interface AdminNotification {
 const db = supabase as any;
 
 export const usePermissionRequests = () => {
-  const { user, isSuperAdmin, isAdmin } = useAdminAuth();
+  const { user, isSuperAdmin, isMasterAdmin, isAdmin } = useAdminAuth();
   const [requests, setRequests] = useState<PermissionRequest[]>([]);
   const [myRequests, setMyRequests] = useState<PermissionRequest[]>([]);
   const [adminsWithPermissions, setAdminsWithPermissions] = useState<AdminWithPermissions[]>([]);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
+
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
+  const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
+
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    const syncMasterAdminSuperView = () => {
+      setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === 'true');
+    };
+
+    syncMasterAdminSuperView();
+    window.addEventListener('storage', syncMasterAdminSuperView);
+    window.addEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+
+    return () => {
+      window.removeEventListener('storage', syncMasterAdminSuperView);
+      window.removeEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+    };
+  }, [masterAdminSuperViewKey]);
 
   // Fetch all pending requests (for super admin)
   const fetchPendingRequests = useCallback(async () => {
-    if (!user || !isSuperAdmin) return;
+    if (!user || !effectiveSuperAdmin) return;
 
     try {
       const { data, error } = await db
@@ -94,7 +120,7 @@ export const usePermissionRequests = () => {
     } catch (err) {
       console.error('Error fetching pending requests:', err);
     }
-  }, [user, isSuperAdmin]);
+  }, [user, effectiveSuperAdmin]);
 
   // Fetch my requests (for regular admin)
   const fetchMyRequests = useCallback(async () => {
@@ -116,7 +142,7 @@ export const usePermissionRequests = () => {
 
   // Fetch all admins with their permissions (for super admin)
   const fetchAdminsWithPermissions = useCallback(async () => {
-    if (!user || !isSuperAdmin) return;
+    if (!user || !effectiveSuperAdmin) return;
 
     try {
       // Fetch all admins
@@ -164,7 +190,7 @@ export const usePermissionRequests = () => {
     } catch (err) {
       console.error('Error fetching admins with permissions:', err);
     }
-  }, [user, isSuperAdmin]);
+  }, [user, effectiveSuperAdmin]);
 
   // Fetch notifications for current user
   const fetchNotifications = useCallback(async () => {
@@ -226,7 +252,7 @@ export const usePermissionRequests = () => {
 
   // Approve a permission request (super admin only)
   const approveRequest = async (requestId: string, note?: string) => {
-    if (!user || !isSuperAdmin) return { success: false, error: 'Not authorized' };
+    if (!user || !effectiveSuperAdmin) return { success: false, error: 'Not authorized' };
 
     try {
       // Get the request details
@@ -286,7 +312,7 @@ export const usePermissionRequests = () => {
 
   // Reject a permission request (super admin only)
   const rejectRequest = async (requestId: string, note?: string) => {
-    if (!user || !isSuperAdmin) return { success: false, error: 'Not authorized' };
+    if (!user || !effectiveSuperAdmin) return { success: false, error: 'Not authorized' };
 
     try {
       // Get the request details
@@ -331,7 +357,7 @@ export const usePermissionRequests = () => {
 
   // Grant permission directly (super admin only, without request)
   const grantPermission = async (adminId: string, permissionKey: string) => {
-    if (!user || !isSuperAdmin) return { success: false, error: 'Not authorized' };
+    if (!user || !effectiveSuperAdmin) return { success: false, error: 'Not authorized' };
 
     try {
       const { error } = await db
@@ -368,7 +394,7 @@ export const usePermissionRequests = () => {
 
   // Revoke permission (super admin only)
   const revokePermission = async (adminId: string, permissionKey: string) => {
-    if (!user || !isSuperAdmin) return { success: false, error: 'Not authorized' };
+    if (!user || !effectiveSuperAdmin) return { success: false, error: 'Not authorized' };
 
     try {
       const { error } = await db
