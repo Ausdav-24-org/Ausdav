@@ -105,7 +105,7 @@ interface Applicant {
 }
 
 export default function AdminApplicantsPage() {
-  const { isSuperAdmin, isAdmin } = useAdminAuth();
+  const { user, isSuperAdmin, isMasterAdmin, isAdmin } = useAdminAuth();
   const { logDangerAction } = useDangerZoneLog();
 
   const [applicants, setApplicants] = useState<Applicant[]>([]);
@@ -125,6 +125,13 @@ export default function AdminApplicantsPage() {
 
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
+
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
+  const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
+  const effectiveAdmin = isAdmin || effectiveSuperAdmin;
 
   // CSV Upload dialog
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -164,6 +171,26 @@ export default function AdminApplicantsPage() {
     fetchApplicants();
     loadAppSettings();
   }, []);
+
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    const syncMasterAdminSuperView = () => {
+      setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === 'true');
+    };
+
+    syncMasterAdminSuperView();
+    window.addEventListener('storage', syncMasterAdminSuperView);
+    window.addEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+
+    return () => {
+      window.removeEventListener('storage', syncMasterAdminSuperView);
+      window.removeEventListener('ausdav-master-admin-super-view-change', syncMasterAdminSuperView);
+    };
+  }, [masterAdminSuperViewKey]);
 
   // ✅ Handle responsive pie chart radius
   useEffect(() => {
@@ -660,7 +687,7 @@ export default function AdminApplicantsPage() {
   }
 
   // For members: show only submission form when manual applications are enabled
-  if (!isAdmin && allowManualApplications) {
+  if (!effectiveAdmin && allowManualApplications) {
     return (
       <div className="space-y-6">
         <AdminHeader title="Submit Applicant" />
@@ -867,7 +894,7 @@ export default function AdminApplicantsPage() {
   }
 
   // For members without manual applications enabled
-  if (!isAdmin && !allowManualApplications) {
+  if (!effectiveAdmin && !allowManualApplications) {
     return (
       <div className="space-y-6">
         <AdminHeader title="Applications" />
@@ -1360,7 +1387,7 @@ export default function AdminApplicantsPage() {
               </DialogContent>
             </Dialog>
 
-            {isSuperAdmin && (
+            {effectiveSuperAdmin && (
               <Card className="border-destructive/50">
                 <CardHeader>
                   <CardTitle className="text-lg text-destructive flex items-center gap-2">

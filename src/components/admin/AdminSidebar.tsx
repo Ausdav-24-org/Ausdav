@@ -28,6 +28,8 @@ import {
   IdCard,
   LogOut,
   Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoImg from '@/assets/logo/AUSDAV_llogo.png';
@@ -88,9 +90,14 @@ const navItems: NavItem[] = [
 export function AdminSidebar() {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768);
   const location = useLocation();
-  const { role, isSuperAdmin, isMasterAdmin } = useAdminAuth();
+  const { user, role, isSuperAdmin, isMasterAdmin } = useAdminAuth();
   const { hasPermission } = useAdminGrantedPermissions();
   const [manualApplicantsOpen, setManualApplicantsOpen] = useState(false);
+  const [masterAdminSuperView, setMasterAdminSuperView] = useState(false);
+
+  const masterAdminSuperViewKey = user?.id
+    ? `ausdav-master-admin-super-view-${user.id}`
+    : null;
 
   // collapse sidebar automatically on small screens
   useEffect(() => {
@@ -130,11 +137,35 @@ export function AdminSidebar() {
     };
   }, [role]);
 
+  useEffect(() => {
+    if (!masterAdminSuperViewKey) {
+      setMasterAdminSuperView(false);
+      return;
+    }
+
+    setMasterAdminSuperView(localStorage.getItem(masterAdminSuperViewKey) === 'true');
+  }, [masterAdminSuperViewKey]);
+
+  const toggleMasterAdminSuperView = () => {
+    if (!masterAdminSuperViewKey) return;
+
+    setMasterAdminSuperView((current) => {
+      const next = !current;
+      localStorage.setItem(masterAdminSuperViewKey, String(next));
+      window.dispatchEvent(
+        new CustomEvent('ausdav-master-admin-super-view-change', { detail: { enabled: next } })
+      );
+      return next;
+    });
+  };
+
   const filteredNavItems = navItems.filter((item) => {
     if (!role) return false;
+    const effectiveSuperAdmin = isSuperAdmin || (isMasterAdmin && masterAdminSuperView);
+    const effectiveRole = effectiveSuperAdmin ? 'super_admin' : role;
 
-    // Master admins only get access to Members, Designations, Settings, and Site Mode pages
-    if (isMasterAdmin && !isSuperAdmin) {
+    // Master admins normally keep their limited sidebar, unless Super View is enabled.
+    if (isMasterAdmin && !effectiveSuperAdmin) {
       const allowedMasterAdminPages = [
         '/admin/members',
         '/admin/designations',
@@ -145,8 +176,8 @@ export function AdminSidebar() {
     }
 
     // For super_admin, show all items they have role access to
-    if (isSuperAdmin) {
-      return item.roles.includes(role);
+    if (effectiveSuperAdmin) {
+      return item.roles.includes(effectiveRole);
     }
 
     // Check if role is allowed
@@ -261,6 +292,38 @@ export function AdminSidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-2 scrollbar-thin">
         <ul className="space-y-1">
+          {isMasterAdmin && (
+            <li>
+              <Button
+                type="button"
+                variant={masterAdminSuperView ? 'secondary' : 'ghost'}
+                className={cn(
+                  'w-full justify-start gap-3 px-3 py-2.5 h-auto rounded-lg',
+                  collapsed && 'justify-center px-0'
+                )}
+                title={masterAdminSuperView ? 'Turn off Super Admin View' : 'Turn on Super Admin View'}
+                onClick={toggleMasterAdminSuperView}
+              >
+                {masterAdminSuperView ? (
+                  <Eye className="h-5 w-5 shrink-0 text-primary" />
+                ) : (
+                  <EyeOff className="h-5 w-5 shrink-0" />
+                )}
+                <AnimatePresence mode="wait">
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: 'auto' }}
+                      exit={{ opacity: 0, width: 0 }}
+                      className="text-sm font-medium whitespace-nowrap"
+                    >
+                      Super Admin View
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </Button>
+            </li>
+          )}
           {filteredNavItems.map((item) => {
             const isActive = location.pathname === item.href;
             return (
